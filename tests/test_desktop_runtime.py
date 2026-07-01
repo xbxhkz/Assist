@@ -48,6 +48,14 @@ def test_augment_allowed_origins_no_duplicate():
     assert out.split(",").count("http://127.0.0.1:7000") == 1
 
 
+def test_null_writer_is_silent_and_not_a_tty():
+    import launcher
+    w = launcher.NullWriter()
+    w.write("hello")  # must not raise
+    w.flush()         # must not raise
+    assert w.isatty() is False
+
+
 def test_make_uvicorn_server_config():
     async def dummy_app(scope, receive, send):  # minimal ASGI callable
         pass
