@@ -50,3 +50,34 @@ def test_get_chroma_client_does_not_cache_when_unreachable(monkeypatch):
     # A failed connection must leave the singleton unset so a later call
     # (once ChromaDB is up) can succeed.
     assert cc._client is None
+
+
+def test_get_chroma_client_uses_embedded_when_no_host(monkeypatch, tmp_path):
+    pytest.importorskip("chromadb")
+    import chromadb
+    cc.reset_client()
+    monkeypatch.delenv("CHROMADB_HOST", raising=False)
+    monkeypatch.setenv("CHROMADB_PATH", str(tmp_path / "chroma"))
+    client = cc.get_chroma_client()
+    # Embedded client is a ClientAPI backed by a local path, NOT an HTTP client.
+    assert isinstance(client, chromadb.api.ClientAPI)
+    # It works fully offline: create a collection and read it back.
+    # Name must satisfy chromadb's collection-name validation (>=3 chars).
+    col = client.get_or_create_collection("tc1")
+    assert col.name == "tc1"
+    # The persistent directory was created under the configured path.
+    assert (tmp_path / "chroma").is_dir()
+    cc.reset_client()
+
+
+def test_get_chroma_client_uses_http_when_host_set(monkeypatch):
+    pytest.importorskip("chromadb")
+    cc.reset_client()
+    monkeypatch.setenv("CHROMADB_HOST", "127.0.0.1")
+    monkeypatch.setenv("CHROMADB_PORT", str(_free_port()))
+    # Host is set but nothing is listening → HTTP path still fast-fails, proving
+    # the embedded branch was NOT taken.
+    with pytest.raises(RuntimeError):
+        cc.get_chroma_client()
+    assert cc._client is None
+    cc.reset_client()

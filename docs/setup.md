@@ -430,8 +430,9 @@ Key settings:
 | `ALLOWED_ORIGINS` | `http://localhost,http://127.0.0.1` | Comma-separated exact permitted origins for cross-origin browser/API clients. |
 | `SECURE_COOKIES` | `false` | Set true when serving Odysseus through HTTPS at a trusted proxy or private access gateway. |
 | `DATABASE_URL` | `sqlite:///./data/app.db` | Database connection string |
-| `CHROMADB_HOST` | `localhost` | ChromaDB host for vector memory. Docker overrides this to `chromadb`. |
-| `CHROMADB_PORT` | `8100` | ChromaDB port for manual host runs. Docker overrides this to `8000`. |
+| `CHROMADB_HOST` | _(unset)_ | Unset runs an embedded, on-disk vector store — no ChromaDB service needed (native/container-free mode). Set it to use a standalone ChromaDB service. Docker sets this to `chromadb`. |
+| `CHROMADB_PORT` | `8100` | ChromaDB port when `CHROMADB_HOST` is set (standalone service). Docker overrides this to `8000`. |
+| `CHROMADB_PATH` | `<DATA_DIR>/chroma` | On-disk location of the embedded vector store when `CHROMADB_HOST` is unset. |
 | `EMBEDDING_URL` | -- | OpenAI-compatible embeddings endpoint |
 | `ODYSSEUS_CHAT_UPLOAD_MAX_BYTES` | `10485760` | Chat/agent attachment cap in bytes. Raise for larger local PDFs or text documents. |
 | `ODYSSEUS_GALLERY_UPLOAD_MAX_BYTES` | `104857600` | Gallery image upload cap in bytes (100 MB). |
