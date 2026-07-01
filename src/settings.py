@@ -56,7 +56,10 @@ DEFAULT_SETTINGS = {
     "stt_provider": "disabled",
     "stt_model": "base",
     "stt_language": "",
-    "search_provider": "searxng",
+    # Keyless, serviceless default so a fresh (container-free) install can
+    # search the web with no setup. SearXNG stays selectable via Settings for
+    # anyone pointing at their own instance (set search_provider + search_url).
+    "search_provider": "duckduckgo",
     # Default fallback chain — when the primary provider fails or
     # rate-limits, we try DuckDuckGo next. Free, no API key required, so
     # safe to ship on by default for every user.
