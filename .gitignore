@@ -105,3 +105,6 @@ compound.config.json
 *.error.log
 _scratch/
 /odysseus/
+
+# Inno Setup installer build output
+installer/Output/

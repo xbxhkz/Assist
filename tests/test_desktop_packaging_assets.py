@@ -41,3 +41,25 @@ def test_build_script_uses_committed_spec_and_assist_name():
     ps = _read("build-windows-portable.ps1")
     assert "Assist.spec" in ps
     assert "fetch_embedding_model.py" in ps
+
+
+def test_installer_script_exists_and_names_assist():
+    iss = _read("installer/Assist.iss")
+    assert 'MyAppName "Assist"' in iss
+    assert "Assist-Setup" in iss  # OutputBaseFilename
+    assert r"dist\Assist\*" in iss  # bundles the built app folder
+
+
+def test_installer_does_not_store_user_data_under_app():
+    # User data must live in ~/.odysseus/data, never under {app}, so uninstall
+    # preserves it. Guard against accidentally adding a data dir to [Files].
+    iss = _read("installer/Assist.iss")
+    assert "{userappdata}" not in iss
+    assert ".odysseus" not in iss
+
+
+def test_build_installer_script_wires_iscc_and_version():
+    ps = _read("build-installer.ps1")
+    assert "ISCC" in ps
+    assert "Assist.iss" in ps
+    assert "APP_VERSION" in ps  # version pulled from the single source
