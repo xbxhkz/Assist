@@ -6,6 +6,7 @@ any environment (including the headless Docker/server path). The launcher
 """
 import os
 import socket
+import sys
 import time
 import urllib.request
 
@@ -82,3 +83,46 @@ def wait_for_server_ready(url: str, timeout: float = 45.0, interval: float = 0.2
             pass
         sleep(interval)
     return False
+
+
+def bundled_fastembed_cache() -> str | None:
+    """Path to the embedding-model cache bundled into the frozen app, if present.
+
+    Returns None in normal (non-frozen) runs so the app uses its default cache.
+    """
+    if not getattr(sys, "frozen", False):
+        return None
+    base = getattr(sys, "_MEIPASS", None)
+    if not base:
+        return None
+    path = os.path.join(base, "fastembed_cache")
+    return path if os.path.isdir(path) else None
+
+
+# Evergreen WebView2 Runtime registration key (per Microsoft docs).
+_WEBVIEW2_KEY = (r"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients"
+                 r"\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}")
+
+
+def _read_webview2_pv() -> str | None:
+    """Read the installed WebView2 runtime version ('pv') from the registry."""
+    try:
+        import winreg
+    except ImportError:
+        return None  # non-Windows
+    for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+        try:
+            with winreg.OpenKey(hive, _WEBVIEW2_KEY) as key:
+                pv, _ = winreg.QueryValueEx(key, "pv")
+                if pv:
+                    return pv
+        except OSError:
+            continue
+    return None
+
+
+def webview2_runtime_available(read_pv=None) -> bool:
+    """True when a real Edge WebView2 runtime version is registered."""
+    read_pv = read_pv or _read_webview2_pv
+    pv = read_pv()
+    return bool(pv) and pv != "0.0.0.0"

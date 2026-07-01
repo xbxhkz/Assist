@@ -81,3 +81,34 @@ def test_wait_for_server_ready_times_out():
                                   sleep=lambda _s: None,
                                   now=lambda: next(times))
     assert ok is False
+
+
+def test_bundled_fastembed_cache_none_when_not_frozen(monkeypatch):
+    monkeypatch.delattr(dr.sys, "frozen", raising=False)
+    assert dr.bundled_fastembed_cache() is None
+
+
+def test_bundled_fastembed_cache_returns_path_when_frozen(monkeypatch, tmp_path):
+    cache = tmp_path / "fastembed_cache"
+    cache.mkdir()
+    monkeypatch.setattr(dr.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(dr.sys, "_MEIPASS", str(tmp_path), raising=False)
+    assert dr.bundled_fastembed_cache() == str(cache)
+
+
+def test_bundled_fastembed_cache_none_when_dir_missing(monkeypatch, tmp_path):
+    monkeypatch.setattr(dr.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(dr.sys, "_MEIPASS", str(tmp_path), raising=False)
+    assert dr.bundled_fastembed_cache() is None  # no fastembed_cache subdir
+
+
+def test_webview2_available_true_for_real_version():
+    assert dr.webview2_runtime_available(read_pv=lambda: "121.0.2277.0") is True
+
+
+def test_webview2_available_false_when_absent():
+    assert dr.webview2_runtime_available(read_pv=lambda: None) is False
+
+
+def test_webview2_available_false_for_zero_version():
+    assert dr.webview2_runtime_available(read_pv=lambda: "0.0.0.0") is False
