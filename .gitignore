@@ -10,6 +10,9 @@ venv/
 .venv/
 *.egg
 
+# Vendored PyInstaller build assets (e.g. fastembed embedding model cache, ~80MB)
+build_assets/
+
 # Environment
 .env
 .env.bak.*
