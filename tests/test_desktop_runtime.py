@@ -112,3 +112,12 @@ def test_webview2_available_false_when_absent():
 
 def test_webview2_available_false_for_zero_version():
     assert dr.webview2_runtime_available(read_pv=lambda: "0.0.0.0") is False
+
+
+def test_launcher_imports_without_starting_gui():
+    # Importing the launcher module must NOT start a server or window
+    # (all side effects live under main()/__main__). It must expose main().
+    import importlib
+    launcher = importlib.import_module("launcher")
+    assert hasattr(launcher, "main")
+    assert callable(launcher.main)

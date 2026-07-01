@@ -1,0 +1,5 @@
+# Desktop-only dependencies for the native Windows build (Phase 2).
+# NOT part of the core requirements: the Docker/server path runs headless
+# without these. The build script installs this file in addition to
+# requirements.txt.
+pywebview
