@@ -3,12 +3,15 @@
 Admin-guarded. Serve accepts only a .gguf path resolved inside MODELS_DIR.
 """
 import os
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from core.middleware import require_admin
 from src.constants import MODELS_DIR
 from src.localmodels.manager import get_manager
+from src.localmodels.catalog import search_gguf_models, list_repo_gguf_files
+from src.localmodels.downloader import get_download_manager, _safe_filename
 
 
 def _validate_model_path(model_path: str) -> str:
@@ -29,6 +32,19 @@ def _validate_model_path(model_path: str) -> str:
     if not os.path.isfile(real):
         raise HTTPException(status_code=404, detail="model file not found")
     return real
+
+
+def _validate_hf_download(url: str, filename: str):
+    if not _safe_filename(filename):
+        raise HTTPException(status_code=400,
+                            detail="filename must be a plain .gguf name")
+    try:
+        host = urlparse(url).hostname or ""
+    except Exception:
+        host = ""
+    if host.lower() != "huggingface.co":
+        raise HTTPException(status_code=400,
+                            detail="url must be a huggingface.co download URL")
 
 
 def setup_localmodels_routes() -> APIRouter:
@@ -54,5 +70,31 @@ def setup_localmodels_routes() -> APIRouter:
     @router.post("/stop")
     async def stop():
         return get_manager().stop()
+
+    @router.get("/catalog/search")
+    async def catalog_search(q: str = "", sort: str = "downloads"):
+        return {"results": search_gguf_models(q, sort=sort)}
+
+    @router.get("/catalog/files")
+    async def catalog_files(repo: str):
+        return {"files": list_repo_gguf_files(repo)}
+
+    @router.post("/download")
+    async def download(payload: dict = Body(...)):
+        url = (payload.get("url") or "").strip()
+        filename = (payload.get("filename") or "").strip()
+        _validate_hf_download(url, filename)
+        try:
+            return get_download_manager().start(url, filename)
+        except (RuntimeError, ValueError) as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @router.get("/download/status")
+    async def download_status():
+        return get_download_manager().status()
+
+    @router.post("/download/cancel")
+    async def download_cancel():
+        return get_download_manager().cancel()
 
     return router
