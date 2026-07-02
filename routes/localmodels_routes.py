@@ -12,6 +12,7 @@ from src.constants import MODELS_DIR
 from src.localmodels.manager import get_manager
 from src.localmodels.catalog import search_gguf_models, list_repo_gguf_files
 from src.localmodels.downloader import get_download_manager, _safe_filename
+from src.localmodels.hardware import get_hardware, recommend_models, fit_for_file
 
 
 def _validate_model_path(model_path: str) -> str:
@@ -53,7 +54,9 @@ def setup_localmodels_routes() -> APIRouter:
 
     @router.get("/models")
     async def list_models():
-        return {"models": get_manager().list_models()}
+        models = get_manager().list_models()
+        return {"models": models,
+                "disk_bytes": sum(int(m.get("size") or 0) for m in models)}
 
     @router.get("/status")
     async def status():
@@ -77,7 +80,11 @@ def setup_localmodels_routes() -> APIRouter:
 
     @router.get("/catalog/files")
     async def catalog_files(repo: str):
-        return {"files": list_repo_gguf_files(repo)}
+        files = list_repo_gguf_files(repo)
+        hw = get_hardware()
+        for f in files:
+            f["fit"] = fit_for_file(f, hw)
+        return {"files": files}
 
     @router.post("/download")
     async def download(payload: dict = Body(...)):
@@ -96,5 +103,21 @@ def setup_localmodels_routes() -> APIRouter:
     @router.post("/download/cancel")
     async def download_cancel():
         return get_download_manager().cancel()
+
+    @router.post("/delete")
+    async def delete_model(payload: dict = Body(...)):
+        filename = (payload.get("filename") or "").strip()
+        try:
+            return get_manager().delete_model(filename)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @router.get("/hardware")
+    async def hardware():
+        return get_hardware()
+
+    @router.get("/recommendations")
+    async def recommendations():
+        return {"recommendations": recommend_models()}
 
     return router
