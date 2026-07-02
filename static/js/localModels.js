@@ -70,13 +70,16 @@
     data.files.sort((a, b) =>
       (_verdictRank[(a.fit || {}).verdict] ?? 3) - (_verdictRank[(b.fit || {}).verdict] ?? 3)
       || (a.size - b.size));
+    let anchor = afterRow;
     data.files.forEach((f) => {
       const row = document.createElement('div');
       row.className = 'list-item';
       row.style.paddingLeft = '18px';
       const label = document.createElement('span');
       label.className = 'grow';
-      label.innerHTML = `${f.filename} — ${fmtBytes(f.size)}${fitBadge(f.fit)}`;
+      label.textContent = `${f.filename} — ${fmtBytes(f.size)}`;
+      const _badge = fitBadge(f.fit);
+      if (_badge) label.insertAdjacentHTML('beforeend', _badge);
       const btn = document.createElement('button');
       const have = downloadedNames.has(f.filename);
       btn.textContent = have ? 'Downloaded' : 'Download';
@@ -94,7 +97,8 @@
       };
       row.appendChild(label);
       row.appendChild(btn);
-      afterRow.insertAdjacentElement('afterend', row);
+      anchor.insertAdjacentElement('afterend', row);
+      anchor = row;
     });
   }
 
