@@ -17,14 +17,29 @@ def get_app_root() -> str:
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+def _frozen_data_dir(home: str) -> str:
+    """Resolve the frozen data dir under `home`, migrating a legacy
+    `.odysseus/data` to `.assist/data` once. Falls back to the legacy path
+    if a migration attempt fails but legacy data exists (never lose data)."""
+    new = os.path.join(home, ".assist", "data")
+    legacy = os.path.join(home, ".odysseus", "data")
+    try:
+        if not os.path.exists(new) and os.path.isdir(legacy):
+            os.makedirs(os.path.dirname(new), exist_ok=True)
+            os.rename(legacy, new)
+    except Exception:
+        if os.path.isdir(legacy):
+            return legacy
+    return new
+
+
 def get_default_data_dir() -> str:
     """Return the default path to the data directory.
 
-    In normal runs, this is a 'data' subdirectory under the app root.
-    In frozen builds, it is a persistent user directory (~/.odysseus/data)
-    to prevent SQLite databases and other persistent files from being
-    written to the ephemeral, temporary extraction bundle directory.
+    In normal runs, this is a 'data' subdirectory under the app root. In frozen
+    builds, it is a persistent user directory (~/.assist/data), migrated once
+    from the legacy ~/.odysseus/data if present.
     """
     if getattr(sys, "frozen", False):
-        return os.path.join(os.path.expanduser("~"), ".odysseus", "data")
+        return _frozen_data_dir(os.path.expanduser("~"))
     return os.path.join(get_app_root(), "data")

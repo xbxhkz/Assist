@@ -2,6 +2,7 @@ import os
 import sys
 from unittest import mock
 import pytest
+import src.runtime_paths as rp
 from src.runtime_paths import get_app_root, get_default_data_dir
 
 
@@ -42,9 +43,34 @@ def test_get_default_data_dir_normal():
         assert res == os.path.join(get_app_root(), "data")
 
 
-def test_get_default_data_dir_frozen():
-    """Verify that get_default_data_dir resolves to a persistent user path under ~ when frozen."""
-    with mock.patch.object(sys, "frozen", True, create=True):
+def test_get_default_data_dir_frozen(tmp_path):
+    """Verify that get_default_data_dir resolves to ~/.assist/data when frozen."""
+    with mock.patch.object(sys, "frozen", True, create=True), \
+         mock.patch.object(os.path, "expanduser", return_value=str(tmp_path)):
         res = get_default_data_dir()
-        expected = os.path.join(os.path.expanduser("~"), ".odysseus", "data")
+        expected = str(tmp_path / ".assist" / "data")
         assert res == expected
+
+
+def test_frozen_data_dir_migrates_legacy(tmp_path):
+    legacy = tmp_path / ".odysseus" / "data"
+    legacy.mkdir(parents=True)
+    (legacy / "app.db").write_text("data")
+    got = rp._frozen_data_dir(str(tmp_path))
+    assert got == str(tmp_path / ".assist" / "data")
+    assert (tmp_path / ".assist" / "data" / "app.db").read_text() == "data"
+    assert not legacy.exists()  # moved, not copied
+
+
+def test_frozen_data_dir_no_legacy_returns_assist(tmp_path):
+    got = rp._frozen_data_dir(str(tmp_path))
+    assert got == str(tmp_path / ".assist" / "data")
+
+
+def test_frozen_data_dir_prefers_existing_assist(tmp_path):
+    (tmp_path / ".assist" / "data").mkdir(parents=True)
+    (tmp_path / ".odysseus" / "data").mkdir(parents=True)
+    (tmp_path / ".odysseus" / "data" / "keep.txt").write_text("x")
+    got = rp._frozen_data_dir(str(tmp_path))
+    assert got == str(tmp_path / ".assist" / "data")
+    assert (tmp_path / ".odysseus" / "data" / "keep.txt").exists()  # legacy untouched

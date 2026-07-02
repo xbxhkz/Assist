@@ -1,4 +1,6 @@
 # app.py — slim orchestrator
+import src.brand_compat  # noqa: F401  -- mirror ASSIST_*<->ODYSSEUS_* before constants read env
+
 import mimetypes
 import os
 import sys
@@ -45,6 +47,7 @@ from dotenv import load_dotenv
 # is silently ignored and the user is unexpectedly forced to log in (issue #142).
 # utf-8-sig reads plain UTF-8 (no BOM) identically, so this is safe everywhere.
 load_dotenv(encoding="utf-8-sig")
+src.brand_compat.mirror_brand_env()  # re-mirror ASSIST_*<->ODYSSEUS_* after .env is loaded
 
 import asyncio
 import logging
