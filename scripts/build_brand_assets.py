@@ -1,7 +1,7 @@
 """Generate Assist brand assets from the provided source PNGs (Phase 4).
 
 Center-crops assistappicon.png to a square, resizes, and writes the Windows
-app icon (.ico), the PWA icons, and a favicon; copies Assistlogo.png into docs
+app icon (.ico), the PWA icons, and a favicon; copies assistlogo.png into docs
 as the wordmark. Run once at rebrand/build time; outputs are committed.
 """
 import os
@@ -31,7 +31,7 @@ def main() -> int:
     img.resize((512, 512)).save(os.path.join(icons, "icon-maskable-512.png"))
     img.resize((32, 32)).save(os.path.join(ROOT, "static", "favicon.png"))
 
-    logo = os.path.join(ROOT, "Assistlogo.png")
+    logo = os.path.join(ROOT, "assistlogo.png")
     if os.path.isfile(logo):
         Image.open(logo).save(os.path.join(ROOT, "docs", "assist-wordmark.png"))
 
