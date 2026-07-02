@@ -9,12 +9,6 @@
     return r.json();
   }
 
-  function fmtSize(n) {
-    if (n >= 1e9) return (n / 1e9).toFixed(1) + ' GB';
-    if (n >= 1e6) return (n / 1e6).toFixed(0) + ' MB';
-    return (n / 1e3).toFixed(0) + ' KB';
-  }
-
   function fmtBytes(n) {
     if (!n) return '';
     if (n >= 1e9) return (n / 1e9).toFixed(1) + ' GB';
@@ -73,13 +67,16 @@
     let data = { files: [] };
     try { data = await api('/api/localmodels/catalog/files?repo=' + encodeURIComponent(repo)); }
     catch (e) { alert('Could not list files: ' + e.message); return; }
+    data.files.sort((a, b) =>
+      (_verdictRank[(a.fit || {}).verdict] ?? 3) - (_verdictRank[(b.fit || {}).verdict] ?? 3)
+      || (a.size - b.size));
     data.files.forEach((f) => {
       const row = document.createElement('div');
       row.className = 'list-item';
       row.style.paddingLeft = '18px';
       const label = document.createElement('span');
       label.className = 'grow';
-      label.textContent = `${f.filename} — ${fmtBytes(f.size)}`;
+      label.innerHTML = `${f.filename} — ${fmtBytes(f.size)}${fitBadge(f.fit)}`;
       const btn = document.createElement('button');
       const have = downloadedNames.has(f.filename);
       btn.textContent = have ? 'Downloaded' : 'Download';
@@ -115,13 +112,17 @@
     let data = { models: [] };
     try { data = await api('/api/localmodels/models'); } catch (e) {}
     downloadedNames = new Set((data.models || []).map((m) => m.name));
+    if (statusEl && data.disk_bytes != null) {
+      const base = status.running ? `Running: ${status.model} (port ${status.port})` : 'No model running';
+      statusEl.textContent = `${base}  ·  ${data.models.length} models · ${fmtBytes(data.disk_bytes)}`;
+    }
     listEl.innerHTML = '';
     data.models.forEach((m) => {
       const row = document.createElement('div');
       row.className = 'list-item';
       const label = document.createElement('span');
       label.className = 'grow';
-      label.textContent = `${m.name} — ${fmtSize(m.size)}`;
+      label.textContent = `${m.name} — ${fmtBytes(m.size)}`;
       const btn = document.createElement('button');
       const isRunning = status.running && status.model === m.name;
       btn.textContent = isRunning ? 'Stop' : 'Serve';
@@ -139,6 +140,18 @@
       };
       row.appendChild(label);
       row.appendChild(btn);
+      const del = document.createElement('button');
+      del.textContent = 'Delete';
+      del.style.marginLeft = '4px';
+      del.onclick = async () => {
+        if (!confirm('Delete ' + m.name + '?')) return;
+        try { await api('/api/localmodels/delete', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: m.name }) }); }
+        catch (e) { alert('Delete error: ' + e.message); }
+        await refresh();
+      };
+      row.appendChild(del);
       listEl.appendChild(row);
     });
     if (!data.models.length) {
@@ -148,11 +161,53 @@
 
   function open() {
     const modal = $('localmodels-modal');
-    if (modal) { modal.classList.remove('hidden'); refresh(); }
+    if (modal) { modal.classList.remove('hidden'); refresh(); loadHardware(); loadRecommendations(); }
   }
   function close() {
     const modal = $('localmodels-modal');
     if (modal) modal.classList.add('hidden');
+  }
+
+  let hardware = null;
+
+  async function loadHardware() {
+    const el = $('localmodels-hardware');
+    if (!el) return;
+    try { hardware = await api('/api/localmodels/hardware'); } catch (e) { hardware = null; }
+    if (!hardware) { el.textContent = 'Hardware: unknown'; return; }
+    const gpu = hardware.has_gpu
+      ? `${hardware.gpu_name || 'GPU'} (${hardware.vram_gb} GB VRAM)` : 'no GPU';
+    el.textContent = `Your machine: ${hardware.ram_gb} GB RAM · ${gpu}`;
+  }
+
+  function fitBadge(fit) {
+    if (!fit) return '';
+    const map = { gpu: ['Fits on GPU', '#3fb950'], ram: ['Fits in RAM', '#d29922'],
+                  too_big: ['Too big', '#f85149'] };
+    const [label, color] = map[fit.verdict] || ['', '#888'];
+    return `<span style="color:${color};font-size:11px;margin-left:6px;">${label}</span>`;
+  }
+
+  const _verdictRank = { gpu: 0, ram: 1, too_big: 2 };
+
+  async function loadRecommendations() {
+    const el = $('localmodels-recommendations');
+    if (!el) return;
+    let data = { recommendations: [] };
+    try { data = await api('/api/localmodels/recommendations'); } catch (e) {}
+    if (!data.recommendations || !data.recommendations.length) { el.innerHTML = ''; return; }
+    el.innerHTML = '<div style="font-size:11px;opacity:0.6;margin-bottom:4px;">Recommended for your machine</div>';
+    data.recommendations.forEach((r) => {
+      const chip = document.createElement('button');
+      chip.textContent = r.name;
+      chip.style.cssText = 'margin:2px 4px 2px 0;font-size:11px;';
+      chip.onclick = () => {
+        const inp = $('localmodels-search');
+        if (inp) { inp.value = r.name; }
+        doSearch();
+      };
+      el.appendChild(chip);
+    });
   }
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -162,7 +217,9 @@
     if (closeBtn) closeBtn.addEventListener('click', close);
     const searchBtn = $('localmodels-search-btn');
     if (searchBtn) searchBtn.addEventListener('click', doSearch);
+    const searchInput = $('localmodels-search');
+    if (searchInput) searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
   });
 
-  window.LocalModels = { open, close, refresh, doSearch, pollDownload };
+  window.LocalModels = { open, close, refresh, doSearch, pollDownload, loadHardware, loadRecommendations };
 })();
