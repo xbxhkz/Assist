@@ -758,6 +758,9 @@ app.include_router(setup_backup_routes(memory_manager, preset_manager, skills_ma
 from routes.font_routes import setup_font_routes
 app.include_router(setup_font_routes())
 
+from routes.localmodels_routes import setup_localmodels_routes
+app.include_router(setup_localmodels_routes())
+
 
 # MCP (Model Context Protocol)
 from src.mcp_manager import McpManager
@@ -1200,6 +1203,12 @@ async def _shutdown_event():
         await mcp_manager.disconnect_all()
     except Exception as e:
         logger.warning(f"MCP shutdown error: {e}")
+    # Stop any running native local model so no llama-server is orphaned.
+    try:
+        from src.localmodels.manager import get_manager
+        get_manager().stop()
+    except Exception as e:
+        logger.warning(f"Local model shutdown error: {e}")
     logger.info("Application shutdown complete")
 
 

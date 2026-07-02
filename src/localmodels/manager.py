@@ -89,3 +89,20 @@ class LocalModelManager:
 
     def list_models(self) -> list:
         return list_gguf_models(MODELS_DIR)
+
+
+_manager = None
+
+
+def get_manager() -> "LocalModelManager":
+    """Process-wide singleton wired with the real endpoint store."""
+    global _manager
+    if _manager is None:
+        from src.localmodels.store import (
+            register_local_endpoint, unregister_local_endpoint,
+        )
+        _manager = LocalModelManager(
+            register_endpoint=register_local_endpoint,
+            unregister_endpoint=unregister_local_endpoint,
+        )
+    return _manager
