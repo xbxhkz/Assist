@@ -98,6 +98,28 @@ class LocalModelManager:
     def list_models(self) -> list:
         return list_gguf_models(MODELS_DIR)
 
+    def delete_model(self, filename: str) -> dict:
+        """Delete a downloaded .gguf from MODELS_DIR; stop it first if serving."""
+        base = os.path.basename(filename or "")
+        if not base or base != filename or not base.lower().endswith(".gguf"):
+            raise ValueError("invalid filename (must be a plain .gguf name)")
+        with self._lock:
+            if self._state and os.path.basename(
+                    self._state.get("model_path") or "") == base:
+                self._stop_locked()
+            real_dir = os.path.realpath(MODELS_DIR)
+            real = os.path.realpath(os.path.join(MODELS_DIR, base))
+            try:
+                inside = os.path.commonpath([real, real_dir]) == real_dir
+            except ValueError:
+                inside = False
+            if inside and os.path.isfile(real):
+                try:
+                    os.remove(real)
+                except Exception:
+                    pass
+        return self.status()
+
 
 _manager = None
 

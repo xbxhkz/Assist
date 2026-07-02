@@ -53,7 +53,9 @@ def setup_localmodels_routes() -> APIRouter:
 
     @router.get("/models")
     async def list_models():
-        return {"models": get_manager().list_models()}
+        models = get_manager().list_models()
+        return {"models": models,
+                "disk_bytes": sum(int(m.get("size") or 0) for m in models)}
 
     @router.get("/status")
     async def status():
@@ -96,5 +98,13 @@ def setup_localmodels_routes() -> APIRouter:
     @router.post("/download/cancel")
     async def download_cancel():
         return get_download_manager().cancel()
+
+    @router.post("/delete")
+    async def delete_model(payload: dict = Body(...)):
+        filename = (payload.get("filename") or "").strip()
+        try:
+            return get_manager().delete_model(filename)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
     return router
