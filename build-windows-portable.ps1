@@ -1,13 +1,13 @@
 #Requires -Version 5.1
 <#
-  Build a portable Windows distribution for Odysseus.
+  Build a portable Windows distribution for Assist.
 
   Output layout:
-    dist\Odysseus\Odysseus.exe
-    dist\Odysseus\static\...
-    dist\Odysseus\scripts\...
-    dist\Odysseus\mcp_servers\...
-    dist\Odysseus\services\hwfit\data\...
+    dist\Assist\Assist.exe
+    dist\Assist\static\...
+    dist\Assist\scripts\...
+    dist\Assist\mcp_servers\...
+    dist\Assist\services\hwfit\data\...
 
   The app then keeps using its normal filesystem layout when frozen.
 
@@ -48,25 +48,19 @@ Write-Host ("Using Python: " + $pyExe)
 
 Write-Step "Installing build dependencies"
 & $pyExe -m pip install --upgrade pip --quiet
-& $pyExe -m pip install -r requirements.txt pyinstaller pystray Pillow
+& $pyExe -m pip install -r requirements.txt -r requirements-desktop.txt pyinstaller
 if ($LASTEXITCODE -ne 0) { Fail "Dependency install failed." }
+
+Write-Step "Vendoring offline embedding model"
+& $pyExe scripts/fetch_embedding_model.py
+if ($LASTEXITCODE -ne 0) { Fail "Embedding model fetch failed." }
 
 Write-Step "Building portable exe bundle"
 Remove-Item -Recurse -Force build, dist -ErrorAction SilentlyContinue
-
-$dataArgs = @(
-    "--add-data", "static;static",
-    "--add-data", "scripts;scripts",
-    "--add-data", "mcp_servers;mcp_servers",
-    "--add-data", "services/hwfit/data;services/hwfit/data",
-    "--add-data", "config;config",
-    "--add-data", ".env.example;.env.example"
-)
-
-& $pyExe -m PyInstaller --noconfirm --clean --onedir --noconsole --icon=static/icon.ico --name Odysseus @dataArgs launcher.py
+& $pyExe -m PyInstaller --noconfirm --clean Assist.spec
 if ($LASTEXITCODE -ne 0) { Fail "PyInstaller build failed." }
 
 Write-Host ""
 Write-Host "Build complete." -ForegroundColor Green
-Write-Host "Portable app folder: $PSScriptRoot\dist\Odysseus" -ForegroundColor Green
+Write-Host "Portable app folder: $PSScriptRoot\dist\Assist" -ForegroundColor Green
 Write-Host "Distribute the whole folder (or zip it) so static assets and scripts stay with the exe." -ForegroundColor Green
