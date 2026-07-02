@@ -11,7 +11,7 @@ function Write-Step($msg) { Write-Host ""; Write-Host ("==> " + $msg) -Foregroun
 function Fail($msg) { Write-Host ""; Write-Host ("ERROR: " + $msg) -ForegroundColor Red; exit 1 }
 
 Write-Step "Building portable app folder"
-& powershell -ExecutionPolicy Bypass -File .\build-windows-portable.ps1
+& .\build-windows-portable.ps1
 if ($LASTEXITCODE -ne 0) { Fail "Portable build failed." }
 
 Write-Step "Resolving version from src/constants.py (APP_VERSION)"

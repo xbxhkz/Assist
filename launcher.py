@@ -47,7 +47,10 @@ def main() -> None:
         bundled_fastembed_cache, webview2_runtime_available,
     )
 
-    host = os.getenv("APP_BIND", "127.0.0.1")
+    # The desktop app is intentionally loopback-only: the window, CORS origin,
+    # and health poll below all assume 127.0.0.1, so the bind host must not be
+    # configurable (binding 0.0.0.0 would expose the backend to the network).
+    host = "127.0.0.1"
     port = choose_port(int(os.getenv("APP_PORT", "7000")))
     origin = local_origin(port)
 

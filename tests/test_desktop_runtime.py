@@ -81,13 +81,19 @@ def test_wait_for_server_ready_succeeds_after_retries():
 
 
 def test_wait_for_server_ready_times_out():
-    times = iter([0.0, 0.1, 0.2, 999.0])
+    # Counter-based fake monotonic clock: advances by a fixed step on every
+    # call and never exhausts, so the deadline is reliably crossed regardless
+    # of exactly how many times the poll loop calls now().
+    clock = {"t": 0.0}
+    def now():
+        clock["t"] += 0.1
+        return clock["t"]
     def opener(url):
         raise ConnectionError("never up")
     ok = dr.wait_for_server_ready("http://x/api/health", timeout=1.0,
                                   interval=0.0, opener=opener,
                                   sleep=lambda _s: None,
-                                  now=lambda: next(times))
+                                  now=now)
     assert ok is False
 
 

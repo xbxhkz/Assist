@@ -15,7 +15,6 @@ MODEL = os.getenv("FASTEMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
 
 def main() -> int:
     os.makedirs(ASSET_DIR, exist_ok=True)
-    os.environ["FASTEMBED_CACHE_PATH"] = ASSET_DIR
     from fastembed import TextEmbedding
 
     print(f"Fetching embedding model {MODEL} into {ASSET_DIR} ...")
