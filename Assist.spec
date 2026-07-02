@@ -22,6 +22,8 @@ datas = [
     ('.env.example', '.env.example'),
     # Offline embedding model (populated by scripts/fetch_embedding_model.py).
     ('build_assets/fastembed_cache', 'fastembed_cache'),
+    # Bundled CPU llama-server for native local models (Phase 3a).
+    ('build_assets/llama', 'llama'),
 ] + _collected_datas
 
 hiddenimports = [

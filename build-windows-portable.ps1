@@ -55,6 +55,10 @@ Write-Step "Vendoring offline embedding model"
 & $pyExe scripts/fetch_embedding_model.py
 if ($LASTEXITCODE -ne 0) { Fail "Embedding model fetch failed." }
 
+Write-Step "Vendoring llama-server (CPU)"
+& $pyExe scripts/fetch_llama_server.py
+if ($LASTEXITCODE -ne 0) { Fail "llama-server fetch failed." }
+
 Write-Step "Building portable exe bundle"
 Remove-Item -Recurse -Force build, dist -ErrorAction SilentlyContinue
 & $pyExe -m PyInstaller --noconfirm --clean Assist.spec
