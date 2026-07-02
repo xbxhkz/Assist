@@ -1,4 +1,6 @@
 # app.py — slim orchestrator
+import src.brand_compat  # noqa: F401  -- mirror ASSIST_*<->ODYSSEUS_* before constants read env
+
 import mimetypes
 import os
 import sys

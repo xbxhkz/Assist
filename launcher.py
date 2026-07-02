@@ -7,6 +7,8 @@ Closing the window stops the server and exits. In dev (`python launcher.py`)
 it behaves the same; in a frozen build it also loads the bundled embedding
 model offline.
 """
+import src.brand_compat  # noqa: F401  -- bridge ASSIST_*/ODYSSEUS_* env at startup
+
 import os
 import sys
 import threading
