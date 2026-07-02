@@ -34,3 +34,13 @@ def test_mirror_bridges_real_os_environ(monkeypatch):
     monkeypatch.setenv("ASSIST_SCRIPT_HOST", "myhost")
     bc.mirror_brand_env()  # defaults to os.environ
     assert os.getenv("ODYSSEUS_SCRIPT_HOST") == "myhost"
+
+
+def test_mirror_is_idempotent_and_bridges_late_values():
+    env = {"ASSIST_LATE": "v1"}       # value that appeared "after" first mirror (e.g. from .env)
+    bc.mirror_brand_env(env)
+    assert env["ODYSSEUS_LATE"] == "v1"
+    env["ASSIST_LATER"] = "v2"         # another late arrival
+    bc.mirror_brand_env(env)           # second call
+    assert env["ODYSSEUS_LATER"] == "v2"
+    assert env["ODYSSEUS_LATE"] == "v1"   # earlier bridge still intact

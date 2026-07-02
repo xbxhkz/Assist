@@ -59,7 +59,7 @@ Help is welcome. The best entry points are fresh-install testing, provider setup
 
 ## Configuration
 
-Environment variables use the `ASSIST_*` prefix (e.g. `ASSIST_PORT`, `ASSIST_DATA_DIR`). The legacy `ODYSSEUS_*` names are still honored for backward compatibility.
+Environment variables use the `ASSIST_*` prefix (e.g. `ASSIST_ADMIN_USER`, `ASSIST_DATA_DIR`). The legacy `ODYSSEUS_*` names are still honored for backward compatibility.
 
 ## Security
 
