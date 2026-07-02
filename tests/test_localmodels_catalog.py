@@ -63,3 +63,11 @@ def test_hf_headers_absent_when_no_token(monkeypatch):
     monkeypatch.delenv("HF_TOKEN", raising=False)
     monkeypatch.delenv("HUGGING_FACE_HUB_TOKEN", raising=False)
     assert cat._hf_headers() == {}
+
+
+def test_list_repo_files_url_encodes_path():
+    def fake_get_json(url, headers):
+        return [{"type": "file", "path": "my model Q4.gguf", "size": 1}]
+    out = cat.list_repo_gguf_files("acme/m", get_json=fake_get_json)
+    assert out[0]["url"] == "https://huggingface.co/acme/m/resolve/main/my%20model%20Q4.gguf"
+    assert out[0]["filename"] == "my model Q4.gguf"  # basename stays human-readable

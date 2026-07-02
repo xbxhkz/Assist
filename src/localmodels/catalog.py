@@ -64,6 +64,6 @@ def list_repo_gguf_files(repo: str, get_json=None) -> list:
             out.append({
                 "filename": os.path.basename(path),
                 "size": int(e.get("size") or 0),
-                "url": f"{_HF}/{repo}/resolve/main/{path}",
+                "url": f"{_HF}/{repo}/resolve/main/{quote(path, safe='/')}",
             })
     return out
