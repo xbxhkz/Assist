@@ -76,3 +76,11 @@ def test_status_idle():
     mgr = dl.DownloadManager(spawn=lambda fn: fn())
     assert mgr.status() == {"downloading": False, "filename": None, "bytes": 0,
                             "total": None, "pct": None, "error": None}
+
+
+def test_start_sweeps_stale_partials(tmp_path):
+    (tmp_path / "old-model.gguf.part").write_bytes(b"stale")
+    mgr = make_manager(tmp_path, make_stream(2, [b"aa"]))
+    mgr.start("https://huggingface.co/x/resolve/main/new.gguf", "new.gguf")
+    assert not (tmp_path / "old-model.gguf.part").exists()  # stale swept
+    assert (tmp_path / "new.gguf").read_bytes() == b"aa"     # new completed

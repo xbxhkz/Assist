@@ -5,10 +5,12 @@ behind an injectable `get_json(url, headers)` so parsing/URL/token logic is
 unit-testable without network. No Cookbook imports.
 """
 import os
+import re
 from urllib.parse import quote
 
 _HF = "https://huggingface.co"
 _ALLOWED_SORT = {"downloads", "likes", "lastModified", "trendingScore"}
+_REPO_RE = re.compile(r"^[\w.-]+/[\w.-]+$")
 
 
 def _hf_token() -> str:
@@ -51,6 +53,8 @@ def search_gguf_models(query: str = "", sort: str = "downloads",
 
 def list_repo_gguf_files(repo: str, get_json=None) -> list:
     """Return the .gguf files in `repo` as [{filename, size, url}]."""
+    if not _REPO_RE.match(repo or ""):
+        return []
     get_json = get_json or _default_get_json
     url = f"{_HF}/api/models/{repo}/tree/main?recursive=1"
     try:

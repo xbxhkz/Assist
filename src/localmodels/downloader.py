@@ -68,6 +68,8 @@ class DownloadManager:
                            "error": None, "done": False}
             self._active = True
 
+        self._sweep_partials()
+
         def job():
             try:
                 self._transfer(url, safe)
@@ -102,6 +104,17 @@ class DownloadManager:
         try:
             if os.path.exists(part):
                 os.remove(part)
+        except Exception:
+            pass
+
+    def _sweep_partials(self):
+        import glob
+        try:
+            for p in glob.glob(os.path.join(self._dest_dir, "*.gguf.part")):
+                try:
+                    os.remove(p)
+                except Exception:
+                    pass
         except Exception:
             pass
 

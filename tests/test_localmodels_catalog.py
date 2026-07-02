@@ -71,3 +71,13 @@ def test_list_repo_files_url_encodes_path():
     out = cat.list_repo_gguf_files("acme/m", get_json=fake_get_json)
     assert out[0]["url"] == "https://huggingface.co/acme/m/resolve/main/my%20model%20Q4.gguf"
     assert out[0]["filename"] == "my model Q4.gguf"  # basename stays human-readable
+
+
+def test_list_repo_files_rejects_bad_repo():
+    called = {"n": 0}
+    def fake_get_json(url, headers):
+        called["n"] += 1
+        return []
+    assert cat.list_repo_gguf_files("../etc/passwd", get_json=fake_get_json) == []
+    assert cat.list_repo_gguf_files("only-one-part", get_json=fake_get_json) == []
+    assert called["n"] == 0  # rejected before any network call
