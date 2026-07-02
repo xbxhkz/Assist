@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/odysseus-wordmark.png" alt="Odysseus" width="238">
+  <img src="docs/assist-wordmark.png" alt="Assist" width="238">
 </p>
 
 <p align="center">
@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/odysseus-browser.jpg" alt="Odysseus interface">
+  <img src="docs/odysseus-browser.jpg" alt="Assist interface">
 </p>
 
 ---
@@ -57,9 +57,13 @@ A full hover-to-play tour lives on the landing page: [`docs/index.html`](docs/in
 
 Help is welcome. The best entry points are fresh-install testing, provider setup bugs, mobile/editor polish, docs, and small focused refactors. See [CONTRIBUTING.md](CONTRIBUTING.md) and [ROADMAP.md](ROADMAP.md).
 
+## Configuration
+
+Environment variables use the `ASSIST_*` prefix (e.g. `ASSIST_PORT`, `ASSIST_DATA_DIR`). The legacy `ODYSSEUS_*` names are still honored for backward compatibility.
+
 ## Security
 
-Odysseus is a self-hosted workspace with powerful local tools. Keep auth enabled, keep private data out of Git, and do not expose raw model/service ports publicly. Deployment details are in the [setup guide](docs/setup.md#security-notes).
+Assist is a self-hosted workspace with powerful local tools. Keep auth enabled, keep private data out of Git, and do not expose raw model/service ports publicly. Deployment details are in the [setup guide](docs/setup.md#security-notes).
 
 ## Star History
 
