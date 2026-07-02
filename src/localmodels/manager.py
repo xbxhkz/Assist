@@ -65,11 +65,19 @@ class LocalModelManager:
 
     def _stop_locked(self) -> dict:
         if self._proc is not None:
+            proc = self._proc
+            self._proc = None
             try:
-                self._proc.terminate()
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except Exception:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
             except Exception:
                 pass
-            self._proc = None
         if self._state and self._state.get("endpoint_id") and self._unregister:
             try:
                 self._unregister(self._state["endpoint_id"])

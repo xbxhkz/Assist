@@ -21,9 +21,11 @@
     if (!listEl) return;
     let status = { running: false };
     try { status = await api('/api/localmodels/status'); } catch (e) {}
-    statusEl.textContent = status.running
-      ? `Running: ${status.model} (port ${status.port})`
-      : 'No model running';
+    if (statusEl) {
+      statusEl.textContent = status.running
+        ? `Running: ${status.model} (port ${status.port})`
+        : 'No model running';
+    }
     let data = { models: [] };
     try { data = await api('/api/localmodels/models'); } catch (e) {}
     listEl.innerHTML = '';

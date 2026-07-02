@@ -7,8 +7,16 @@ class FakeProc:
     def __init__(self, pid=4321):
         self.pid = pid
         self.terminated = False
+        self.waited = False
+        self.killed = False
+        self.wait_timeout = None
     def terminate(self):
         self.terminated = True
+    def wait(self, timeout=None):
+        self.waited = True
+        self.wait_timeout = timeout
+    def kill(self):
+        self.killed = True
 
 
 def make_manager(ready=True, spawned=None, registered=None, unregistered=None):
@@ -81,3 +89,12 @@ def test_status_when_idle():
     mgr, *_ = make_manager()
     assert mgr.status() == {"running": False, "model": None, "port": None,
                             "endpoint_id": None}
+
+
+def test_stop_waits_for_process_exit():
+    mgr, spawned, registered, _ = make_manager()
+    mgr.start("/models/a.gguf")
+    mgr.stop()
+    proc = spawned[0][1]
+    assert proc.terminated is True
+    assert proc.waited is True
