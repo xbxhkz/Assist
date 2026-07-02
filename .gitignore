@@ -108,3 +108,7 @@ _scratch/
 
 # Inno Setup installer build output
 installer/Output/
+
+# Assist brand source masters (Phase 4) — tracked despite the *.png ignore above
+!/Assistlogo.png
+!/assistappicon.png
