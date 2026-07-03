@@ -1,15 +1,20 @@
 """State-machine tests for LocalModelManager using injected fakes (no real
 process, port, or DB)."""
+import itertools
+
 from src.localmodels.manager import LocalModelManager
 
 
 class FakeProc:
-    def __init__(self, pid=4321):
+    def __init__(self, pid=4321, exit_code=None):
         self.pid = pid
+        self._exit_code = exit_code  # None = still running
         self.terminated = False
         self.waited = False
         self.killed = False
         self.wait_timeout = None
+    def poll(self):
+        return self._exit_code
     def terminate(self):
         self.terminated = True
     def wait(self, timeout=None):
@@ -19,13 +24,14 @@ class FakeProc:
         self.killed = True
 
 
-def make_manager(ready=True, spawned=None, registered=None, unregistered=None):
+def make_manager(ready=True, spawned=None, registered=None, unregistered=None,
+                 proc_exit_code=None):
     spawned = spawned if spawned is not None else []
     registered = registered if registered is not None else []
     unregistered = unregistered if unregistered is not None else []
 
     def spawn(argv):
-        p = FakeProc()
+        p = FakeProc(exit_code=proc_exit_code)
         spawned.append((argv, p))
         return p
 
@@ -37,13 +43,18 @@ def make_manager(ready=True, spawned=None, registered=None, unregistered=None):
     def unregister(endpoint_id):
         unregistered.append(endpoint_id)
 
+    clock = itertools.count(0, 10)  # fast fake clock so timeout loops don't wait
     mgr = LocalModelManager(
         spawn=spawn,
         port_chooser=lambda: 8123,
-        readiness=lambda url: ready,
+        probe=lambda url: ready,
         register_endpoint=register,
         unregister_endpoint=unregister,
         resolve_binary=lambda: "/bin/llama-server",
+        log_path="/nonexistent/llama-server.log",  # no real log in tests
+        sleep=lambda _s: None,
+        now=lambda: next(clock),
+        ready_timeout=45.0,
     )
     return mgr, spawned, registered, unregistered
 
@@ -60,10 +71,24 @@ def test_start_launches_and_registers():
 def test_start_readiness_failure_kills_and_raises():
     import pytest
     mgr, spawned, registered, _ = make_manager(ready=False)
-    with pytest.raises(RuntimeError):
+    with pytest.raises(RuntimeError, match="did not become ready"):
         mgr.start("/models/m.gguf")
     assert spawned[0][1].terminated is True   # process killed
     assert registered == []                    # no dead endpoint registered
+    assert mgr.status()["running"] is False
+
+
+def test_start_fails_fast_on_early_process_exit():
+    """A server that exits during startup (e.g. unsupported model architecture)
+    is detected immediately — not after the full readiness timeout — and the
+    error names the likely cause."""
+    import pytest
+    # probe would say "up" if asked, but the process has already exited, so the
+    # proc-liveness check must short-circuit before probing.
+    mgr, spawned, registered, _ = make_manager(ready=True, proc_exit_code=1)
+    with pytest.raises(RuntimeError, match="exited on startup"):
+        mgr.start("/models/bad.gguf")
+    assert registered == []
     assert mgr.status()["running"] is False
 
 
