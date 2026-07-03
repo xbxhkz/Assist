@@ -18,11 +18,13 @@ OutputBaseFilename=Assist-Setup
 OutputDir=Output
 Compression=lzma2
 SolidCompression=yes
-ArchitecturesInstallIn64BitMode=x64
+ArchitecturesInstallIn64BitMode=x64compatible
 WizardStyle=modern
 
+; Source is resolved relative to THIS .iss file's directory (installer\), so
+; reach the repo-root build output with `..\`.
 [Files]
-Source: "dist\Assist\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
+Source: "..\dist\Assist\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\Assist"; Filename: "{app}\{#MyAppExe}"
