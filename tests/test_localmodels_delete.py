@@ -19,7 +19,7 @@ def _serving_manager(tmp_path, monkeypatch):
     mgr = LocalModelManager(
         spawn=lambda fn: None,           # we set state manually below
         port_chooser=lambda: 8123,
-        readiness=lambda url: True,
+        probe=lambda url: True,
         register_endpoint=lambda name, base_url: "local-0",
         unregister_endpoint=lambda eid: unreg.append(eid),
         resolve_binary=lambda: "/bin/llama-server",

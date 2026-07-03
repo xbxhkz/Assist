@@ -11,10 +11,12 @@ import urllib.request
 import zipfile
 
 # Pinned llama.cpp release asset (Windows x64 CPU build). Update deliberately.
+# Keep this recent: an old build cannot load newer model architectures (e.g.
+# b4589 rejected Qwen3.6 'qwen35moe' with "unknown model architecture").
 LLAMA_RELEASE = os.getenv(
     "LLAMA_RELEASE_URL",
-    "https://github.com/ggml-org/llama.cpp/releases/download/b4589/"
-    "llama-b4589-bin-win-avx2-x64.zip",
+    "https://github.com/ggml-org/llama.cpp/releases/download/b9867/"
+    "llama-b9867-bin-win-cpu-x64.zip",
 )
 ASSET_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "build_assets", "llama")
