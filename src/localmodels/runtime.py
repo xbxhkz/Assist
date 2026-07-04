@@ -15,10 +15,18 @@ def local_endpoint_url(port: int) -> str:
 
 def build_serve_argv(binary: str, model_path: str, port: int,
                      ctx_size: int = 4096, host: str = "127.0.0.1") -> list:
-    """llama-server argv for an OpenAI-compatible loopback server."""
+    """llama-server argv for an OpenAI-compatible loopback server.
+
+    `--alias` sets the id llama-server advertises at /v1/models (and accepts
+    for chat). Without it, the id is the full model *path*, which the model
+    picker then shows verbatim (its display split can't shorten a Windows
+    backslash path). Aliasing to the .gguf filename makes the served model
+    show up under the same name the Local Models list uses.
+    """
     return [
         binary,
         "--model", model_path,
+        "--alias", os.path.basename(model_path),
         "--host", host,
         "--port", str(port),
         "--ctx-size", str(ctx_size),

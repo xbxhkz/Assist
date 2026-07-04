@@ -18,6 +18,14 @@
 
   let downloadedNames = new Set();
 
+  // After serving/stopping/deleting a local model we change the ModelEndpoint
+  // set, so force the main chat model picker to reload (bypassing its 30s
+  // caches). Without this the served model doesn't appear in the model
+  // selector until the picker's cache ages out — it looks like nothing ran.
+  function refreshPicker() {
+    try { window.modelsModule?.refreshModels?.(true); } catch (e) {}
+  }
+
   async function pollDownload() {
     const prog = $('localmodels-progress');
     if (!prog) return;
@@ -141,6 +149,7 @@
           });
         } catch (e) { alert('Local model error: ' + e.message); }
         await refresh();
+        refreshPicker();  // reflect the started/stopped model in the chat picker
       };
       row.appendChild(label);
       row.appendChild(btn);
@@ -154,6 +163,7 @@
           body: JSON.stringify({ filename: m.name }) }); }
         catch (e) { alert('Delete error: ' + e.message); }
         await refresh();
+        refreshPicker();  // a deleted model may have torn down its endpoint
       };
       row.appendChild(del);
       listEl.appendChild(row);

@@ -17,6 +17,16 @@ def test_build_serve_argv_has_model_host_port():
     assert "--ctx-size" in argv and "4096" in argv
 
 
+def test_build_serve_argv_aliases_to_basename():
+    """The served model must be advertised under its .gguf filename, not the
+    full path, so the model picker shows a clean, recognizable name."""
+    argv = rt.build_serve_argv(
+        "/x/llama-server",
+        r"C:\Users\Admin\.assist\data\models\my-model.gguf", 8123)
+    assert "--alias" in argv
+    assert argv[argv.index("--alias") + 1] == "my-model.gguf"
+
+
 def test_resolve_prefers_path_binary():
     got = rt.resolve_llama_binary(path_lookup=lambda n: "/usr/bin/llama-server"
                                   if n == "llama-server" else None)
