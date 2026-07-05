@@ -385,7 +385,7 @@ body.bg-pattern-sparkles {
       display: none;
       position: fixed;
       background: var(--panel); border: 1px solid var(--border);
-      border-radius: 8px; padding: 4px; min-width: 120px;
+      border-radius: var(--radius-card); padding: 4px; min-width: 120px;
       box-shadow: 0 4px 16px rgba(0,0,0,0.4);
       z-index: 300;
       color: var(--fg);
@@ -2920,7 +2920,7 @@ body.bg-pattern-sparkles {
       max-width: 360px;
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: var(--radius-card);
       box-shadow: 0 -4px 20px rgba(0,0,0,0.4);
       padding: 6px;
       animation: picker-roll-up 0.2s ease-out;
@@ -14412,7 +14412,7 @@ body:has(.doc-version-panel:not(.hidden)) .hamburger-btn {
 .admin-card {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-card);
   padding: 12px;
   margin-bottom: 10px;
 }

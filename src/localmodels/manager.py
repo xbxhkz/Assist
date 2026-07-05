@@ -11,6 +11,7 @@ a model whose architecture the bundled llama.cpp doesn't support — the manager
 fails fast and surfaces the captured output instead of waiting out the full
 timeout with no signal.
 """
+import json
 import os
 import subprocess
 import threading
@@ -27,6 +28,12 @@ from src.localmodels.runtime import (
 def _default_log_path() -> str:
     """Where llama-server's captured output is written (next to app logs)."""
     return os.path.join(os.path.dirname(MODELS_DIR), "logs", "llama-server.log")
+
+
+def _last_model_file() -> str:
+    """State file remembering the last successfully-served model, so it can be
+    auto-served on the next launch."""
+    return os.path.join(os.path.dirname(MODELS_DIR), "last_model.json")
 
 
 def _default_probe(url: str) -> bool:
@@ -83,11 +90,16 @@ class LocalModelManager:
         self._state = None  # {"model_path", "port", "endpoint_id", "pid"}
 
     def _default_spawn(self, argv):
-        """Launch llama-server, capturing stdout+stderr to the log file."""
+        """Launch llama-server, capturing stdout+stderr to the log file.
+
+        CREATE_NO_WINDOW keeps the child's console hidden — without it, a
+        windowed (no-console) build pops a visible console window for
+        llama-server. No-op on POSIX (the flag is 0 there)."""
         os.makedirs(os.path.dirname(self._log_path), exist_ok=True)
         self._logf = open(self._log_path, "wb")
         return subprocess.Popen(argv, stdout=self._logf,
-                                stderr=subprocess.STDOUT)
+                                stderr=subprocess.STDOUT,
+                                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
     def _await_ready(self, url: str, proc) -> bool:
         """Poll `url` until ready, bailing the instant the process exits."""
@@ -128,7 +140,18 @@ class LocalModelManager:
             self._state = {"model_path": model_path, "port": port,
                            "endpoint_id": endpoint_id,
                            "pid": getattr(proc, "pid", None)}
+            self._persist_last_model(model_path)
             return self.status()
+
+    def _persist_last_model(self, model_path: str) -> None:
+        """Remember this model as the one to auto-serve next launch."""
+        try:
+            f = _last_model_file()
+            os.makedirs(os.path.dirname(f), exist_ok=True)
+            with open(f, "w", encoding="utf-8") as fh:
+                json.dump({"model_path": model_path}, fh)
+        except Exception:
+            pass
 
     def stop(self) -> dict:
         with self._lock:
@@ -220,3 +243,29 @@ def get_manager() -> "LocalModelManager":
             unregister_endpoint=unregister_local_endpoint,
         )
     return _manager
+
+
+def autoserve_last_model(manager=None, model_file=None):
+    """Re-serve the last successfully-served model (best-effort).
+
+    Reads the persisted path and starts it. No-ops if there is no record, the
+    model file is gone, a model is already running, or serving fails — so it is
+    safe to fire-and-forget in a background thread at startup. `manager` and
+    `model_file` are injectable for tests.
+    """
+    model_file = model_file or _last_model_file()
+    try:
+        with open(model_file, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except Exception:
+        return None
+    path = (data or {}).get("model_path")
+    if not path or not os.path.isfile(path):
+        return None
+    mgr = manager or get_manager()
+    try:
+        if mgr.status().get("running"):
+            return None
+        return mgr.start(path)
+    except Exception:
+        return None

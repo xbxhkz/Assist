@@ -23,3 +23,10 @@ def test_base_controls_use_control_token():
     block = re.search(r"^\s*input, textarea, button, select \{(.*?)\}",
                       CSS, re.S | re.M).group(1)
     assert "border-radius:var(--radius-control)" in block.replace(" ", "")
+
+
+def test_card_token_is_applied():
+    # cards/menus (.admin-card, .export-dropdown-menu, .model-picker-menu) route
+    # through the card token, not scattered literals.
+    assert CSS.count("var(--radius-card)") >= 3
+
