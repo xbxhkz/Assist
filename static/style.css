@@ -29,6 +29,11 @@
   --green: #50fa7b;
   --warn: #f0ad4e;
 
+  /* Window rounding tokens (docs/superpowers/specs/2026-07-05-modern-dark-theme-design.md) */
+  --radius-window: 16px;   /* modals / dialogs */
+  --radius-card: 12px;     /* cards, menus, nested panels */
+  --radius-control: 8px;   /* buttons, inputs, selects, chips */
+
   /* Syntax highlighting */
   --hl-bg: #171A21;
   --hl-fg: #E6E9EE;
@@ -1793,7 +1798,7 @@ body.bg-pattern-sparkles {
       border:1px solid var(--border);
       font-family:inherit;
       padding:6.9px;
-      border-radius: 4px;
+      border-radius: var(--radius-control);
       transition: background 0.08s, border-color 0.08s, color 0.08s, opacity 0.08s;
     }
     input:hover, textarea:hover, button:hover, select:hover {
@@ -5281,7 +5286,7 @@ body.bg-pattern-sparkles {
       display:flex; flex-direction:column;
       position:relative;
       overflow-y:auto;
-      border-radius:10px;
+      border-radius:var(--radius-window);
       box-shadow:0 8px 32px rgba(0,0,0,0.45);
       pointer-events:auto;
       animation: modal-enter 0.25s ease-out both;
