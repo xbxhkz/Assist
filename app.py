@@ -965,6 +965,14 @@ async def _startup_event():
     # GC tasks created with `asyncio.create_task(...)` before they finish.
     _startup_tasks: list[asyncio.Task] = getattr(app.state, "_startup_tasks", [])
     app.state._startup_tasks = _startup_tasks
+    # Auto-serve the last local model that was running, in a background thread
+    # so a multi-second model load never delays boot. Best-effort: no record /
+    # missing file / already-running / start failure all no-op.
+    try:
+        from src.localmodels.manager import autoserve_last_model
+        asyncio.get_running_loop().run_in_executor(None, autoserve_last_model)
+    except Exception as _e:
+        logger.debug(f"local model autoserve skipped: {_e}")
     if upload_cleanup_func:
         upload_cleanup_task = asyncio.create_task(upload_cleanup_func())
     # Always-on monitor that auto-continues the agent when a background bash
