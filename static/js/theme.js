@@ -457,13 +457,28 @@ export function applyBgPattern(pattern) {
   if (sg) sg.style.display = hide ? 'none' : '';
 }
 
+// One-time visual upgrade: the built-in "dark" theme was restyled (Graphite).
+// A user who selected the OLD dark keeps a frozen color snapshot and would
+// never see the new palette. If that snapshot is the UNTOUCHED old dark (no
+// color hand-edited), swap in the current THEMES.dark; a customized snapshot
+// (any color differs) is left exactly as set. Idempotent across loads.
+const PREV_DARK = { bg: '#282c34', fg: '#9cdef2', panel: '#111111', border: '#355a66', red: '#e06c75' };
+function _upgradeDarkSnapshot(obj) {
+  if (!obj || obj.name !== 'dark' || !obj.colors) return obj;
+  const c = obj.colors;
+  const untouched = ['bg', 'fg', 'panel', 'border', 'red'].every(
+    (k) => String(c[k] || '').toLowerCase() === PREV_DARK[k]);
+  if (untouched) obj.colors = { ...c, ...THEMES.dark };
+  return obj;
+}
+
 export function getSaved() {
   const obj = Storage.getJSON(LS_KEY, null);
   // Migration: 'chatgpt' preset was renamed to 'gpt'
   if (obj && obj.name === 'chatgpt') obj.name = 'gpt';
   // Migration: 'sakura' preset was renamed to 'ume'
   if (obj && obj.name === 'sakura') obj.name = 'ume';
-  return obj;
+  return _upgradeDarkSnapshot(obj);
 }
 
 export function save(name, colors, opts) {
