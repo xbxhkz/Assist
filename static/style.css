@@ -17,11 +17,11 @@
 
 :root {
   /* Core palette */
-  --bg: #282c34;
-  --fg: #9cdef2;
-  --panel: #111;
-  --border: #355a66;
-  --red: #e06c75;
+  --bg: #13151A;
+  --fg: #E6E9EE;
+  --panel: #1C1F27;
+  --border: #2A2F3A;
+  --red: #45C4B0;
   /* Were `var(--green)` / `var(--warn)` — self-referential, so they
      resolved to invalid and every site fell back to its own literal
      (or, for sites with no fallback, painted as transparent/inherit).
@@ -30,8 +30,8 @@
   --warn: #f0ad4e;
 
   /* Syntax highlighting */
-  --hl-bg: #1e2228;
-  --hl-fg: #9cdef2;
+  --hl-bg: #171A21;
+  --hl-fg: #E6E9EE;
   --hl-keyword: #c678dd;
   --hl-string: #e5c07b;
   --hl-comment: #828997;
