@@ -6548,7 +6548,7 @@ body.bg-pattern-sparkles {
     }
 /* SYNTAX HIGHLIGHTING — uses theme vars from style.css, no hardcoded overrides */
 .hljs { color: var(--hl-fg, #9cdef2); background: none !important; }
-pre { background: var(--code-bg, var(--hl-bg, #282c34)) !important; }
+pre { background: var(--code-bg, var(--hl-bg, #171A21)) !important; }
 
     /* ---------- Search overlay (Ctrl+K command palette) ---------- */
     .search-overlay {
