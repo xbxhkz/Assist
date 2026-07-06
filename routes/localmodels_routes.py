@@ -1,7 +1,10 @@
 """HTTP control surface for native local models (Phase 3a).
 
-Admin-guarded. Serve accepts only a .gguf path resolved inside MODELS_DIR.
+Admin-guarded. Serve accepts a .gguf inside MODELS_DIR or a registered linked
+model, and runs the (blocking, possibly multi-minute) model load off the event
+loop so the app stays responsive while a large model mmaps into memory.
 """
+import asyncio
 import os
 from urllib.parse import urlparse
 
@@ -71,7 +74,9 @@ def setup_localmodels_routes() -> APIRouter:
     async def serve(payload: dict = Body(...)):
         safe = _validate_model_path((payload.get("model_path") or "").strip())
         try:
-            return get_manager().start(safe)
+            # Off the event loop: a large model can take minutes to load, and
+            # start() blocks until llama-server is ready.
+            return await asyncio.to_thread(get_manager().start, safe)
         except RuntimeError as e:
             raise HTTPException(status_code=503, detail=str(e))
 

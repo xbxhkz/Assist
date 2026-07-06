@@ -144,13 +144,21 @@
       btn.textContent = isRunning ? 'Stop' : 'Serve';
       btn.onclick = async () => {
         btn.disabled = true;
+        const statusEl = $('localmodels-status');
         try {
-          if (isRunning) await api('/api/localmodels/stop', { method: 'POST' });
-          else await api('/api/localmodels/serve', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model_path: m.path }),
-          });
+          if (isRunning) {
+            await api('/api/localmodels/stop', { method: 'POST' });
+          } else {
+            // Loading can take minutes for a large model — show progress so it
+            // doesn't look frozen while llama-server mmaps the weights.
+            btn.textContent = 'Starting…';
+            if (statusEl) statusEl.textContent = `Starting ${m.name}… (large models can take a few minutes)`;
+            await api('/api/localmodels/serve', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ model_path: m.path }),
+            });
+          }
         } catch (e) { alert('Local model error: ' + e.message); }
         await refresh();
         refreshPicker();  // reflect the started/stopped model in the chat picker
