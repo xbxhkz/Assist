@@ -39710,3 +39710,12 @@ body.theme-frosted .modal {
   .compare-grid[data-cols] { grid-template-columns: 1fr !important; overflow-y: auto; }
   .compare-pane { min-height: 60dvh; }
 }
+
+/* Larger sidebar text (readability) — desktop; mobile keeps its touch sizing */
+.sidebar .list-item .grow,
+.sidebar .section-header-flex .section-title,
+.sidebar .section-header-flex h4,
+.sidebar-brand-title,
+#sidebar-search-btn .grow,
+#sidebar-new-chat-btn .grow,
+.sidebar-assistant-entry .grow { font-size: 15px; }
