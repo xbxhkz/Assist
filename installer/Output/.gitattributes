@@ -1,0 +1,2 @@
+Assist-Setup.exe filter=lfs diff=lfs merge=lfs -text
+Assist-Setup.zip filter=lfs diff=lfs merge=lfs -text
