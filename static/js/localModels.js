@@ -135,6 +135,10 @@
       const label = document.createElement('span');
       label.className = 'grow';
       label.textContent = `${m.name} — ${fmtBytes(m.size)}`;
+      if (m.external) {
+        label.insertAdjacentHTML('beforeend',
+          ' <span style="font-size:10px;color:var(--accent,#45c4b0);border:1px solid var(--border);border-radius:6px;padding:1px 5px;margin-left:6px;" title="A file linked from elsewhere on your computer">Linked</span>');
+      }
       const btn = document.createElement('button');
       const isRunning = status.running && status.model === m.name;
       btn.textContent = isRunning ? 'Stop' : 'Serve';
@@ -154,17 +158,31 @@
       row.appendChild(label);
       row.appendChild(btn);
       const del = document.createElement('button');
-      del.textContent = 'Delete';
       del.style.marginLeft = '4px';
-      del.onclick = async () => {
-        if (!confirm('Delete ' + m.name + '?')) return;
-        try { await api('/api/localmodels/delete', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename: m.name }) }); }
-        catch (e) { alert('Delete error: ' + e.message); }
-        await refresh();
-        refreshPicker();  // a deleted model may have torn down its endpoint
-      };
+      if (m.external) {
+        // Linked model: unlink from the list only — never delete the file.
+        del.textContent = 'Remove';
+        del.onclick = async () => {
+          if (!confirm('Remove linked model ' + m.name + '? The file stays on your disk.')) return;
+          try { await api('/api/localmodels/remove-external', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: m.path }) }); }
+          catch (e) { alert('Remove error: ' + e.message); }
+          await refresh();
+          refreshPicker();
+        };
+      } else {
+        del.textContent = 'Delete';
+        del.onclick = async () => {
+          if (!confirm('Delete ' + m.name + '?')) return;
+          try { await api('/api/localmodels/delete', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: m.name }) }); }
+          catch (e) { alert('Delete error: ' + e.message); }
+          await refresh();
+          refreshPicker();  // a deleted model may have torn down its endpoint
+        };
+      }
       row.appendChild(del);
       listEl.appendChild(row);
     });
@@ -173,9 +191,33 @@
     }
   }
 
+  // "Browse for a .gguf…" — links a model that lives anywhere on disk. The
+  // native file dialog only exists in the desktop (pywebview) app, so the
+  // button stays hidden in a plain browser.
+  function setupBrowse() {
+    const btn = $('localmodels-browse-btn');
+    if (!btn) return;
+    if (!(window.pywebview && window.pywebview.api && window.pywebview.api.pick_gguf)) return;
+    btn.style.display = '';
+    btn.onclick = async () => {
+      let path = '';
+      try { path = await window.pywebview.api.pick_gguf(); } catch (e) {}
+      if (!path) return;  // cancelled
+      try {
+        await api('/api/localmodels/add-external', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path }),
+        });
+        await refresh();
+        refreshPicker();
+      } catch (e) { alert('Could not add model: ' + e.message); }
+    };
+  }
+
   function open() {
     const modal = $('localmodels-modal');
-    if (modal) { modal.classList.remove('hidden'); refresh(); loadHardware(); loadRecommendations(); }
+    if (modal) { modal.classList.remove('hidden'); refresh(); loadHardware(); loadRecommendations(); setupBrowse(); }
   }
   function close() {
     const modal = $('localmodels-modal');

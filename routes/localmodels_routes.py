@@ -13,6 +13,9 @@ from src.localmodels.manager import get_manager
 from src.localmodels.catalog import search_gguf_models, list_repo_gguf_files
 from src.localmodels.downloader import get_download_manager, _safe_filename
 from src.localmodels.hardware import get_hardware, recommend_models, fit_for_file
+from src.localmodels.external import (
+    add_external_model, remove_external_model, is_registered_external,
+)
 
 
 def _validate_model_path(model_path: str) -> str:
@@ -24,9 +27,11 @@ def _validate_model_path(model_path: str) -> str:
         inside = os.path.commonpath([real, real_models]) == real_models
     except ValueError:
         inside = False  # different drive on Windows
-    if not inside:
+    # Serve is allowed for downloaded models (inside MODELS_DIR) or user-linked
+    # ones; arbitrary unregistered paths stay rejected.
+    if not inside and not is_registered_external(real):
         raise HTTPException(status_code=400,
-                            detail="model_path must be inside the models directory")
+                            detail="model_path must be a downloaded or linked model")
     if not real.lower().endswith(".gguf"):
         raise HTTPException(status_code=400,
                             detail="model_path must be a .gguf file")
@@ -73,6 +78,21 @@ def setup_localmodels_routes() -> APIRouter:
     @router.post("/stop")
     async def stop():
         return get_manager().stop()
+
+    @router.post("/add-external")
+    async def add_external(payload: dict = Body(...)):
+        """Register a user-picked .gguf from anywhere on disk as a linked model."""
+        path = (payload.get("path") or "").strip()
+        try:
+            return add_external_model(path)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @router.post("/remove-external")
+    async def remove_external(payload: dict = Body(...)):
+        """Unlink a linked model from the list (the file on disk is untouched)."""
+        remove_external_model((payload.get("path") or "").strip())
+        return {"ok": True}
 
     @router.get("/catalog/search")
     async def catalog_search(q: str = "", sort: str = "downloads"):

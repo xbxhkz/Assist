@@ -83,7 +83,26 @@ def main() -> None:
         return
 
     import webview
-    webview.create_window("Assist", origin)
+
+    class _JsApi:
+        """Native bridges callable from the page as window.pywebview.api.<m>()."""
+        def __init__(self):
+            self._window = None
+
+        def pick_gguf(self):
+            """Open a native file dialog and return the chosen .gguf absolute
+            path, or '' if cancelled. Used by the Local Models "Browse" button
+            to link a model that lives anywhere on disk."""
+            try:
+                paths = self._window.create_file_dialog(
+                    webview.OPEN_DIALOG, allow_multiple=False,
+                    file_types=('GGUF model (*.gguf)', 'All files (*.*)'))
+                return paths[0] if paths else ''
+            except Exception:
+                return ''
+
+    api = _JsApi()
+    api._window = webview.create_window("Assist", origin, js_api=api)
     webview.start()  # blocks until the window is closed
 
     server.should_exit = True
