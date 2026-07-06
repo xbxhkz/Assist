@@ -2,7 +2,17 @@
 process, port, or DB)."""
 import itertools
 
+import pytest
+
+import src.localmodels.manager as _mgr_mod
 from src.localmodels.manager import LocalModelManager
+
+
+@pytest.fixture(autouse=True)
+def _isolate_models_dir(tmp_path, monkeypatch):
+    """start() persists last_model.json next to MODELS_DIR — redirect it to a
+    temp dir so tests never clobber the real ~/.assist autoserve state."""
+    monkeypatch.setattr(_mgr_mod, "MODELS_DIR", str(tmp_path / "models"))
 
 
 class FakeProc:
@@ -17,11 +27,15 @@ class FakeProc:
         return self._exit_code
     def terminate(self):
         self.terminated = True
+        if self._exit_code is None:
+            self._exit_code = -15  # process exits on terminate (realistic)
     def wait(self, timeout=None):
         self.waited = True
         self.wait_timeout = timeout
     def kill(self):
         self.killed = True
+        if self._exit_code is None:
+            self._exit_code = -9
 
 
 def make_manager(ready=True, spawned=None, registered=None, unregistered=None,
@@ -66,6 +80,35 @@ def test_ready_timeout_scales_with_model_size():
     mgr, *_ = make_manager()
     assert mgr._timeout_for_bytes(2_000_000) == 45.0             # tiny -> floor
     assert mgr._timeout_for_bytes(48_000_000_000) == 48.0 * 12   # 48GB -> 576s
+
+
+def test_terminate_escalates_to_force_kill_when_process_survives():
+    """If terminate()/kill() don't reap the child (e.g. stuck mid-mmap of a
+    huge model), the manager force-kills the tree so it can't orphan."""
+    killed = []
+
+    class StubbornProc:  # ignores terminate/kill, never dies
+        pid = 9999
+        def poll(self): return None
+        def terminate(self): pass
+        def wait(self, timeout=None): pass
+        def kill(self): pass
+
+    mgr = LocalModelManager(
+        spawn=lambda argv: StubbornProc(),
+        port_chooser=lambda: 8123,
+        probe=lambda url: True,
+        register_endpoint=lambda name, base_url: "e",
+        unregister_endpoint=lambda eid: None,
+        resolve_binary=lambda: "/bin/llama-server",
+        log_path="/nonexistent/llama-server.log",
+        sleep=lambda _s: None,
+        now=lambda: 0.0,
+        force_kill=lambda pid: killed.append(pid),
+    )
+    mgr.start("/models/big.gguf")
+    mgr.stop()
+    assert 9999 in killed
 
 
 def test_start_launches_and_registers():
