@@ -203,7 +203,16 @@ class LocalModelManager:
                 "endpoint_id": self._state["endpoint_id"]}
 
     def list_models(self) -> list:
-        return list_gguf_models(MODELS_DIR)
+        """Downloaded models (in MODELS_DIR) plus linked/external ones, each
+        tagged with an `external` flag; de-duplicated by realpath."""
+        from src.localmodels.external import list_external_models
+        downloaded = list_gguf_models(MODELS_DIR)
+        for m in downloaded:
+            m["external"] = False
+        seen = {os.path.realpath(m["path"]) for m in downloaded}
+        linked = [e for e in list_external_models()
+                  if os.path.realpath(e["path"]) not in seen]
+        return downloaded + linked
 
     def delete_model(self, filename: str) -> dict:
         """Delete a downloaded .gguf from MODELS_DIR; stop it first if serving."""
