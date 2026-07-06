@@ -5780,3 +5780,31 @@ const settingsModule = { open, close, initIntegrations, initUnifiedIntegrations,
 
 
 export default settingsModule;
+
+// GitHub token field (Settings > Services) — enables full file-level skill
+// search and raises the GitHub API rate limit. Saved via the generic settings
+// endpoint like app_public_url.
+document.addEventListener('DOMContentLoaded', function () {
+  var input = document.getElementById('set-github-token');
+  var msg = document.getElementById('set-github-token-msg');
+  if (!input) return;
+  fetch('/api/auth/settings', { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (s) { if (s && typeof s.github_token === 'string') input.value = s.github_token; })
+    .catch(function () {});
+  var debounce;
+  input.addEventListener('input', function () {
+    clearTimeout(debounce);
+    debounce = setTimeout(function () {
+      fetch('/api/auth/settings', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ github_token: input.value.trim() }),
+      }).then(function () {
+        if (msg) { msg.textContent = 'Saved'; msg.style.color = 'var(--green,#50fa7b)'; setTimeout(function () { msg.textContent = ''; }, 1800); }
+      }).catch(function () {
+        if (msg) { msg.textContent = 'Save failed'; msg.style.color = 'var(--red)'; }
+      });
+    }, 600);
+  });
+});

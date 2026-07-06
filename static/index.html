@@ -2153,6 +2153,14 @@
         <!-- ═══ SERVICES TAB ═══ -->
         <div data-settings-panel="services">
 
+          <!-- ── GitHub token (in-app skill search) ─────────────────── -->
+          <div class="admin-card">
+            <h2 style="display:flex;align-items:center;gap:8px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px;margin-right:5px;opacity:0.7"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.7 18.3 5 18.3 5c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6C20.2 21.4 23.5 17.1 23.5 12 23.5 5.7 18.3.5 12 .5z"/></svg>GitHub token <span style="opacity:0.45;font-weight:normal;font-size:0.82em">(optional)</span></h2>
+            <div class="admin-toggle-sub" style="margin:0 0 10px 2px;">Unlocks full <b>file-level</b> skill search (find <code>SKILL.md</code> anywhere on GitHub) and raises the API rate limit. Create one at <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer">github.com/settings/tokens</a> — no scopes needed for public search. Leave blank for basic (root-only) search.</div>
+            <input id="set-github-token" class="settings-select" type="password" placeholder="ghp_…" style="width:100%;box-sizing:border-box;" autocomplete="off" />
+            <div id="set-github-token-msg" style="font-size:11px;margin-top:4px;color:color-mix(in srgb, var(--fg) 55%, transparent);"></div>
+          </div>
+
           <!-- ── Local card ─────────────────────────────────────────── -->
           <div class="admin-card">
             <h2 style="display:flex;align-items:center;gap:8px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;opacity:0.6"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>Add Local Models <span style="opacity:0.45;font-weight:normal;font-size:0.82em">(Endpoint)</span>
