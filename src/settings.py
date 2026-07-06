@@ -160,6 +160,10 @@ DEFAULT_SETTINGS = {
     "teacher_model": "",
     "teacher_enabled": False,
     "teacher_tier2_enabled": False,
+    # Optional GitHub personal access token. Unlocks GitHub code search for the
+    # in-app skill finder and raises the GitHub API rate limit (60/hr -> 5000/hr)
+    # for searching + downloading SKILL.md bundles. Stored like the other API keys.
+    "github_token": "",
     # Skills: minimum self-reported confidence for an auto-written (LLM-authored)
     # DRAFT skill to be injected into the agent prompt. Published skills always
     # qualify. Keeps low-confidence auto-skills out of context until they're
@@ -245,6 +249,11 @@ def save_settings(settings: dict):
 def get_setting(key: str, default: Any = None) -> Any:
     """Read a single setting value."""
     return load_settings().get(key, default)
+
+
+def get_github_token() -> str:
+    """Optional GitHub PAT — unlocks code search + higher GitHub API rate limits."""
+    return (get_setting("github_token", "") or "").strip()
 
 
 def is_setting_overridden(key: str) -> bool:
