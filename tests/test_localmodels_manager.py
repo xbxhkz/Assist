@@ -59,6 +59,15 @@ def make_manager(ready=True, spawned=None, registered=None, unregistered=None,
     return mgr, spawned, registered, unregistered
 
 
+def test_ready_timeout_scales_with_model_size():
+    """A 45s cap is fine for the small bundled model but far too short for a
+    large one (a 48GB model takes minutes to load), so the readiness timeout
+    scales with file size while keeping the base value as a floor."""
+    mgr, *_ = make_manager()
+    assert mgr._timeout_for_bytes(2_000_000) == 45.0             # tiny -> floor
+    assert mgr._timeout_for_bytes(48_000_000_000) == 48.0 * 12   # 48GB -> 576s
+
+
 def test_start_launches_and_registers():
     mgr, spawned, registered, _ = make_manager()
     st = mgr.start("/models/m.gguf")

@@ -72,7 +72,8 @@ class LocalModelManager:
     def __init__(self, spawn=None, port_chooser=None, probe=None,
                  register_endpoint=None, unregister_endpoint=None,
                  resolve_binary=resolve_llama_binary, log_path=None,
-                 sleep=None, now=None, ready_timeout=45.0, probe_interval=0.5):
+                 sleep=None, now=None, ready_timeout=45.0, probe_interval=0.5,
+                 sec_per_gb=12.0):
         self._log_path = log_path or _default_log_path()
         self._spawn = spawn or self._default_spawn
         self._port_chooser = port_chooser or (lambda: choose_port(8100))
@@ -80,6 +81,7 @@ class LocalModelManager:
         self._sleep = sleep or time.sleep
         self._now = now or time.monotonic
         self._ready_timeout = ready_timeout
+        self._sec_per_gb = sec_per_gb
         self._probe_interval = probe_interval
         self._register = register_endpoint
         self._unregister = unregister_endpoint
@@ -101,9 +103,21 @@ class LocalModelManager:
                                 stderr=subprocess.STDOUT,
                                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
-    def _await_ready(self, url: str, proc) -> bool:
+    def _timeout_for_bytes(self, nbytes: int) -> float:
+        """Readiness timeout scaled by model size — a 48GB model can take
+        minutes to mmap off disk, so a flat cap would abandon a healthy load.
+        The base `ready_timeout` is the floor for small models."""
+        return max(self._ready_timeout, (nbytes / 1e9) * self._sec_per_gb)
+
+    def _ready_timeout_for(self, model_path: str) -> float:
+        try:
+            return self._timeout_for_bytes(os.path.getsize(model_path))
+        except OSError:
+            return self._ready_timeout
+
+    def _await_ready(self, url: str, proc, timeout: float) -> bool:
         """Poll `url` until ready, bailing the instant the process exits."""
-        deadline = self._now() + self._ready_timeout
+        deadline = self._now() + timeout
         while self._now() < deadline:
             if _poll(proc) is not None:
                 return False  # llama-server exited on startup
@@ -120,7 +134,8 @@ class LocalModelManager:
             port = self._port_chooser()
             proc = self._spawn(build_serve_argv(binary, model_path, port))
             url = local_endpoint_url(port)
-            if not self._await_ready(url + "/models", proc):
+            timeout = self._ready_timeout_for(model_path)
+            if not self._await_ready(url + "/models", proc, timeout):
                 exited = _poll(proc) is not None
                 tail = _read_log_tail(self._log_path)
                 self._terminate(proc)
