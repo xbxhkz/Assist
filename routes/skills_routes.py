@@ -1659,4 +1659,22 @@ def setup_skills_routes(skills_manager: SkillsManager) -> APIRouter:
         results = skills_manager.get_relevant_skills(query, skills, max_items=10)
         return {"skills": results, "query": query, "count": len(results)}
 
+    @router.post("/discover")
+    async def discover_skills(request: Request):
+        """Search GitHub for SKILL.md files to install (via /import-from-url)."""
+        require_admin(request)
+        import asyncio
+        from services.memory.skill_search import search_skills as _gh_search, SkillSearchError
+        from src.settings import get_github_token
+        body = await request.json()
+        query = (body.get("query") or "").strip()
+        if not query:
+            raise HTTPException(400, "query is required")
+        token = get_github_token()
+        try:
+            results = await asyncio.to_thread(_gh_search, query, token)
+        except SkillSearchError as e:
+            raise HTTPException(502, str(e))
+        return {"results": results, "token_set": bool(token)}
+
     return router
