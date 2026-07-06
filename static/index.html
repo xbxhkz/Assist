@@ -336,6 +336,14 @@
               </div>
               <button type="button" id="skill-import-url-btn" class="theme-io-btn" title="Import skill from URL" style="flex:none;height:28px;font-size:12px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Import</button>
             </div>
+            <div class="memory-add-row" style="margin-top:2px;margin-bottom:6px;">
+              <div class="skill-ph-wrap" style="flex:1;min-width:0;">
+                <input type="text" id="skill-gh-search" placeholder=" " class="memory-add-input skill-hint-input" aria-label="Search GitHub for skills" />
+                <span class="skill-rich-ph"><span class="k">Search GitHub</span> — find SKILL.md files to install, no browser needed</span>
+              </div>
+              <button type="button" id="skill-gh-search-btn" class="theme-io-btn" title="Search GitHub for skills" style="flex:none;height:28px;font-size:12px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Search</button>
+            </div>
+            <div id="skill-gh-results" class="skill-gh-results" style="display:none;margin:-2px 0 10px;"></div>
             <p class="memory-desc doclib-desc" style="margin-top:0;">Or create a skill by hand — title, what it solves, and an approach.</p>
             <div class="skill-ph-wrap" style="margin-top:4px;margin-bottom:6px;">
               <input type="text" id="new-skill-title" placeholder=" " class="memory-add-input skill-hint-input" aria-label="Skill title" />

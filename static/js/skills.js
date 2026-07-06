@@ -1876,6 +1876,94 @@ async function importSkillFromUrl() {
   }
 }
 
+function _ghEsc(s) {
+  const d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML;
+}
+
+// Search GitHub for SKILL.md files and install one with a click (no browser).
+async function searchGithubSkills() {
+  const input = document.getElementById('skill-gh-search');
+  const query = (input?.value || '').trim();
+  const box = document.getElementById('skill-gh-results');
+  if (!box) return;
+  if (!query) { uiModule.showError('Type what to search for'); return; }
+  const btn = document.getElementById('skill-gh-search-btn');
+  if (btn) btn.disabled = true;
+  box.style.display = 'block';
+  box.innerHTML = '<div class="skill-gh-empty">Searching GitHub…</div>';
+  try {
+    const res = await fetch(`${API}/api/skills/discover`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || data.error || `HTTP ${res.status}`);
+    renderGithubResults(data.results || [], !!data.token_set);
+  } catch (err) {
+    box.innerHTML = `<div class="skill-gh-empty">Search failed: ${_ghEsc(err.message)}</div>`;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function renderGithubResults(results, tokenSet) {
+  const box = document.getElementById('skill-gh-results');
+  if (!box) return;
+  box.innerHTML = '';
+  if (!results.length) {
+    box.innerHTML = '<div class="skill-gh-empty">No skills found.'
+      + (tokenSet ? '' : ' Add a GitHub token in Settings for full file-level search.') + '</div>';
+    return;
+  }
+  results.forEach((r) => {
+    const row = document.createElement('div');
+    row.className = 'skill-gh-row';
+    const meta = document.createElement('div');
+    meta.className = 'skill-gh-meta';
+    meta.innerHTML = `<div class="skill-gh-name">${_ghEsc(r.name || r.repo)}`
+      + ` <span class="skill-gh-repo">${_ghEsc(r.repo)}</span>`
+      + (r.stars ? ` <span class="skill-gh-stars">★ ${_ghEsc(r.stars)}</span>` : '') + '</div>'
+      + (r.description ? `<div class="skill-gh-desc">${_ghEsc(r.description)}</div>` : '');
+    const add = document.createElement('button');
+    add.className = 'theme-io-btn';
+    add.style.flex = 'none';
+    add.textContent = 'Add';
+    add.onclick = () => addGithubSkill(r.url, add);
+    row.appendChild(meta);
+    row.appendChild(add);
+    box.appendChild(row);
+  });
+  if (!tokenSet) {
+    const hint = document.createElement('div');
+    hint.className = 'skill-gh-empty';
+    hint.textContent = 'Tip: add a GitHub token in Settings for full file-level search + higher rate limits.';
+    box.appendChild(hint);
+  }
+}
+
+async function addGithubSkill(url, btn) {
+  if (!url) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
+  try {
+    const res = await fetch(`${API}/api/skills/import-from-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || data.error || `HTTP ${res.status}`);
+    await loadSkills();
+    uiModule.showToast(`Added ${data.skill?.name || 'skill'}`);
+    if (btn) btn.textContent = 'Added ✓';
+  } catch (err) {
+    uiModule.showError('Add failed: ' + err.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Add'; }
+  }
+}
+
 async function addSkill() {
   const name = document.getElementById('new-skill-name')?.value.trim()
     || document.getElementById('new-skill-title')?.value.trim();
@@ -1927,6 +2015,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('skill-import-url-btn')?.addEventListener('click', importSkillFromUrl);
   document.getElementById('skill-import-url')?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') importSkillFromUrl();
+  });
+  document.getElementById('skill-gh-search-btn')?.addEventListener('click', searchGithubSkills);
+  document.getElementById('skill-gh-search')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') searchGithubSkills();
   });
   document.getElementById('add-skill-btn')?.addEventListener('click', addSkill);
   document.getElementById('skills-search')?.addEventListener('input', renderSkillsList);
