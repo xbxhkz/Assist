@@ -56,6 +56,19 @@ def _poll(proc):
         return None
 
 
+def _default_force_kill(pid) -> None:
+    """Forcefully kill a whole process tree (Windows: taskkill /F /T) as a last
+    resort when terminate()/kill() don't reap a stuck child — e.g. llama-server
+    mid-mmap of a huge model — so it can't orphan and hold gigabytes of RAM."""
+    if not pid:
+        return
+    try:
+        from core.platform_compat import kill_process_tree
+        kill_process_tree(pid)
+    except Exception:
+        pass
+
+
 def _read_log_tail(path: str, n: int = 4000) -> str:
     """Return the last `n` bytes of `path` as text (for error messages)."""
     try:
@@ -73,7 +86,7 @@ class LocalModelManager:
                  register_endpoint=None, unregister_endpoint=None,
                  resolve_binary=resolve_llama_binary, log_path=None,
                  sleep=None, now=None, ready_timeout=45.0, probe_interval=0.5,
-                 sec_per_gb=12.0):
+                 sec_per_gb=12.0, force_kill=None):
         self._log_path = log_path or _default_log_path()
         self._spawn = spawn or self._default_spawn
         self._port_chooser = port_chooser or (lambda: choose_port(8100))
@@ -86,6 +99,7 @@ class LocalModelManager:
         self._register = register_endpoint
         self._unregister = unregister_endpoint
         self._resolve_binary = resolve_binary
+        self._force_kill = force_kill or _default_force_kill
         self._lock = threading.Lock()
         self._proc = None
         self._logf = None
@@ -172,8 +186,7 @@ class LocalModelManager:
         with self._lock:
             return self._stop_locked()
 
-    @staticmethod
-    def _terminate(proc):
+    def _terminate(self, proc):
         try:
             proc.terminate()
             try:
@@ -181,10 +194,15 @@ class LocalModelManager:
             except Exception:
                 try:
                     proc.kill()
+                    proc.wait(timeout=5)
                 except Exception:
                     pass
         except Exception:
             pass
+        # Last resort: if it still hasn't died (a huge model mmap can make
+        # terminate/kill unreliable), force-kill the tree so it can't orphan.
+        if _poll(proc) is None:
+            self._force_kill(getattr(proc, "pid", None))
 
     def _close_log(self):
         if self._logf is not None:
