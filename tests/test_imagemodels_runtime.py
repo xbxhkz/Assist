@@ -12,15 +12,16 @@ def test_build_argv_flux_four_files_cpu():
     argv = rt.build_serve_argv("/x/sd-server", files, 8200, device="cpu", threads=8)
     for f in ("--diffusion-model", "/m/flux.gguf", "--t5xxl", "/m/t5.gguf",
               "--clip_l", "/m/clip.safetensors", "--vae", "/m/ae.safetensors",
-              "--host", "127.0.0.1", "--port", "8200", "-t", "8"):
+              "--listen-ip", "127.0.0.1", "--listen-port", "8200", "-t", "8"):
         assert f in argv
+    assert "--auto-fit" not in argv
 
 
-def test_build_argv_gpu_offloads_encoders():
+def test_build_argv_gpu_autofit():
     files = {"diffusion_model": "/m/flux.gguf", "t5xxl": "/m/t5.gguf",
              "clip_l": "/m/clip.safetensors", "vae": "/m/ae.safetensors"}
     argv = rt.build_serve_argv("/x/sd-server", files, 8200, device="gpu")
-    assert "--clip-on-cpu" in argv and "--vae-on-cpu" in argv
+    assert "--auto-fit" in argv and "--diffusion-fa" in argv
 
 
 def test_resolve_prefers_path_binary():

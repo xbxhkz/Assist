@@ -11,6 +11,7 @@ import os
 import subprocess
 import threading
 import time
+import urllib.error
 import urllib.request
 
 from src.constants import IMAGE_MODELS_DIR
@@ -26,9 +27,14 @@ def _default_log_path() -> str:
 
 
 def _default_probe(url: str) -> bool:
+    """True once sd-server is accepting connections. Any HTTP response — even a
+    404/405 (sd-server may not serve GET /v1/models) — means it's listening;
+    only a refused/failed connection means not-ready yet."""
     try:
         with urllib.request.urlopen(url, timeout=2) as resp:  # noqa: S310 (loopback)
             return 200 <= resp.getcode() < 500
+    except urllib.error.HTTPError:
+        return True
     except Exception:
         return False
 

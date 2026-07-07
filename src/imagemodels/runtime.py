@@ -22,11 +22,14 @@ def build_serve_argv(binary, files, port, device="cpu", host="127.0.0.1", thread
         "--t5xxl", files["t5xxl"],
         "--clip_l", files["clip_l"],
         "--vae", files["vae"],
-        "--host", host,
-        "--port", str(port),
+        "--listen-ip", host,
+        "--listen-port", str(port),
     ]
     if device == "gpu":
-        argv += ["--clip-on-cpu", "--vae-on-cpu", "--diffusion-fa"]
+        # --auto-fit places diffusion/text-encoder/VAE across GPU+CPU by the
+        # per-device VRAM budget (right for a small 6GB card); flash-attention
+        # in the diffusion model trims VRAM further.
+        argv += ["--auto-fit", "--diffusion-fa"]
     elif threads:
         argv += ["-t", str(threads)]
     return argv
