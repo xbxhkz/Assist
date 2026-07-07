@@ -763,6 +763,8 @@ app.include_router(setup_font_routes())
 
 from routes.localmodels_routes import setup_localmodels_routes
 app.include_router(setup_localmodels_routes())
+from routes.imagemodels_routes import setup_imagemodels_routes
+app.include_router(setup_imagemodels_routes())
 
 
 # MCP (Model Context Protocol)
@@ -1220,6 +1222,12 @@ async def _shutdown_event():
         get_manager().stop()
     except Exception as e:
         logger.warning(f"Local model shutdown error: {e}")
+    # Stop any running native image model so no sd-server is orphaned.
+    try:
+        from src.imagemodels.manager import get_manager as _img_manager
+        _img_manager().stop()
+    except Exception as e:
+        logger.warning(f"Image model shutdown error: {e}")
     logger.info("Application shutdown complete")
 
 

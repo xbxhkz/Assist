@@ -101,6 +101,19 @@ def main() -> None:
             except Exception:
                 return ''
 
+        def pick_image_model(self):
+            """Open a native dialog for an image (diffusion) model file and
+            return its absolute path, or ''. Used by the Image Models "Browse"
+            button. Accepts .gguf and .safetensors."""
+            try:
+                paths = self._window.create_file_dialog(
+                    webview.OPEN_DIALOG, allow_multiple=False,
+                    file_types=('Diffusion model (*.gguf;*.safetensors)',
+                                'All files (*.*)'))
+                return paths[0] if paths else ''
+            except Exception:
+                return ''
+
     api = _JsApi()
     api._window = webview.create_window("Assist", origin, js_api=api)
     webview.start()  # blocks until the window is closed
