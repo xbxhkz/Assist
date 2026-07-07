@@ -230,6 +230,10 @@ def test_missing_raises_named(tmp_path, monkeypatch):
 
 **Verified 2026-07-07:** 20/20 imagemodels tests pass. Packaged build (installer 466 MB, sd/cpu + sd/vulkan bundled in `_internal/sd/`) booted against an isolated data dir; `GET /api/imagemodels/models` → 200 `{"models":[]}`, `GET /api/imagemodels/status` → 200 not-running. Manual FLUX serve/generate test pending user.
 
+**FLUX.2 finding (2026-07-07):** the pinned sd.cpp (`master-765-bb84971`) *does* support FLUX.2 — but via a different file set: `--llm <mistral-small3.2 gguf>` replaces `--t5xxl`/`--clip_l`, plus `--vae-format flux2`. FLUX.2 GGUFs carry the same `flux` architecture tag as FLUX.1 and no `general.name`, so they can't be told apart by header; the serve route fast-fails on a filename heuristic (`looks_like_flux2`) instead of dying after minutes of load. Follow-up feature: FLUX.2 support = resolve a Mistral `--llm` encoder (+ flux2 VAE) and extend `build_serve_argv`.
+
+**Manual-test fallout fixed (2026-07-07):** (a) `image_gen_enabled` ships default-False — flipped in the user's settings.json (chat/gallery gate, not a code bug); (b) GGUFs were routed to cards by directory, not architecture — image GGUFs downloaded into `data/models/` showed in the LLM card (llama-server: `unknown architecture: 'flux'`) and not in the Image Models card. Fixed with `src/gguf_meta.py` header sniffing: LLM list excludes diffusion/encoder archs, image card merges diffusion-arch GGUFs from the download dir, and the card renders a clickable model list.
+
 ## Self-Review
 
 - **Spec coverage:** runtime (T1), encoders (T2), store (T3), manager (T4), routes+picker+wiring (T5), packaging (T6), UI (T7), rebuild/verify (T8). All spec components covered.
