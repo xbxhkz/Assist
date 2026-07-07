@@ -1371,6 +1371,22 @@
       <div id="localmodels-recommendations" style="margin-bottom:8px;"></div>
       <div id="localmodels-progress" style="display:none;font-size:12px;margin-bottom:8px;"></div>
       <div id="localmodels-results"></div>
+      <hr style="border:none;border-top:1px solid var(--border,#333);margin:14px 0;">
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px;">
+        <h3 style="margin:0;font-size:14px;">Image models <span style="opacity:0.5;font-weight:normal;font-size:0.85em;">FLUX · text-to-image</span></h3>
+      </div>
+      <div id="imagemodels-status" style="opacity:0.7;font-size:12px;margin-bottom:8px;">No image model running</div>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap;">
+        <button id="imagemodels-browse-btn" style="display:none;" title="Pick a FLUX diffusion .gguf on this computer">Browse for a FLUX .gguf…</button>
+        <span id="imagemodels-picked" style="font-size:12px;opacity:0.75;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;"></span>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;font-size:12px;">
+        <label><input type="radio" name="imagemodels-device" value="cpu" checked> CPU</label>
+        <label><input type="radio" name="imagemodels-device" value="gpu"> GPU</label>
+        <button id="imagemodels-serve-btn" disabled>Serve</button>
+        <button id="imagemodels-stop-btn" style="display:none;">Stop</button>
+      </div>
+      <div id="imagemodels-msg" style="font-size:12px;opacity:0.85;"></div>
     </div>
   </div>
 
@@ -2547,6 +2563,7 @@
 <script type="module" src="/static/js/cookbook.js"></script>
 <script src="/static/js/cookbookSchedule.js"></script>
 <script src="/static/js/localModels.js"></script>
+<script src="/static/js/imageModels.js"></script>
 <script type="module" src="/static/js/search-chat.js"></script>
 <script type="module" src="/static/js/compare/index.js"></script>
 <script type="module" src="/static/js/theme.js"></script>

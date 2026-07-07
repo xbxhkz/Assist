@@ -24,6 +24,9 @@ datas = [
     ('build_assets/fastembed_cache', 'fastembed_cache'),
     # Bundled CPU llama-server for native local models (Phase 3a).
     ('build_assets/llama', 'llama'),
+    # Bundled sd-server (stable-diffusion.cpp) for native image generation:
+    # CPU (avx2) + Vulkan GPU builds, populated by scripts/fetch_sd_server.py.
+    ('build_assets/sd', 'sd'),
 ] + _collected_datas
 
 hiddenimports = [
