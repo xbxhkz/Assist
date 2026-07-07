@@ -43,3 +43,33 @@ def test_list_filters_gguf(tmp_path):
     (tmp_path / "note.txt").write_text("n")
     got = rt.list_gguf_image_models(str(tmp_path))
     assert [m["name"] for m in got] == ["flux.gguf"]
+
+
+def _gguf_with_arch(arch: str) -> bytes:
+    import struct
+    kb, vb = b"general.architecture", arch.encode()
+    kv = struct.pack("<Q", len(kb)) + kb + struct.pack("<I", 8) + struct.pack("<Q", len(vb)) + vb
+    return b"GGUF" + struct.pack("<I", 3) + struct.pack("<Q", 0) + struct.pack("<Q", 1) + kv
+
+
+def test_list_image_arch_ggufs_filters_by_header(tmp_path):
+    """Only diffusion-architecture ggufs qualify — LLMs and unparseable files
+    in the shared download dir must not appear in the image picker."""
+    (tmp_path / "flux1-dev.gguf").write_bytes(_gguf_with_arch("flux"))
+    (tmp_path / "chat.gguf").write_bytes(_gguf_with_arch("llama"))
+    (tmp_path / "junk.gguf").write_bytes(b"x")
+    got = rt.list_image_arch_ggufs(str(tmp_path))
+    assert [m["name"] for m in got] == ["flux1-dev.gguf"]
+
+
+def test_list_image_arch_ggufs_missing_dir_is_empty():
+    assert rt.list_image_arch_ggufs("/no/such/dir") == []
+
+
+def test_looks_like_flux2():
+    assert rt.looks_like_flux2("flux-2-klein-4b-Q8_0.gguf")
+    assert rt.looks_like_flux2("FLUX.2-dev-Q4_K.gguf")
+    assert rt.looks_like_flux2("flux2_whatever.gguf")
+    assert not rt.looks_like_flux2("flux1-dev-Q3_K_S.gguf")
+    assert not rt.looks_like_flux2("flux-dev.gguf")
+    assert not rt.looks_like_flux2("")

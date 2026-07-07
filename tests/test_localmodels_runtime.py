@@ -62,3 +62,20 @@ def test_list_gguf_models_filters_and_reports_size(tmp_path):
 
 def test_list_gguf_models_missing_dir_is_empty():
     assert rt.list_gguf_models("/no/such/dir") == []
+
+
+def _gguf_with_arch(arch: str) -> bytes:
+    import struct
+    kb, vb = b"general.architecture", arch.encode()
+    kv = struct.pack("<Q", len(kb)) + kb + struct.pack("<I", 8) + struct.pack("<Q", len(vb)) + vb
+    return b"GGUF" + struct.pack("<I", 3) + struct.pack("<Q", 0) + struct.pack("<Q", 1) + kv
+
+
+def test_list_gguf_models_excludes_image_architectures(tmp_path):
+    """A FLUX (diffusion) .gguf downloaded into the models dir must not be
+    offered to llama-server — it fails at load with 'unknown architecture'."""
+    (tmp_path / "flux1-dev.gguf").write_bytes(_gguf_with_arch("flux"))
+    (tmp_path / "chat.gguf").write_bytes(_gguf_with_arch("llama"))
+    (tmp_path / "weird.gguf").write_bytes(b"not-a-gguf")  # unknown arch stays listed
+    models = rt.list_gguf_models(str(tmp_path))
+    assert [m["name"] for m in models] == ["chat.gguf", "weird.gguf"]

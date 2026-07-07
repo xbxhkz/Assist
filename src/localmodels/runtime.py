@@ -74,11 +74,17 @@ def resolve_llama_binary(path_lookup=shutil.which, frozen_base: str = None,
 
 
 def list_gguf_models(models_dir: str) -> list:
-    """List `.gguf` files in `models_dir` as [{name, path, size}], sorted by name."""
+    """List llama-servable `.gguf` files in `models_dir` as [{name, path, size}],
+    sorted by name. Diffusion/encoder-architecture files (FLUX, t5, ...) share
+    this download dir but belong to sd-server — llama-server dies on them at
+    load, so they're excluded here (the Image Models card lists them instead)."""
+    from src.gguf_meta import read_gguf_architecture, is_llm_servable
     out = []
     if os.path.isdir(models_dir):
         for fn in sorted(os.listdir(models_dir)):
             if fn.lower().endswith(".gguf"):
                 p = os.path.join(models_dir, fn)
+                if not is_llm_servable(read_gguf_architecture(p)):
+                    continue
                 out.append({"name": fn, "path": p, "size": os.path.getsize(p)})
     return out

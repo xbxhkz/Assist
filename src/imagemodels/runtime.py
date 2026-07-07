@@ -3,8 +3,11 @@ sd-server. No process launching or DB access here — just binary resolution,
 command construction, and filesystem listing, so this module is unit-testable.
 """
 import os
+import re
 import shutil
 import sys
+
+from src.gguf_meta import read_gguf_architecture, is_image_architecture
 
 
 def local_image_endpoint_url(port: int) -> str:
@@ -84,3 +87,22 @@ def list_gguf_image_models(models_dir: str) -> list:
                 p = os.path.join(models_dir, fn)
                 out.append({"name": fn, "path": p, "size": os.path.getsize(p)})
     return out
+
+
+def list_image_arch_ggufs(models_dir: str) -> list:
+    """Diffusion-architecture `.gguf` files in `models_dir` (by GGUF header).
+    Used to surface image models the user downloaded into the shared LLM
+    models dir; anything unparseable or LLM-architected is skipped."""
+    return [m for m in list_gguf_image_models(models_dir)
+            if is_image_architecture(read_gguf_architecture(m["path"]))]
+
+
+_FLUX2_NAME = re.compile(r"flux[-_. ]?2", re.IGNORECASE)
+
+
+def looks_like_flux2(filename: str) -> bool:
+    """Best-effort FLUX.2 detection by filename. FLUX.2 GGUFs carry the same
+    `flux` architecture tag as FLUX.1 but need a Mistral `--llm` text encoder
+    instead of t5xxl/clip_l — serving one with FLUX.1 encoders fails after a
+    long load, so we reject early on the naming convention."""
+    return bool(_FLUX2_NAME.search(os.path.basename(filename or "")))

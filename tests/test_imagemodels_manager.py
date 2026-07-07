@@ -104,6 +104,30 @@ def test_ready_timeout_scales_with_size():
     assert mgr._timeout_for_bytes(12_000_000_000) == 12.0 * 12
 
 
+def test_list_models_merges_image_dir_and_downloaded_flux(tmp_path, monkeypatch):
+    """The picker must show FLUX ggufs the user downloaded into the shared
+    LLM models dir, not just files manually placed in image-models/."""
+    import struct
+    import src.imagemodels.manager as mod
+
+    def gguf(arch):
+        kb, vb = b"general.architecture", arch.encode()
+        kv = struct.pack("<Q", len(kb)) + kb + struct.pack("<I", 8) + struct.pack("<Q", len(vb)) + vb
+        return b"GGUF" + struct.pack("<I", 3) + struct.pack("<Q", 0) + struct.pack("<Q", 1) + kv
+
+    img_dir = tmp_path / "image-models"; img_dir.mkdir()
+    dl_dir = tmp_path / "models"; dl_dir.mkdir()
+    (img_dir / "manual.gguf").write_bytes(b"x")            # placed by hand: listed as-is
+    (dl_dir / "flux1-dev.gguf").write_bytes(gguf("flux"))  # downloaded image model
+    (dl_dir / "chat.gguf").write_bytes(gguf("llama"))      # LLM: excluded
+    monkeypatch.setattr(mod, "IMAGE_MODELS_DIR", str(img_dir))
+    monkeypatch.setattr(mod, "MODELS_DIR", str(dl_dir))
+
+    mgr, *_ = make_manager()
+    names = [m["name"] for m in mgr.list_models()]
+    assert names == ["manual.gguf", "flux1-dev.gguf"]
+
+
 def test_terminate_escalates_to_force_kill():
     killed = []
 

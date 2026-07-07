@@ -14,11 +14,11 @@ import time
 import urllib.error
 import urllib.request
 
-from src.constants import IMAGE_MODELS_DIR
+from src.constants import IMAGE_MODELS_DIR, MODELS_DIR
 from src.desktop_runtime import choose_port
 from src.imagemodels.runtime import (
     resolve_sd_binary, build_serve_argv, local_image_endpoint_url,
-    list_gguf_image_models,
+    list_gguf_image_models, list_image_arch_ggufs,
 )
 
 
@@ -206,7 +206,13 @@ class ImageModelManager:
                 "device": self._state["device"]}
 
     def list_models(self) -> list:
-        return list_gguf_image_models(IMAGE_MODELS_DIR)
+        """Ggufs placed in image-models/ (listed as-is) plus diffusion-
+        architecture ggufs from the shared download dir, de-duplicated."""
+        out = list_gguf_image_models(IMAGE_MODELS_DIR)
+        seen = {os.path.realpath(m["path"]) for m in out}
+        out += [m for m in list_image_arch_ggufs(MODELS_DIR)
+                if os.path.realpath(m["path"]) not in seen]
+        return out
 
 
 _manager = None
