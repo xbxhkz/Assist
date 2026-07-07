@@ -13,6 +13,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from core.middleware import require_admin
 from src.imagemodels.manager import get_manager
 from src.imagemodels.encoders import resolve_flux_files, MissingEncoderError
+from src.imagemodels.runtime import looks_like_flux2
 
 
 def setup_imagemodels_routes() -> APIRouter:
@@ -36,6 +37,14 @@ def setup_imagemodels_routes() -> APIRouter:
         real = os.path.realpath(diff)
         if not diff or not real.lower().endswith(".gguf") or not os.path.isfile(real):
             raise HTTPException(400, "diffusion_model must be an existing .gguf file")
+        if looks_like_flux2(real):
+            # Same 'flux' GGUF arch tag as FLUX.1, but needs a Mistral --llm
+            # text encoder — with the FLUX.1 t5xxl/clip_l set it fails only
+            # after minutes of loading, so reject up front.
+            raise HTTPException(
+                400, "FLUX.2 models aren't supported yet — they need a Mistral "
+                "(--llm) text encoder instead of the FLUX.1 t5xxl/clip_l set. "
+                "Use a FLUX.1 GGUF for now.")
         try:
             files = resolve_flux_files(
                 real, t5xxl=payload.get("t5xxl"),
