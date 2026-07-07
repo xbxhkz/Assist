@@ -23,7 +23,7 @@
 
 **Interfaces:** Produces `local_image_endpoint_url(port)->str`, `build_serve_argv(binary, files: dict, port, device="cpu", host="127.0.0.1", threads=0)->list`, `resolve_sd_binary(device="cpu", path_lookup=shutil.which, frozen_base=None, dev_base=None)->str`, `list_gguf_image_models(dir)->list`.
 
-- [ ] **Step 1 — failing tests** `tests/test_imagemodels_runtime.py`:
+- [x] **Step 1 — failing tests** `tests/test_imagemodels_runtime.py`:
 ```python
 import os
 import src.imagemodels.runtime as rt
@@ -64,8 +64,8 @@ def test_list_filters_gguf(tmp_path):
     got = rt.list_gguf_image_models(str(tmp_path))
     assert [m["name"] for m in got] == ["flux.gguf"]
 ```
-- [ ] **Step 2 — run, expect FAIL** (module missing): `python -m pytest tests/test_imagemodels_runtime.py --import-mode=importlib -q`
-- [ ] **Step 3 — implement** `src/imagemodels/runtime.py`:
+- [x] **Step 2 — run, expect FAIL** (module missing): `python -m pytest tests/test_imagemodels_runtime.py --import-mode=importlib -q`
+- [x] **Step 3 — implement** `src/imagemodels/runtime.py`:
 ```python
 """Pure helpers for native image-model serving (sd-server). No process/DB here."""
 import os
@@ -132,7 +132,7 @@ def list_gguf_image_models(models_dir):
                 out.append({"name": fn, "path": p, "size": os.path.getsize(p)})
     return out
 ```
-- [ ] **Step 4 — run, expect PASS.** **Step 5 — commit.**
+- [x] **Step 4 — run, expect PASS.** **Step 5 — commit.**
 
 ---
 
@@ -142,7 +142,7 @@ def list_gguf_image_models(models_dir):
 
 **Interfaces:** Produces `resolve_flux_files(diffusion_model, t5xxl=None, clip_l=None, vae=None) -> dict` (raises `MissingEncoderError(list_of_missing)` if any unresolved), `encoders_dir()->str`, `ENCODER_FILENAMES` (canonical names to look for).
 
-- [ ] **Step 1 — failing tests**:
+- [x] **Step 1 — failing tests**:
 ```python
 import os, pytest
 import src.imagemodels.encoders as enc
@@ -173,9 +173,9 @@ def test_missing_raises_named(tmp_path, monkeypatch):
         enc.resolve_flux_files(str(d / "flux.gguf"))
     assert "t5xxl" in ei.value.missing
 ```
-- [ ] **Step 2 — run, expect FAIL.**
-- [ ] **Step 3 — implement** `src/imagemodels/encoders.py`: `IMAGE_MODELS_DIR` from `src.constants`; `encoders_dir()` = `<IMAGE_MODELS_DIR>/encoders`; `ENCODER_FILENAMES = {"t5xxl": ["t5xxl.gguf","t5xxl_fp16.safetensors","t5xxl_q8_0.gguf"], "clip_l": ["clip_l.safetensors"], "vae": ["ae.safetensors","vae.safetensors"]}`. `resolve_flux_files` for each of t5xxl/clip_l/vae: use explicit arg if given+exists; else first match by known filename in the GGUF's dir; else in `encoders_dir()`; collect missing; raise `MissingEncoderError(missing)` if any. Return `{"diffusion_model":..., "t5xxl":..., "clip_l":..., "vae":...}` of realpaths.
-- [ ] **Step 4 — run, expect PASS.** **Step 5 — commit.**
+- [x] **Step 2 — run, expect FAIL.**
+- [x] **Step 3 — implement** `src/imagemodels/encoders.py`: `IMAGE_MODELS_DIR` from `src.constants`; `encoders_dir()` = `<IMAGE_MODELS_DIR>/encoders`; `ENCODER_FILENAMES = {"t5xxl": ["t5xxl.gguf","t5xxl_fp16.safetensors","t5xxl_q8_0.gguf"], "clip_l": ["clip_l.safetensors"], "vae": ["ae.safetensors","vae.safetensors"]}`. `resolve_flux_files` for each of t5xxl/clip_l/vae: use explicit arg if given+exists; else first match by known filename in the GGUF's dir; else in `encoders_dir()`; collect missing; raise `MissingEncoderError(missing)` if any. Return `{"diffusion_model":..., "t5xxl":..., "clip_l":..., "vae":...}` of realpaths.
+- [x] **Step 4 — run, expect PASS.** **Step 5 — commit.**
 
 ---
 
@@ -185,7 +185,7 @@ def test_missing_raises_named(tmp_path, monkeypatch):
 
 **Interfaces:** Produces `register_image_endpoint(name, base_url, session_factory=None, probe=None)->str`, `unregister_image_endpoint(id, session_factory=None)`.
 
-- [ ] Mirror `src/localmodels/store.py` exactly, but: `model_type="image"`, id prefix `"img-local-"`, and the sync probe hits the sd-server `/v1/models` (reuse `routes.model_routes._probe_endpoint`). Tests mirror `tests/test_localmodels_store.py` (in-memory SQLite): create/update sets `model_type=="image"`; probe populates `cached_models`; unregister deletes. **Commit.**
+- [x] Mirror `src/localmodels/store.py` exactly, but: `model_type="image"`, id prefix `"img-local-"`, and the sync probe hits the sd-server `/v1/models` (reuse `routes.model_routes._probe_endpoint`). Tests mirror `tests/test_localmodels_store.py` (in-memory SQLite): create/update sets `model_type=="image"`; probe populates `cached_models`; unregister deletes. **Commit.**
 
 ---
 
@@ -195,7 +195,7 @@ def test_missing_raises_named(tmp_path, monkeypatch):
 
 **Interfaces:** Produces `ImageModelManager` with `start(files: dict, device="cpu")->dict`, `stop()`, `status()`, `list_models()`; `get_manager()`.
 
-- [ ] Copy `src/localmodels/manager.py` structure and adapt: spawn `build_serve_argv(binary, files, port, device, threads)`; readiness probes `local_image_endpoint_url(port)+"/models"`; `_default_force_kill` + escalation; `CREATE_NO_WINDOW`; size-scaled timeout keyed on the diffusion GGUF size; log to `sd-server.log`; on ready → `register_image_endpoint(name=basename(diffusion_model), base_url=url)`; state stores `device`. Tests mirror `tests/test_imagemodels_manager.py` with the injected-fakes helper (FakeProc + autouse `IMAGE_MODELS_DIR` isolation fixture — persist writes stay off real data). **Commit.**
+- [x] Copy `src/localmodels/manager.py` structure and adapt: spawn `build_serve_argv(binary, files, port, device, threads)`; readiness probes `local_image_endpoint_url(port)+"/models"`; `_default_force_kill` + escalation; `CREATE_NO_WINDOW`; size-scaled timeout keyed on the diffusion GGUF size; log to `sd-server.log`; on ready → `register_image_endpoint(name=basename(diffusion_model), base_url=url)`; state stores `device`. Tests mirror `tests/test_imagemodels_manager.py` with the injected-fakes helper (FakeProc + autouse `IMAGE_MODELS_DIR` isolation fixture — persist writes stay off real data). **Commit.**
 
 ---
 
@@ -203,7 +203,7 @@ def test_missing_raises_named(tmp_path, monkeypatch):
 
 **Files:** Create `routes/imagemodels_routes.py`; Modify `app.py` (include router + shutdown stop); `launcher.py` (`pick_image_model`).
 
-- [ ] `setup_imagemodels_routes()` admin-guarded (`Depends(require_admin)`): `POST /api/imagemodels/serve {diffusion_model, device, t5xxl?, clip_l?, vae?}` → `resolve_flux_files(...)` (400 `MissingEncoderError` names missing files) → `await asyncio.to_thread(get_manager().start, files, device)` (503 RuntimeError); `POST /stop`; `GET /status`; `GET /models` (list_gguf_image_models + linked); `POST /add-external {path}` (reuse the linked-model pattern for a picked file). `app.py`: `app.include_router(setup_imagemodels_routes())` + stop hook in the lifespan shutdown next to `get_manager().stop()`. `launcher.py`: add `pick_image_model()` to `_JsApi` (open dialog `*.gguf;*.safetensors`). **Verify** `python -c "import routes.imagemodels_routes"`. **Commit.**
+- [x] `setup_imagemodels_routes()` admin-guarded (`Depends(require_admin)`): `POST /api/imagemodels/serve {diffusion_model, device, t5xxl?, clip_l?, vae?}` → `resolve_flux_files(...)` (400 `MissingEncoderError` names missing files) → `await asyncio.to_thread(get_manager().start, files, device)` (503 RuntimeError); `POST /stop`; `GET /status`; `GET /models` (list_gguf_image_models + linked); `POST /add-external {path}` (reuse the linked-model pattern for a picked file). `app.py`: `app.include_router(setup_imagemodels_routes())` + stop hook in the lifespan shutdown next to `get_manager().stop()`. `launcher.py`: add `pick_image_model()` to `_JsApi` (open dialog `*.gguf;*.safetensors`). **Verify** `python -c "import routes.imagemodels_routes"`. **Commit.**
 
 ---
 
@@ -211,7 +211,7 @@ def test_missing_raises_named(tmp_path, monkeypatch):
 
 **Files:** Create `scripts/fetch_sd_server.py`; Modify `Assist.spec`.
 
-- [ ] `fetch_sd_server.py` (mirror `scripts/fetch_llama_server.py`): download a **pinned** `leejet/stable-diffusion.cpp` Windows release — the AVX2 (CPU) and Vulkan zips — extract `sd-server.exe` + `*.dll` into `build_assets/sd/cpu/` and `build_assets/sd/vulkan/`. Pin the tag + asset names after checking the releases page; error clearly if `sd-server.exe` is absent (older releases shipped only `sd`). `Assist.spec`: add `build_assets/sd` → `sd/` in `datas` (like the `llama` bundle). **Run the fetch** (network) and confirm both binaries land. **Commit** (build_assets gitignored; commit the script + spec).
+- [x] `fetch_sd_server.py` (mirror `scripts/fetch_llama_server.py`): download a **pinned** `leejet/stable-diffusion.cpp` Windows release — the AVX2 (CPU) and Vulkan zips — extract `sd-server.exe` + `*.dll` into `build_assets/sd/cpu/` and `build_assets/sd/vulkan/`. Pin the tag + asset names after checking the releases page; error clearly if `sd-server.exe` is absent (older releases shipped only `sd`). `Assist.spec`: add `build_assets/sd` → `sd/` in `datas` (like the `llama` bundle). **Run the fetch** (network) and confirm both binaries land. **Commit** (build_assets gitignored; commit the script + spec).
 
 ---
 
@@ -219,13 +219,16 @@ def test_missing_raises_named(tmp_path, monkeypatch):
 
 **Files:** Modify `static/index.html` (Local Models modal) + create `static/js/imageModels.js`.
 
-- [ ] Add an "Image Models" card: a Browse button (native `pick_image_model` when available) + local-model list, a **CPU / GPU** radio, a **Serve/Stop**, a running-status line, and a "Download FLUX encoders" affordance when a serve fails with missing encoders. `imageModels.js`: mirror `localModels.js` — `serve` posts `{diffusion_model, device}`, shows "Starting… (image models load slowly)", refresh status; on 400 missing-encoders, surface which files to add. **Commit.**
+- [x] Add an "Image Models" card: a Browse button (native `pick_image_model` when available) + local-model list, a **CPU / GPU** radio, a **Serve/Stop**, a running-status line, and a "Download FLUX encoders" affordance when a serve fails with missing encoders. `imageModels.js`: mirror `localModels.js` — `serve` posts `{diffusion_model, device}`, shows "Starting… (image models load slowly)", refresh status; on 400 missing-encoders, surface which files to add. **Commit.**
 
 ---
 
 ### Task 8: Rebuild + verify
 
-- [ ] `python -m PyInstaller --noconfirm --clean Assist.spec` (bundles `sd/`), then ISCC. Boot; `GET /api/imagemodels/models` responds. **User manual test:** serve their FLUX.1 GGUF on CPU then GPU, generate an image via the gallery; try FLUX 2 and record whether sd.cpp loads it (expected: FLUX.1 works; FLUX 2 = "unsupported architecture" unless the pinned sd.cpp supports it).
+- [x] `python -m PyInstaller --noconfirm --clean Assist.spec` (bundles `sd/`), then ISCC. Boot; `GET /api/imagemodels/models` responds.
+- [ ] **User manual test:** serve their FLUX.1 GGUF on CPU then GPU, generate an image via the gallery; try FLUX 2 and record whether sd.cpp loads it (expected: FLUX.1 works; FLUX 2 = "unsupported architecture" unless the pinned sd.cpp supports it).
+
+**Verified 2026-07-07:** 20/20 imagemodels tests pass. Packaged build (installer 466 MB, sd/cpu + sd/vulkan bundled in `_internal/sd/`) booted against an isolated data dir; `GET /api/imagemodels/models` → 200 `{"models":[]}`, `GET /api/imagemodels/status` → 200 not-running. Manual FLUX serve/generate test pending user.
 
 ## Self-Review
 
