@@ -32,10 +32,11 @@ def build_serve_argv(binary: str, model_path: str, port: int,
         "--port", str(port),
         "--ctx-size", str(ctx_size),
     ]
-    if device == "gpu":
-        # Offload every layer (llama caps at the model's actual layer count);
-        # flash attention is a VRAM + speed win on RTX-class cards.
-        argv += ["-ngl", "999", "--flash-attn", "on"]
+    # device=gpu adds NO flags on purpose: the Vulkan build auto-fits GPU
+    # layers to free VRAM (common_fit_params), and an explicit -ngl DISABLES
+    # that fitter ("n_gpu_layers already set by user, abort") — observed live
+    # as a hard OOM on a 6GB card. Device selection is the binary choice in
+    # resolve_llama_binary.
     return argv
 
 

@@ -71,10 +71,12 @@ def _gguf_with_arch(arch: str) -> bytes:
     return b"GGUF" + struct.pack("<I", 3) + struct.pack("<Q", 0) + struct.pack("<Q", 1) + kv
 
 
-def test_build_serve_argv_gpu_offloads_layers():
+def test_build_serve_argv_gpu_lets_llama_autofit():
+    """No -ngl on GPU serves: an explicit value disables llama.cpp's
+    common_fit_params VRAM fitter and OOMs models larger than the card
+    (observed live). The vulkan binary choice IS the device selection."""
     argv = rt.build_serve_argv("/x/llama-server", "/m/model.gguf", 8123, device="gpu")
-    assert argv[argv.index("-ngl") + 1] == "999"
-    assert "--flash-attn" in argv
+    assert "-ngl" not in argv and "--flash-attn" not in argv
 
 
 def test_build_serve_argv_cpu_has_no_gpu_flags():
