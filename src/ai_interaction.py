@@ -884,6 +884,26 @@ async def do_ui_control(content: str, session_id: Optional[str] = None, owner: O
 # Image generation
 # ---------------------------------------------------------------------------
 
+def _local_diffusion_size_hint(is_local_diffusion: bool, status_code: int, size: str) -> str:
+    """Actionable suffix for a failed local-diffusion generation.
+
+    sd-server answers a mid-generation OOM with an opaque 500 ("generate_image
+    returned no results"). On small GPUs that almost always means the compute
+    buffer at the requested resolution didn't fit (verified live: FLUX.1 12B
+    OOMs at 1024x1024 on a 6GB card but generates fine at 512x512), so point
+    at the size dial instead of leaving a dead end."""
+    if not is_local_diffusion or status_code != 500:
+        return ""
+    if size and size not in ("512x512", "256x256"):
+        return (" — this often means the image size doesn't fit your GPU "
+                "memory. Try a smaller size (Settings → Image generation → "
+                "Size, e.g. 512×512), or serve the model on CPU for large "
+                "sizes. Smaller models (e.g. FLUX.2 klein) handle 1024×1024 "
+                "on small GPUs.")
+    return (" — the model may not fit your hardware at this setting; check "
+            "data/logs/sd-server.log for details.")
+
+
 async def do_generate_image(content: str, session_id: Optional[str] = None, owner: Optional[str] = None) -> Dict:
     """Generate an image using an image-capable model (e.g. gpt-image-1).
 
@@ -1021,7 +1041,9 @@ async def do_generate_image(content: str, session_id: Optional[str] = None, owne
                     error_text = err_json.get("error", {}).get("message", error_text) if isinstance(err_json.get("error"), dict) else str(err_json.get("error", error_text))
                 except Exception:
                     pass
-                return {"error": f"Image generation failed ({resp.status_code}): {error_text}"}
+                msg = f"Image generation failed ({resp.status_code}): {error_text}"
+                msg += _local_diffusion_size_hint(is_local_diffusion, resp.status_code, size)
+                return {"error": msg}
 
             data = resp.json()
             images = data.get("data", [])

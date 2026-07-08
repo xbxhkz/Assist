@@ -42,7 +42,10 @@ def _run(cmd):
                 text=True,
             )
         else:
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            # CREATE_NO_WINDOW: probes like nvidia-smi flash a console in the
+            # windowed (no-console) build without it. No-op on POSIX.
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=10,
+                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         if r.returncode == 0:
             return r.stdout.strip()
     except Exception:

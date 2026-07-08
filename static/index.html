@@ -1385,14 +1385,15 @@
         <button id="imagemodels-browse-btn" style="display:none;" title="Pick a FLUX diffusion .gguf on this computer">Browse for a FLUX .gguf…</button>
         <span id="imagemodels-picked" style="font-size:12px;opacity:0.75;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;"></span>
       </div>
-      <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;font-size:12px;flex-wrap:wrap;">
-        <label><input type="radio" name="imagemodels-device" value="cpu" checked> CPU</label>
-        <label><input type="radio" name="imagemodels-device" value="gpu"> GPU</label>
-        <label title="Sampling steps baked into this serve; blank = the model's own default (klein: 4, others: 20)">Steps <input id="imagemodels-steps" type="number" min="1" max="50" placeholder="auto" style="width:56px;"></label>
-        <label title="Decode with the tiny autoencoder (taef1): near-instant but slightly softer detail. FLUX.1 only."><input type="checkbox" id="imagemodels-fast-decode"> Fast decode</label>
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:2px;font-size:12px;flex-wrap:wrap;">
+        <label style="white-space:nowrap;"><input type="radio" name="imagemodels-device" value="cpu" checked> CPU</label>
+        <label style="white-space:nowrap;"><input type="radio" name="imagemodels-device" value="gpu"> GPU</label>
+        <label style="white-space:nowrap;">Steps <input id="imagemodels-steps" type="number" min="1" max="50" placeholder="auto" style="width:56px;"></label>
+        <label style="white-space:nowrap;"><input type="checkbox" id="imagemodels-fast-decode"> Fast decode</label>
         <button id="imagemodels-serve-btn" disabled>Serve</button>
         <button id="imagemodels-stop-btn" style="display:none;">Stop</button>
       </div>
+      <div style="font-size:11px;opacity:0.55;margin-bottom:8px;">Steps: blank = the model's default (klein 4, others 20). Fast decode: near-instant decode via tiny autoencoder, slightly softer detail (FLUX.1 only).</div>
       <div id="imagemodels-msg" style="font-size:12px;opacity:0.85;"></div>
     </div>
   </div>

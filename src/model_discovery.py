@@ -44,7 +44,8 @@ def discover_tailscale_hosts() -> List[str]:
     hosts = []
     try:
         result = subprocess.run(
-            ["tailscale", "status", "--json"], capture_output=True, text=True, timeout=5
+            ["tailscale", "status", "--json"], capture_output=True, text=True, timeout=5,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
         )
         if result.returncode != 0:
             return hosts

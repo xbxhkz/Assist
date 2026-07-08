@@ -112,6 +112,13 @@ class LocalModelManager:
         windowed (no-console) build pops a visible console window for
         llama-server. No-op on POSIX (the flag is 0 there)."""
         os.makedirs(os.path.dirname(self._log_path), exist_ok=True)
+        # Keep the previous serve's output as .prev — fresh "wb" truncation
+        # kept destroying exactly the log needed to debug the last failure.
+        try:
+            if os.path.exists(self._log_path):
+                os.replace(self._log_path, self._log_path + ".prev")
+        except OSError:
+            pass
         self._logf = open(self._log_path, "wb")
         return subprocess.Popen(argv, stdout=self._logf,
                                 stderr=subprocess.STDOUT,

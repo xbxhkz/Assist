@@ -110,7 +110,8 @@ def _resolve_tailscale_host(hostname: str) -> Optional[str]:
     try:
         result = subprocess.run(
             ["tailscale", "status", "--json"],
-            capture_output=True, text=True, timeout=5
+            capture_output=True, text=True, timeout=5,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
         )
         if result.returncode == 0:
             import json as _json

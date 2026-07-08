@@ -239,11 +239,15 @@ async def _is_npx_package_cached(npx_path, package_spec, timeout_s=5):
     if _is_package_in_npx_cache(package_spec):
         return True
 
+    # CREATE_NO_WINDOW: npx is a console app — without it every boot-time
+    # availability probe flashes a console window in the windowed build.
+    _no_window = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     try:
         proc = await asyncio.create_subprocess_exec(
             npx_path, "--no-install", package_spec, "--version",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            creationflags=_no_window,
         )
     except NotImplementedError:
         try:
@@ -251,6 +255,7 @@ async def _is_npx_package_cached(npx_path, package_spec, timeout_s=5):
                 [npx_path, "--no-install", package_spec, "--version"],
                 capture_output=True,
                 timeout=timeout_s,
+                creationflags=_no_window,
             )
         except (subprocess.TimeoutExpired, OSError, ValueError):
             return False

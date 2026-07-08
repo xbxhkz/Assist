@@ -97,6 +97,13 @@ class ImageModelManager:
     def _default_spawn(self, argv):
         """Launch sd-server, hidden console, output captured to the log file."""
         os.makedirs(os.path.dirname(self._log_path), exist_ok=True)
+        # Keep the previous serve's output as .prev — fresh "wb" truncation
+        # kept destroying exactly the log needed to debug the last failure.
+        try:
+            if os.path.exists(self._log_path):
+                os.replace(self._log_path, self._log_path + ".prev")
+        except OSError:
+            pass
         self._logf = open(self._log_path, "wb")
         return subprocess.Popen(argv, stdout=self._logf, stderr=subprocess.STDOUT,
                                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
