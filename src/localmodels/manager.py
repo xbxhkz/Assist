@@ -140,13 +140,14 @@ class LocalModelManager:
             self._sleep(self._probe_interval)
         return False
 
-    def start(self, model_path: str) -> dict:
+    def start(self, model_path: str, device: str = "cpu") -> dict:
         with self._lock:
             if self._proc is not None:
                 self._stop_locked()
-            binary = self._resolve_binary()
+            binary = self._resolve_binary(device=device)
             port = self._port_chooser()
-            proc = self._spawn(build_serve_argv(binary, model_path, port))
+            proc = self._spawn(build_serve_argv(binary, model_path, port,
+                                                device=device))
             url = local_endpoint_url(port)
             timeout = self._ready_timeout_for(model_path)
             if not self._await_ready(url + "/models", proc, timeout):
@@ -167,18 +168,18 @@ class LocalModelManager:
                                              base_url=url)
             self._proc = proc
             self._state = {"model_path": model_path, "port": port,
-                           "endpoint_id": endpoint_id,
+                           "endpoint_id": endpoint_id, "device": device,
                            "pid": getattr(proc, "pid", None)}
-            self._persist_last_model(model_path)
+            self._persist_last_model(model_path, device)
             return self.status()
 
-    def _persist_last_model(self, model_path: str) -> None:
-        """Remember this model as the one to auto-serve next launch."""
+    def _persist_last_model(self, model_path: str, device: str = "cpu") -> None:
+        """Remember this model (and device) to auto-serve next launch."""
         try:
             f = _last_model_file()
             os.makedirs(os.path.dirname(f), exist_ok=True)
             with open(f, "w", encoding="utf-8") as fh:
-                json.dump({"model_path": model_path}, fh)
+                json.dump({"model_path": model_path, "device": device}, fh)
         except Exception:
             pass
 
@@ -229,11 +230,12 @@ class LocalModelManager:
     def status(self) -> dict:
         if self._state is None:
             return {"running": False, "model": None, "port": None,
-                    "endpoint_id": None}
+                    "endpoint_id": None, "device": None}
         return {"running": True,
                 "model": os.path.basename(self._state["model_path"]),
                 "port": self._state["port"],
-                "endpoint_id": self._state["endpoint_id"]}
+                "endpoint_id": self._state["endpoint_id"],
+                "device": self._state.get("device", "cpu")}
 
     def list_models(self) -> list:
         """Downloaded models (in MODELS_DIR) plus linked/external ones, each
@@ -304,10 +306,11 @@ def autoserve_last_model(manager=None, model_file=None):
     path = (data or {}).get("model_path")
     if not path or not os.path.isfile(path):
         return None
+    device = (data or {}).get("device") or "cpu"
     mgr = manager or get_manager()
     try:
         if mgr.status().get("running"):
             return None
-        return mgr.start(path)
+        return mgr.start(path, device=device)
     except Exception:
         return None

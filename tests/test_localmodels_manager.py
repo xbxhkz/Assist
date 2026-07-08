@@ -39,7 +39,7 @@ class FakeProc:
 
 
 def make_manager(ready=True, spawned=None, registered=None, unregistered=None,
-                 proc_exit_code=None):
+                 proc_exit_code=None, resolve_binary=None):
     spawned = spawned if spawned is not None else []
     registered = registered if registered is not None else []
     unregistered = unregistered if unregistered is not None else []
@@ -64,7 +64,7 @@ def make_manager(ready=True, spawned=None, registered=None, unregistered=None,
         probe=lambda url: ready,
         register_endpoint=register,
         unregister_endpoint=unregister,
-        resolve_binary=lambda: "/bin/llama-server",
+        resolve_binary=resolve_binary or (lambda device="cpu": "/bin/llama-server"),
         log_path="/nonexistent/llama-server.log",  # no real log in tests
         sleep=lambda _s: None,
         now=lambda: next(clock),
@@ -100,7 +100,7 @@ def test_terminate_escalates_to_force_kill_when_process_survives():
         probe=lambda url: True,
         register_endpoint=lambda name, base_url: "e",
         unregister_endpoint=lambda eid: None,
-        resolve_binary=lambda: "/bin/llama-server",
+        resolve_binary=lambda device="cpu": "/bin/llama-server",
         log_path="/nonexistent/llama-server.log",
         sleep=lambda _s: None,
         now=lambda: 0.0,
@@ -115,7 +115,7 @@ def test_start_launches_and_registers():
     mgr, spawned, registered, _ = make_manager()
     st = mgr.start("/models/m.gguf")
     assert st == {"running": True, "model": "m.gguf", "port": 8123,
-                  "endpoint_id": "local-0"}
+                  "endpoint_id": "local-0", "device": "cpu"}
     assert len(spawned) == 1
     assert registered[0]["base_url"] == "http://127.0.0.1:8123/v1"
 
@@ -165,7 +165,31 @@ def test_stop_terminates_and_unregisters():
 def test_status_when_idle():
     mgr, *_ = make_manager()
     assert mgr.status() == {"running": False, "model": None, "port": None,
-                            "endpoint_id": None}
+                            "endpoint_id": None, "device": None}
+
+
+def test_start_gpu_resolves_gpu_binary_and_reports_device():
+    seen = []
+    mgr, spawned, *_ = make_manager(
+        resolve_binary=lambda device="cpu": (seen.append(device), "/b")[1])
+    st = mgr.start("/models/a.gguf", device="gpu")
+    assert seen == ["gpu"]
+    assert st["device"] == "gpu"
+    assert "-ngl" in spawned[0][0]
+
+
+def test_autoserve_restores_device(tmp_path):
+    import json
+    from src.localmodels.manager import autoserve_last_model
+    f = tmp_path / "last_model.json"
+    m = tmp_path / "m.gguf"; m.write_bytes(b"x")
+    f.write_text(json.dumps({"model_path": str(m), "device": "gpu"}))
+    calls = {}
+    class Mgr:
+        def status(self): return {"running": False}
+        def start(self, path, device="cpu"): calls["args"] = (path, device); return {"running": True}
+    autoserve_last_model(manager=Mgr(), model_file=str(f))
+    assert calls["args"] == (str(m), "gpu")
 
 
 def test_stop_waits_for_process_exit():

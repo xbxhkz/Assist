@@ -27,7 +27,7 @@ def _manager(tmp_path, monkeypatch):
         probe=lambda url: True,
         register_endpoint=lambda name, base_url: "local-0",
         unregister_endpoint=lambda eid: None,
-        resolve_binary=lambda: "/bin/llama-server",
+        resolve_binary=lambda device="cpu": "/bin/llama-server",
         sleep=lambda _s: None,
         now=lambda: 0.0,
     )
@@ -57,12 +57,14 @@ def test_autoserve_starts_persisted_model(tmp_path, monkeypatch):
         def status(self):
             return {"running": False}
 
-        def start(self, p):
+        def start(self, p, device="cpu"):
             started["p"] = p
+            started["device"] = device
             return {"running": True}
 
     autoserve_last_model(manager=FakeMgr())
     assert started["p"] == model
+    assert started["device"] == "cpu"  # no persisted device -> cpu default
 
 
 def test_autoserve_skips_missing_model_file(tmp_path, monkeypatch):
