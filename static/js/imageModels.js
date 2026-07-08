@@ -34,6 +34,16 @@
     const steps = parseInt($('imagemodels-steps')?.value, 10);
     if (steps) body.steps = steps;
     if ($('imagemodels-fast-decode')?.checked) body.fast_decode = true;
+    // RAM guard: an LLM + an image model together page out a small-RAM
+    // machine. Offer to stop the LLM first (advisory — serve proceeds
+    // either way).
+    try {
+      const llm = await api('/api/localmodels/status');
+      if (llm.running) {
+        const ok = confirm(`${llm.model} (LLM) is running. RAM is tight when both model types are loaded — stop it before loading the image model?`);
+        if (ok) await api('/api/localmodels/stop', { method: 'POST' });
+      }
+    } catch (e) {}
     try {
       await api('/api/imagemodels/serve', {
         method: 'POST',

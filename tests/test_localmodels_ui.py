@@ -27,3 +27,11 @@ def test_localmodels_ui_has_device_toggle():
     assert 'name="localmodels-device"' in html
     js = _read("static/js/localModels.js")
     assert "localmodels-device" in js
+
+
+def test_localmodels_js_guards_ram_against_image_model():
+    """Serving an LLM while an image model runs pages a small-RAM machine —
+    the card must check the image subsystem and offer to stop it."""
+    js = _read("static/js/localModels.js")
+    assert "/api/imagemodels/status" in js
+    assert "/api/imagemodels/stop" in js

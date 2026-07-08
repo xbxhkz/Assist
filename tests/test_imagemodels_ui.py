@@ -22,3 +22,11 @@ def test_imagemodels_js_calls_all_endpoints_and_renders_list():
                "/api/imagemodels/serve", "/api/imagemodels/stop"):
         assert ep in js, f"{ep} not called in imageModels.js"
     assert "imagemodels-list" in js, "model list not rendered"
+
+
+def test_imagemodels_js_guards_ram_against_llm():
+    """Serving an image model while an LLM runs pages a small-RAM machine —
+    the card must check the LLM subsystem and offer to stop it."""
+    js = _read("static/js/imageModels.js")
+    assert "/api/localmodels/status" in js
+    assert "/api/localmodels/stop" in js

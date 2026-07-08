@@ -156,6 +156,16 @@
           if (isRunning) {
             await api('/api/localmodels/stop', { method: 'POST' });
           } else {
+            // RAM guard: an image model + an LLM together page out a
+            // small-RAM machine. Offer to stop the image model first
+            // (advisory — serve proceeds either way).
+            try {
+              const img = await api('/api/imagemodels/status');
+              if (img.running) {
+                const ok = confirm(`${img.model} (image model) is running. RAM is tight when both model types are loaded — stop it before loading the LLM?`);
+                if (ok) await api('/api/imagemodels/stop', { method: 'POST' });
+              }
+            } catch (e) {}
             // Loading can take minutes for a large model — show progress so it
             // doesn't look frozen while llama-server mmaps the weights.
             btn.textContent = 'Starting…';
