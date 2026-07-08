@@ -71,6 +71,35 @@ def _gguf_with_arch(arch: str) -> bytes:
     return b"GGUF" + struct.pack("<I", 3) + struct.pack("<Q", 0) + struct.pack("<Q", 1) + kv
 
 
+def test_build_serve_argv_gpu_offloads_layers():
+    argv = rt.build_serve_argv("/x/llama-server", "/m/model.gguf", 8123, device="gpu")
+    assert argv[argv.index("-ngl") + 1] == "999"
+    assert "--flash-attn" in argv
+
+
+def test_build_serve_argv_cpu_has_no_gpu_flags():
+    argv = rt.build_serve_argv("/x/llama-server", "/m/model.gguf", 8123)
+    assert "-ngl" not in argv
+
+
+def test_resolve_binary_gpu_uses_vulkan_subdir(tmp_path):
+    b = tmp_path / "llama" / "vulkan"; b.mkdir(parents=True)
+    name = "llama-server.exe" if os.name == "nt" else "llama-server"
+    (b / name).write_text("stub")
+    got = rt.resolve_llama_binary(device="gpu", path_lookup=lambda n: None,
+                                  frozen_base=str(tmp_path))
+    assert got == str(b / name)
+
+
+def test_resolve_binary_falls_back_to_legacy_flat_dir(tmp_path):
+    b = tmp_path / "llama"; b.mkdir()
+    name = "llama-server.exe" if os.name == "nt" else "llama-server"
+    (b / name).write_text("stub")
+    got = rt.resolve_llama_binary(device="cpu", path_lookup=lambda n: None,
+                                  frozen_base=str(tmp_path))
+    assert got == str(b / name)
+
+
 def test_list_gguf_models_excludes_image_architectures(tmp_path):
     """A FLUX (diffusion) .gguf downloaded into the models dir must not be
     offered to llama-server — it fails at load with 'unknown architecture'."""

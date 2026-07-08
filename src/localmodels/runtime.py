@@ -14,7 +14,8 @@ def local_endpoint_url(port: int) -> str:
 
 
 def build_serve_argv(binary: str, model_path: str, port: int,
-                     ctx_size: int = 4096, host: str = "127.0.0.1") -> list:
+                     ctx_size: int = 4096, host: str = "127.0.0.1",
+                     device: str = "cpu") -> list:
     """llama-server argv for an OpenAI-compatible loopback server.
 
     `--alias` sets the id llama-server advertises at /v1/models (and accepts
@@ -23,7 +24,7 @@ def build_serve_argv(binary: str, model_path: str, port: int,
     backslash path). Aliasing to the .gguf filename makes the served model
     show up under the same name the Local Models list uses.
     """
-    return [
+    argv = [
         binary,
         "--model", model_path,
         "--alias", os.path.basename(model_path),
@@ -31,41 +32,50 @@ def build_serve_argv(binary: str, model_path: str, port: int,
         "--port", str(port),
         "--ctx-size", str(ctx_size),
     ]
+    if device == "gpu":
+        # Offload every layer (llama caps at the model's actual layer count);
+        # flash attention is a VRAM + speed win on RTX-class cards.
+        argv += ["-ngl", "999", "--flash-attn", "on"]
+    return argv
 
 
 def _bundled_binary_name() -> str:
     return "llama-server.exe" if os.name == "nt" else "llama-server"
 
 
-def resolve_llama_binary(path_lookup=shutil.which, frozen_base: str = None,
-                         dev_base: str = None) -> str:
+def resolve_llama_binary(device: str = "cpu", path_lookup=shutil.which,
+                         frozen_base: str = None, dev_base: str = None) -> str:
     """Resolve the llama-server executable.
 
     Preference: (1) a `llama-server`/`.exe` on PATH (user-installed, possibly
-    GPU); (2) the bundled CPU binary at `<frozen_base>/llama/<name>` when frozen;
-    (3) a dev fallback at `<repo>/build_assets/llama/<name>`. Raises if none.
+    GPU); (2) the bundled binary at `<frozen_base>/llama/<cpu|vulkan>/<name>`
+    when frozen (falling back to the legacy flat `llama/<name>` layout);
+    (3) the same layout under `<repo>/build_assets/llama`. Raises if none.
+    `device="gpu"` selects the Vulkan build, else the CPU build.
     `path_lookup`/`frozen_base`/`dev_base` are injectable for tests.
     """
     found = path_lookup("llama-server") or path_lookup("llama-server.exe")
     if found:
         return found
 
+    sub = "vulkan" if device == "gpu" else "cpu"
     name = _bundled_binary_name()
 
     base = frozen_base
     if base is None and getattr(sys, "frozen", False):
         base = getattr(sys, "_MEIPASS", None)
     if base:
-        cand = os.path.join(base, "llama", name)
-        if os.path.isfile(cand):
-            return cand
+        for rel in (os.path.join("llama", sub, name), os.path.join("llama", name)):
+            cand = os.path.join(base, rel)
+            if os.path.isfile(cand):
+                return cand
 
     if dev_base is None:
         repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         dev_base = os.path.join(repo_root, "build_assets", "llama")
-    cand = os.path.join(dev_base, name)
-    if os.path.isfile(cand):
-        return cand
+    for cand in (os.path.join(dev_base, sub, name), os.path.join(dev_base, name)):
+        if os.path.isfile(cand):
+            return cand
 
     raise RuntimeError(
         "llama-server not found: no server on PATH, no bundled binary, and no "
