@@ -30,7 +30,7 @@
 **Interfaces:**
 - Produces: `.\build-installer.ps1 -Fast` (incremental PyInstaller, skip pip/fetches when assets exist); `scripts\dev-sync-static.ps1` (robocopy `static\` into the installed app, self-elevating).
 
-- [ ] **Step 1: Add `-Fast` to build-windows-portable.ps1.** At the top (after the `<# ... #>` comment block, before `$ErrorActionPreference`):
+- [x] **Step 1: Add `-Fast` to build-windows-portable.ps1.** At the top (after the `<# ... #>` comment block, before `$ErrorActionPreference`):
 
 ```powershell
 param([switch]$Fast)
@@ -67,13 +67,13 @@ $piArgs = @('--noconfirm'); if (-not $Fast) { $piArgs += '--clean' }
 if ($LASTEXITCODE -ne 0) { Fail "PyInstaller build failed." }
 ```
 
-- [ ] **Step 2: Pass `-Fast` through build-installer.ps1.** Add `param([switch]$Fast)` at top (after `#Requires`), and change the portable-build call to:
+- [x] **Step 2: Pass `-Fast` through build-installer.ps1.** Add `param([switch]$Fast)` at top (after `#Requires`), and change the portable-build call to:
 
 ```powershell
 if ($Fast) { & .\build-windows-portable.ps1 -Fast } else { & .\build-windows-portable.ps1 }
 ```
 
-- [ ] **Step 3: Create `scripts/dev-sync-static.ps1`:**
+- [x] **Step 3: Create `scripts/dev-sync-static.ps1`:**
 
 ```powershell
 #Requires -Version 5.1
@@ -98,8 +98,8 @@ Write-Host "static synced to $dest — restart Assist to load changes." -Foregro
 exit 0
 ```
 
-- [ ] **Step 4: Verify.** Run `powershell -ExecutionPolicy Bypass -File .\scripts\dev-sync-static.ps1` (accept elevation) — expect "static synced". Run `.\build-windows-portable.ps1 -Fast` — expect the skip message and a PyInstaller run without `--clean`.
-- [ ] **Step 5: Commit** `build-windows-portable.ps1 build-installer.ps1 scripts/dev-sync-static.ps1` as `build: -Fast incremental builds + dev-sync-static hot-copy`.
+- [x] **Step 4: Verify.** Run `powershell -ExecutionPolicy Bypass -File .\scripts\dev-sync-static.ps1` (accept elevation) — expect "static synced". Run `.\build-windows-portable.ps1 -Fast` — expect the skip message and a PyInstaller run without `--clean`.
+- [x] **Step 5: Commit** `build-windows-portable.ps1 build-installer.ps1 scripts/dev-sync-static.ps1` as `build: -Fast incremental builds + dev-sync-static hot-copy`.
 
 ---
 
@@ -111,7 +111,7 @@ exit 0
 **Interfaces:**
 - Produces: `build_assets/llama/cpu/llama-server.exe` and `build_assets/llama/vulkan/llama-server.exe` (+DLLs). The flat legacy layout (`build_assets/llama/llama-server.exe`) is superseded. `Assist.spec` needs no change — `('build_assets/llama', 'llama')` copies subdirs recursively.
 
-- [ ] **Step 1: Rewrite the fetch script for both builds:**
+- [x] **Step 1: Rewrite the fetch script for both builds:**
 
 ```python
 """Vendor prebuilt llama-server (CPU + Vulkan) into build_assets/llama/.
@@ -171,9 +171,9 @@ if __name__ == "__main__":
     sys.exit(main())
 ```
 
-- [ ] **Step 2: Run it** (network): `python scripts/fetch_llama_server.py`. Expect both `build_assets/llama/cpu/llama-server.exe` and `build_assets/llama/vulkan/llama-server.exe`. Delete stale flat files: `Remove-Item build_assets/llama/*.exe, build_assets/llama/*.dll -ErrorAction SilentlyContinue` (root level only).
-- [ ] **Step 3: Smoke-test** `& build_assets\llama\vulkan\llama-server.exe --version` — expect a version banner mentioning vulkan or listing the RTX 4050.
-- [ ] **Step 4: Commit** the script as `build(llm): vendor CPU + Vulkan llama-server (cpu/, vulkan/ layout)`.
+- [x] **Step 2: Run it** (network): `python scripts/fetch_llama_server.py`. Expect both `build_assets/llama/cpu/llama-server.exe` and `build_assets/llama/vulkan/llama-server.exe`. Delete stale flat files: `Remove-Item build_assets/llama/*.exe, build_assets/llama/*.dll -ErrorAction SilentlyContinue` (root level only).
+- [x] **Step 3: Smoke-test** `& build_assets\llama\vulkan\llama-server.exe --version` — expect a version banner mentioning vulkan or listing the RTX 4050.
+- [x] **Step 4: Commit** the script as `build(llm): vendor CPU + Vulkan llama-server (cpu/, vulkan/ layout)`.
 
 ---
 
@@ -187,7 +187,7 @@ if __name__ == "__main__":
 - Consumes: `build_assets/llama/{cpu,vulkan}/` layout from Task 2.
 - Produces: `build_serve_argv(binary, model_path, port, ctx_size=4096, host="127.0.0.1", device="cpu") -> list` (adds `-ngl 999 --flash-attn on` when `device=="gpu"`); `resolve_llama_binary(device="cpu", path_lookup=..., frozen_base=None, dev_base=None) -> str` (searches `llama/<cpu|vulkan>/`, falling back to the legacy flat `llama/` dir).
 
-- [ ] **Step 1: Failing tests** (append to `tests/test_localmodels_runtime.py`):
+- [x] **Step 1: Failing tests** (append to `tests/test_localmodels_runtime.py`):
 
 ```python
 def test_build_serve_argv_gpu_offloads_layers():
@@ -219,8 +219,8 @@ def test_resolve_binary_falls_back_to_legacy_flat_dir(tmp_path):
     assert got == str(b / name)
 ```
 
-- [ ] **Step 2: Run, expect FAIL:** `python -m pytest tests/test_localmodels_runtime.py --import-mode=importlib -q` (TypeError: unexpected keyword `device`).
-- [ ] **Step 3: Implement.** In `build_serve_argv`, add `device="cpu"` keyword; after the base list append:
+- [x] **Step 2: Run, expect FAIL:** `python -m pytest tests/test_localmodels_runtime.py --import-mode=importlib -q` (TypeError: unexpected keyword `device`).
+- [x] **Step 3: Implement.** In `build_serve_argv`, add `device="cpu"` keyword; after the base list append:
 
 ```python
     if device == "gpu":
@@ -247,7 +247,7 @@ In `resolve_llama_binary`, add `device="cpu"` keyword and search `llama/<sub>/<n
             return cand
 ```
 
-- [ ] **Step 4: Run, expect PASS** (whole file). **Step 5: Commit** as `feat(llm): device-aware binary resolve + -ngl GPU argv`.
+- [x] **Step 4: Run, expect PASS** (whole file). **Step 5: Commit** as `feat(llm): device-aware binary resolve + -ngl GPU argv`.
 
 ---
 
@@ -261,7 +261,7 @@ In `resolve_llama_binary`, add `device="cpu"` keyword and search `llama/<sub>/<n
 - Consumes: Task 3 signatures.
 - Produces: `LocalModelManager.start(model_path, device="cpu")`; `status()` includes `"device"`; `last_model.json` gains `"device"`; `autoserve_last_model` re-serves with the saved device.
 
-- [ ] **Step 1: Failing tests** (append; mirror the file's existing fake-injection style — `resolve_binary` fakes must accept the new kwarg):
+- [x] **Step 1: Failing tests** (append; mirror the file's existing fake-injection style — `resolve_binary` fakes must accept the new kwarg):
 
 ```python
 def test_start_gpu_resolves_gpu_binary_and_reports_device():
@@ -287,10 +287,10 @@ def test_autoserve_restores_device(tmp_path):
 
 (Adjust `make_manager` to accept/forward a `resolve_binary` kwarg if it doesn't already; check its definition at the top of the test file first.)
 
-- [ ] **Step 2: Run, expect FAIL.**
-- [ ] **Step 3: Implement.** `start(self, model_path: str, device: str = "cpu")`: call `self._resolve_binary(device=device)`; build argv with `device=device`; store `"device": device` in `self._state`; pass device to `_persist_last_model(model_path, device)` which writes `{"model_path": ..., "device": ...}`. `status()` returns `"device": self._state.get("device")` when running, `None` otherwise (keep existing keys). `autoserve_last_model`: read `device = (data or {}).get("device") or "cpu"` and call `mgr.start(path, device=device)`. Note: `resolve_binary` is stored at construction — call it as `self._resolve_binary(device=device)`; the default `resolve_llama_binary` accepts it after Task 3.
-- [ ] **Step 4: Run the whole manager test file, expect PASS** (existing tests keep passing — default device "cpu" preserves behavior; update any test whose fake `resolve_binary` takes no kwargs).
-- [ ] **Step 5: Commit** as `feat(llm): device passthrough + persisted autoserve device`.
+- [x] **Step 2: Run, expect FAIL.**
+- [x] **Step 3: Implement.** `start(self, model_path: str, device: str = "cpu")`: call `self._resolve_binary(device=device)`; build argv with `device=device`; store `"device": device` in `self._state`; pass device to `_persist_last_model(model_path, device)` which writes `{"model_path": ..., "device": ...}`. `status()` returns `"device": self._state.get("device")` when running, `None` otherwise (keep existing keys). `autoserve_last_model`: read `device = (data or {}).get("device") or "cpu"` and call `mgr.start(path, device=device)`. Note: `resolve_binary` is stored at construction — call it as `self._resolve_binary(device=device)`; the default `resolve_llama_binary` accepts it after Task 3.
+- [x] **Step 4: Run the whole manager test file, expect PASS** (existing tests keep passing — default device "cpu" preserves behavior; update any test whose fake `resolve_binary` takes no kwargs).
+- [x] **Step 5: Commit** as `feat(llm): device passthrough + persisted autoserve device`.
 
 ---
 
@@ -306,7 +306,7 @@ def test_autoserve_restores_device(tmp_path):
 - Consumes: `start(path, device)` from Task 4.
 - Produces: `POST /api/localmodels/serve {model_path, device}`; radios `input[name="localmodels-device"]` (cpu default).
 
-- [ ] **Step 1: Failing route test** (append to `tests/test_localmodels_routes.py`; extend `FakeManager.start` to `def start(self, model_path, device="cpu")` recording both):
+- [x] **Step 1: Failing route test** (append to `tests/test_localmodels_routes.py`; extend `FakeManager.start` to `def start(self, model_path, device="cpu")` recording both):
 
 ```python
 def test_serve_passes_device(client):
@@ -317,7 +317,7 @@ def test_serve_passes_device(client):
     assert fake.device == "gpu"
 ```
 
-- [ ] **Step 2: Failing UI test** (append to `tests/test_localmodels_ui.py`):
+- [x] **Step 2: Failing UI test** (append to `tests/test_localmodels_ui.py`):
 
 ```python
 def test_localmodels_ui_has_device_toggle():
@@ -327,8 +327,8 @@ def test_localmodels_ui_has_device_toggle():
     assert "localmodels-device" in js
 ```
 
-- [ ] **Step 3: Run both, expect FAIL.**
-- [ ] **Step 4: Implement route.** In `serve`:
+- [x] **Step 3: Run both, expect FAIL.**
+- [x] **Step 4: Implement route.** In `serve`:
 
 ```python
         device = (payload.get("device") or "cpu").strip().lower()
@@ -338,7 +338,7 @@ def test_localmodels_ui_has_device_toggle():
             return await asyncio.to_thread(get_manager().start, safe, device)
 ```
 
-- [ ] **Step 5: Implement UI.** `static/index.html` — directly under the `id="localmodels-status"` div add:
+- [x] **Step 5: Implement UI.** `static/index.html` — directly under the `id="localmodels-status"` div add:
 
 ```html
       <div style="display:flex;gap:12px;align-items:center;margin-bottom:6px;font-size:12px;">
@@ -358,7 +358,7 @@ def test_localmodels_ui_has_device_toggle():
 
 In the row Serve handler change the POST body to `JSON.stringify({ model_path: m.path, device: serveDevice() })`, and in `refresh()` extend the running status line to `` `Running: ${status.model} on ${status.device === 'gpu' ? 'GPU' : 'CPU'} (port ${status.port})` ``.
 
-- [ ] **Step 6: Run all localmodels tests, expect PASS.** **Step 7: Commit** as `feat(llm): CPU/GPU toggle in Local Models card`.
+- [x] **Step 6: Run all localmodels tests, expect PASS.** **Step 7: Commit** as `feat(llm): CPU/GPU toggle in Local Models card`.
 
 ---
 
@@ -374,7 +374,7 @@ In the row Serve handler change the POST body to `JSON.stringify({ model_path: m
 **Interfaces:**
 - Produces: setting key `"image_size"` (default `"1024x1024"`, per-user overridable); `do_generate_image` uses it when the content has no explicit line-3 size.
 
-- [ ] **Step 1: Failing tests** (`tests/test_image_size_setting.py`):
+- [x] **Step 1: Failing tests** (`tests/test_image_size_setting.py`):
 
 ```python
 """image_size setting: declared, per-user, and used as the generation default."""
@@ -398,8 +398,8 @@ def test_settings_ui_offers_size_select():
     assert "image_size" in js
 ```
 
-- [ ] **Step 2: Run, expect FAIL.**
-- [ ] **Step 3: Implement backend.** `src/settings.py`: in DEFAULT_SETTINGS near `"image_gen_enabled": False` add `"image_size": "1024x1024",`; add `"image_size"` to `_PER_USER_KEYS` next to `"image_quality"`. In `src/ai_interaction.py` replace line 905:
+- [x] **Step 2: Run, expect FAIL.**
+- [x] **Step 3: Implement backend.** `src/settings.py`: in DEFAULT_SETTINGS near `"image_gen_enabled": False` add `"image_size": "1024x1024",`; add `"image_size"` to `_PER_USER_KEYS` next to `"image_quality"`. In `src/ai_interaction.py` replace line 905:
 
 ```python
     from src.settings import get_user_setting
@@ -407,7 +407,7 @@ def test_settings_ui_offers_size_select():
     size = lines[2].strip() if len(lines) > 2 and lines[2].strip() else _default_size
 ```
 
-- [ ] **Step 4: Implement UI.** In `static/index.html`, inside the image-generation settings card next to the quality select, add:
+- [x] **Step 4: Implement UI.** In `static/index.html`, inside the image-generation settings card next to the quality select, add:
 
 ```html
               <select id="image-size-select" class="admin-select">
@@ -419,7 +419,7 @@ def test_settings_ui_offers_size_select():
 
 In `static/js/settings.js`, alongside `qualSel` add `const sizeSel = document.getElementById('image-size-select');`, load `if (settings.image_size && sizeSel) sizeSel.value = settings.image_size;`, include `image_size: sizeSel ? sizeSel.value : '1024x1024'` in the saveSettings POST body, and register `if (sizeSel) sizeSel.addEventListener('change', saveSettings);`.
 
-- [ ] **Step 5: Run, expect PASS.** **Step 6: Commit** as `feat(imagegen): image_size setting (per-user) drives default generation size`.
+- [x] **Step 5: Run, expect PASS.** **Step 6: Commit** as `feat(imagegen): image_size setting (per-user) drives default generation size`.
 
 ---
 
@@ -435,7 +435,7 @@ In `static/js/settings.js`, alongside `qualSel` add `const sizeSel = document.ge
 **Interfaces:**
 - Produces: `build_serve_argv(..., steps=None)` — explicit steps wins over family defaults; `POST /api/imagemodels/serve {..., steps?}` clamped to 1–50; input `id="imagemodels-steps"`.
 
-- [ ] **Step 1: Failing tests.** Runtime (append):
+- [x] **Step 1: Failing tests.** Runtime (append):
 
 ```python
 def test_build_argv_explicit_steps_override():
@@ -468,8 +468,8 @@ def test_serve_clamps_and_passes_steps(client):
 
 UI (append to `test_imagemodels_ui.py` element list): `'id="imagemodels-steps"'`.
 
-- [ ] **Step 2: Run, expect FAIL.**
-- [ ] **Step 3: Implement.** Runtime — add `steps=None` param; build the family block so an explicit value replaces defaults:
+- [x] **Step 2: Run, expect FAIL.**
+- [x] **Step 3: Implement.** Runtime — add `steps=None` param; build the family block so an explicit value replaces defaults:
 
 ```python
     if "llm" in files:
@@ -497,7 +497,7 @@ Manager — `start(self, files: dict, device: str = "cpu", steps=None)`, pass `s
 
 UI — in `static/index.html` next to the imagemodels device radios add `<label>Steps <input id="imagemodels-steps" type="number" min="1" max="50" placeholder="auto" style="width:56px;"></label>`; in `imageModels.js` `serveModel`, read `const st = parseInt($('imagemodels-steps')?.value, 10); const body = { diffusion_model: path, device: device() }; if (st) body.steps = st;` and post `body`.
 
-- [ ] **Step 4: Run all imagemodels tests, expect PASS.** **Step 5: Commit** as `feat(imagemodels): serve-time steps override (1-50, auto default)`.
+- [x] **Step 4: Run all imagemodels tests, expect PASS.** **Step 5: Commit** as `feat(imagemodels): serve-time steps override (1-50, auto default)`.
 
 ---
 
@@ -513,7 +513,7 @@ UI — in `static/index.html` next to the imagemodels device radios add `<label>
 **Interfaces:**
 - Produces: `find_taesd(diffusion_model) -> str|None` in encoders (searches `taef1.safetensors` next to the gguf, then the encoders dir; FLUX.1 only — returns None for flux2 names); `build_serve_argv` adds `--taesd <path>` when `files["taesd"]` present; serve payload `fast_decode: true` includes it when found; checkbox `id="imagemodels-fast-decode"`.
 
-- [ ] **Step 1: Failing tests.** Encoders:
+- [x] **Step 1: Failing tests.** Encoders:
 
 ```python
 def test_find_taesd_in_encoders_dir(tmp_path, monkeypatch):
@@ -545,8 +545,8 @@ def test_build_argv_taesd_flag():
 
 Routes (FakeManager records files): serve flux1 sibling set + `taef1.safetensors` sibling + `{"fast_decode": True}` → `fake.files.get("taesd")` endswith taef1; without the flag → no `"taesd"` key. UI guard: `'id="imagemodels-fast-decode"'` in index.html, `fast_decode` in imageModels.js.
 
-- [ ] **Step 2: Run, expect FAIL.**
-- [ ] **Step 3: Implement.** Encoders:
+- [x] **Step 2: Run, expect FAIL.**
+- [x] **Step 3: Implement.** Encoders:
 
 ```python
 TAESD_FILENAMES = ["taef1.safetensors", "taesd_flux.safetensors"]
@@ -579,8 +579,8 @@ Runtime — after the family block: `if files.get("taesd"): argv += ["--taesd", 
 
 UI — checkbox `<label><input type="checkbox" id="imagemodels-fast-decode"> Fast decode</label>` beside the steps input; `serveModel` adds `if ($('imagemodels-fast-decode')?.checked) body.fast_decode = true;`.
 
-- [ ] **Step 4: Run all imagemodels tests, expect PASS.**
-- [ ] **Step 5: Download taef1** into the shared encoders dir (network):
+- [x] **Step 4: Run all imagemodels tests, expect PASS.**
+- [x] **Step 5: Download taef1** into the shared encoders dir (network):
 
 ```powershell
 curl.exe -sL --fail -o "$HOME\.assist\data\image-models\encoders\taef1.safetensors" https://huggingface.co/madebyollin/taef1/resolve/main/diffusion_pytorch_model.safetensors
@@ -588,7 +588,7 @@ curl.exe -sL --fail -o "$HOME\.assist\data\image-models\encoders\taef1.safetenso
 
 Expect ~4.8MB. **Live verification is required before recommending it:** after the next reinstall, serve flux1-dev with Fast decode ON and generate once — if sd.cpp bb84971 rejects the file or output is garbage, record it in this plan and leave the checkbox off by default (it already defaults unchecked; the feature is additive-safe).
 
-- [ ] **Step 6: Commit** as `feat(imagemodels): experimental TAESD fast decode for FLUX.1`.
+- [x] **Step 6: Commit** as `feat(imagemodels): experimental TAESD fast decode for FLUX.1`.
 
 ---
 
@@ -603,9 +603,9 @@ Expect ~4.8MB. **Live verification is required before recommending it:** after t
 - Consumes: `GET /api/localmodels/status`, `GET /api/imagemodels/status`, `POST .../stop` (all existing).
 - Produces: a confirm-and-stop flow; no backend changes.
 
-- [ ] **Step 1: Failing UI guards.** `test_localmodels_ui.py`: assert `"/api/imagemodels/status"` in localModels.js. `test_imagemodels_ui.py`: assert `"/api/localmodels/status"` in imageModels.js.
-- [ ] **Step 2: Run, expect FAIL.**
-- [ ] **Step 3: Implement.** In `imageModels.js` `serveModel`, before POSTing:
+- [x] **Step 1: Failing UI guards.** `test_localmodels_ui.py`: assert `"/api/imagemodels/status"` in localModels.js. `test_imagemodels_ui.py`: assert `"/api/localmodels/status"` in imageModels.js.
+- [x] **Step 2: Run, expect FAIL.**
+- [x] **Step 3: Implement.** In `imageModels.js` `serveModel`, before POSTing:
 
 ```javascript
     try {
@@ -631,17 +631,24 @@ Mirror in `localModels.js`'s row Serve handler (before its POST):
 
 (Proceed with the serve either way — the user may have plenty of RAM; the guard is advisory.)
 
-- [ ] **Step 4: Run both UI test files, expect PASS.** **Step 5: Commit** as `feat(models): RAM contention guard between LLM and image serves`.
+- [x] **Step 4: Run both UI test files, expect PASS.** **Step 5: Commit** as `feat(models): RAM contention guard between LLM and image serves`.
 
 ---
 
 ### Task 10: Rebuild + verify
 
-- [ ] **Step 1:** `python -m pytest tests/test_localmodels_runtime.py tests/test_localmodels_manager.py tests/test_localmodels_routes.py tests/test_localmodels_ui.py tests/test_imagemodels_runtime.py tests/test_imagemodels_encoders.py tests/test_imagemodels_routes.py tests/test_imagemodels_ui.py tests/test_imagemodels_manager.py tests/test_image_size_setting.py tests/test_gguf_meta.py tests/test_brand_strings.py --import-mode=importlib -q` — expect all green.
-- [ ] **Step 2:** `.\build-installer.ps1 -Fast` (first -Fast exercise; assets exist so fetches skip, PyInstaller runs incremental). Expect a successful ISCC compile.
-- [ ] **Step 3:** Boot-verify the packaged app against an isolated `ODYSSEUS_DATA_DIR` + `ODYSSEUS_INTERNAL_TOKEN`: `GET /api/localmodels/status` returns a `device` key; `GET /api/imagemodels/models` still 200.
-- [ ] **Step 4:** Commit installer artifact (`git add -f installer/Output/Assist-Setup.exe`).
-- [ ] **Step 5 — user manual test:** serve the Qwen LLM on GPU (expect visibly faster tokens; check `data/logs/llama-server.log` for `offloaded ... layers to GPU`); serve klein Q4 on GPU and generate at 1024; try flux1-dev with Fast decode ON and record the TAESD verdict in this plan.
+- [x] **Step 1:** `python -m pytest tests/test_localmodels_runtime.py tests/test_localmodels_manager.py tests/test_localmodels_routes.py tests/test_localmodels_ui.py tests/test_imagemodels_runtime.py tests/test_imagemodels_encoders.py tests/test_imagemodels_routes.py tests/test_imagemodels_ui.py tests/test_imagemodels_manager.py tests/test_image_size_setting.py tests/test_gguf_meta.py tests/test_brand_strings.py --import-mode=importlib -q` — expect all green.
+- [x] **Step 2:** `.\build-installer.ps1 -Fast` (first -Fast exercise; assets exist so fetches skip, PyInstaller runs incremental). Expect a successful ISCC compile.
+- [x] **Step 3:** Boot-verify the packaged app against an isolated `ODYSSEUS_DATA_DIR` + `ODYSSEUS_INTERNAL_TOKEN`: `GET /api/localmodels/status` returns a `device` key; `GET /api/imagemodels/models` still 200.
+- [x] **Step 4:** Commit installer artifact (`git add -f installer/Output/Assist-Setup.exe`).
+- [x] **Step 5 — user manual test:** serve the Qwen LLM on GPU (expect visibly faster tokens; check `data/logs/llama-server.log` for `offloaded ... layers to GPU`); serve klein Q4 on GPU and generate at 1024; try flux1-dev with Fast decode ON and record the TAESD verdict in this plan.
+
+## Execution Notes (2026-07-08)
+
+- **T1 deviation:** the portable build script never vendored sd-server (it had been fetched manually on 07-07) — a clean-machine build would have failed at the spec's `('build_assets/sd', 'sd')` entry. The non-fast branch now runs `scripts/fetch_sd_server.py` too.
+- **T1 verification:** `dev-sync-static.ps1` elevation flow verified up to the UAC prompt (declined at run time — declined-path now prints a friendly message and exits 1). PowerShell 5.1 gotcha: BOM-less scripts with non-ASCII (em-dash) break parsing; the script is ASCII-only now.
+- **T6 deviation:** the size select follows the existing `set-img*` id convention (`set-imgSizeSelect`), not the plan's invented `image-size-select`.
+- **T8:** taef1 = 9,848,636 bytes from madebyollin/taef1. Live decode-quality verdict still pending user test.
 
 ## Self-Review
 
