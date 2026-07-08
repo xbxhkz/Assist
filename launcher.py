@@ -43,6 +43,14 @@ def _show_error(message: str) -> None:
 
 
 def main() -> None:
+    # MCP child mode: `Assist.exe --run-mcp <script>` runs a builtin MCP
+    # server script instead of booting the app (sys.executable IS the app in
+    # frozen builds). MUST be first: falling through here made every MCP
+    # child boot the full app and register its own MCP servers, recursively.
+    from src.mcp_child_dispatch import maybe_dispatch
+    if maybe_dispatch(sys.argv):
+        return
+
     from src.desktop_runtime import (
         choose_port, local_origin, augment_allowed_origins,
         make_uvicorn_server, wait_for_server_ready,

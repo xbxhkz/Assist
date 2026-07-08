@@ -104,24 +104,42 @@ def _spawn_bg(coro) -> asyncio.Task:
     return task
 
 
+def _python_server_cmd(script_path: str):
+    """(command, args) that runs a builtin MCP server script.
+
+    Dev: plain `python script.py`. Frozen: sys.executable IS Assist.exe, so
+    running the script means the `--run-mcp` dispatch handled by
+    src.mcp_child_dispatch — without it each child boots the FULL app, which
+    registers its own MCP servers, recursively (observed live: 21 processes).
+    """
+    if getattr(sys, "frozen", False):
+        return sys.executable, ["--run-mcp", script_path]
+    return sys.executable, [script_path]
+
+
 async def register_builtin_servers(mcp_manager):
     """Connect all built-in MCP servers to the manager."""
     if MCP_DISABLED:
         logger.info("Built-in MCP servers disabled via ODYSSEUS_DISABLE_MCP")
         return
+    if os.environ.get("ASSIST_MCP_CHILD"):
+        # Recursion hard-stop: an MCP child must never spawn grandchildren,
+        # whatever went wrong with its dispatch.
+        logger.info("MCP child process: skipping builtin MCP registration")
+        return
 
     base_dir = get_app_root()
-    python = sys.executable
 
     async def _connect_python_server(server_id: str, script_path: str, name: str):
         try:
+            command, args = _python_server_cmd(script_path)
             ok = await mcp_manager.connect_server(
                 server_id=server_id,
                 name=name,
                 transport="stdio",
-                command=python,
-                args=[script_path],
-                env={"PYTHONPATH": base_dir},
+                command=command,
+                args=args,
+                env={"PYTHONPATH": base_dir, "ASSIST_MCP_CHILD": "1"},
             )
             if ok:
                 logger.info(f"Built-in MCP server registered: {name}")
