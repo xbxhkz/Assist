@@ -27,11 +27,24 @@ def test_build_argv_flux_guidance_distilled_cfg():
     assert "--steps" not in argv  # sd-server default (20) is right for FLUX.1
 
 
-def test_build_argv_gpu_autofit():
+def test_build_argv_gpu_low_vram_layout():
+    """GPU serves pin diffusion to the GPU and text encoder + VAE to CPU.
+    --auto-fit is NOT used: it ignores explicit --backend assignments and its
+    VAE-OOM tiling fallback fails on 6GB cards at 1024x1024 (observed live)."""
     files = {"diffusion_model": "/m/flux.gguf", "t5xxl": "/m/t5.gguf",
              "clip_l": "/m/clip.safetensors", "vae": "/m/ae.safetensors"}
     argv = rt.build_serve_argv("/x/sd-server", files, 8200, device="gpu")
-    assert "--auto-fit" in argv and "--diffusion-fa" in argv
+    assert argv[argv.index("--backend") + 1] == "diffusion=vulkan0,te=cpu,vae=cpu"
+    assert "--diffusion-fa" in argv and "--auto-fit" not in argv
+
+
+def test_build_argv_always_tiles_vae():
+    """1024x1024 VAE decode wants an 8.5GB compute buffer — tiling keeps it
+    inside both 6GB VRAM and small-RAM machines, on every device."""
+    files = {"diffusion_model": "/m/flux.gguf", "t5xxl": "/m/t5.gguf",
+             "clip_l": "/m/clip.safetensors", "vae": "/m/ae.safetensors"}
+    assert "--vae-tiling" in rt.build_serve_argv("/x/sd", files, 8200, device="cpu")
+    assert "--vae-tiling" in rt.build_serve_argv("/x/sd", files, 8200, device="gpu")
 
 
 def test_build_argv_flux2_uses_llm_encoder():
@@ -48,11 +61,12 @@ def test_build_argv_flux2_uses_llm_encoder():
     assert argv[argv.index("--steps") + 1] == "4"
 
 
-def test_build_argv_flux2_gpu_autofit():
+def test_build_argv_flux2_gpu_low_vram_layout():
     files = {"diffusion_model": "/m/flux2-klein.gguf", "llm": "/m/qwen3-4b.gguf",
              "vae": "/m/flux2_ae.safetensors"}
     argv = rt.build_serve_argv("/x/sd-server", files, 8200, device="gpu")
-    assert "--auto-fit" in argv and "--diffusion-fa" in argv
+    assert argv[argv.index("--backend") + 1] == "diffusion=vulkan0,te=cpu,vae=cpu"
+    assert "--diffusion-fa" in argv and "--auto-fit" not in argv
 
 
 def test_resolve_prefers_path_binary():
