@@ -16,18 +16,21 @@ def local_image_endpoint_url(port: int) -> str:
 
 
 def build_serve_argv(binary, files, port, device="cpu", host="127.0.0.1", threads=0):
-    """sd-server argv for a FLUX GGUF. `files` = diffusion_model + the three
-    shared aux files (t5xxl, clip_l, vae). On GPU the big text encoders + VAE
-    stay on CPU so a small (6GB) card can host the diffusion model."""
-    argv = [
-        binary,
-        "--diffusion-model", files["diffusion_model"],
-        "--t5xxl", files["t5xxl"],
-        "--clip_l", files["clip_l"],
-        "--vae", files["vae"],
-        "--listen-ip", host,
-        "--listen-port", str(port),
-    ]
+    """sd-server argv for a FLUX GGUF. `files` = diffusion_model + the family's
+    aux files: FLUX.1 uses t5xxl/clip_l/vae, FLUX.2 (klein) uses llm/vae (the
+    "llm" key selects the FLUX.2 layout). FLUX is guidance-distilled, so the
+    server default cfg 7.0 is baked down to 1.0; klein additionally wants 4
+    sampling steps instead of the default 20."""
+    argv = [binary, "--diffusion-model", files["diffusion_model"]]
+    if "llm" in files:
+        argv += ["--llm", files["llm"], "--vae", files["vae"],
+                 "--cfg-scale", "1.0"]
+        if "klein" in os.path.basename(files["diffusion_model"]).lower():
+            argv += ["--steps", "4"]  # klein is step-distilled; dev keeps 20
+    else:
+        argv += ["--t5xxl", files["t5xxl"], "--clip_l", files["clip_l"],
+                 "--vae", files["vae"], "--cfg-scale", "1.0"]
+    argv += ["--listen-ip", host, "--listen-port", str(port)]
     if device == "gpu":
         # --auto-fit places diffusion/text-encoder/VAE across GPU+CPU by the
         # per-device VRAM budget (right for a small 6GB card); flash-attention

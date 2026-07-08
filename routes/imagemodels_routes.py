@@ -12,7 +12,9 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 
 from core.middleware import require_admin
 from src.imagemodels.manager import get_manager
-from src.imagemodels.encoders import resolve_flux_files, MissingEncoderError
+from src.imagemodels.encoders import (
+    resolve_flux_files, resolve_flux2_files, MissingEncoderError,
+)
 from src.imagemodels.runtime import looks_like_flux2
 
 
@@ -37,23 +39,29 @@ def setup_imagemodels_routes() -> APIRouter:
         real = os.path.realpath(diff)
         if not diff or not real.lower().endswith(".gguf") or not os.path.isfile(real):
             raise HTTPException(400, "diffusion_model must be an existing .gguf file")
+        # FLUX.2 (klein) shares the 'flux' GGUF arch tag but takes a Qwen3/
+        # Mistral --llm text encoder + the flux2 VAE instead of t5xxl/clip_l.
         if looks_like_flux2(real):
-            # Same 'flux' GGUF arch tag as FLUX.1, but needs a Mistral --llm
-            # text encoder — with the FLUX.1 t5xxl/clip_l set it fails only
-            # after minutes of loading, so reject up front.
-            raise HTTPException(
-                400, "FLUX.2 models aren't supported yet — they need a Mistral "
-                "(--llm) text encoder instead of the FLUX.1 t5xxl/clip_l set. "
-                "Use a FLUX.1 GGUF for now.")
-        try:
-            files = resolve_flux_files(
-                real, t5xxl=payload.get("t5xxl"),
-                clip_l=payload.get("clip_l"), vae=payload.get("vae"))
-        except MissingEncoderError as e:
-            raise HTTPException(
-                400, "Missing FLUX files: " + ", ".join(e.missing) +
-                ". Put t5xxl / clip_l / vae next to the model, or download the "
-                "FLUX encoders.")
+            try:
+                files = resolve_flux2_files(
+                    real, llm=payload.get("llm"), vae=payload.get("vae"))
+            except MissingEncoderError as e:
+                raise HTTPException(
+                    400, "Missing FLUX.2 files: " + ", ".join(e.missing) +
+                    ". klein needs a Qwen3 text encoder (llm, e.g. "
+                    "Qwen3-4B-Q4_K_M.gguf) and the FLUX.2 VAE (vae, "
+                    "flux2_ae.safetensors) next to the model or in the "
+                    "shared encoders folder.")
+        else:
+            try:
+                files = resolve_flux_files(
+                    real, t5xxl=payload.get("t5xxl"),
+                    clip_l=payload.get("clip_l"), vae=payload.get("vae"))
+            except MissingEncoderError as e:
+                raise HTTPException(
+                    400, "Missing FLUX files: " + ", ".join(e.missing) +
+                    ". Put t5xxl / clip_l / vae next to the model, or download "
+                    "the FLUX encoders.")
         try:
             # Off the event loop: image models load slowly (large mmap).
             return await asyncio.to_thread(get_manager().start, files, device)

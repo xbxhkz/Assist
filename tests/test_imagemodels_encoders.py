@@ -43,3 +43,56 @@ def test_missing_raises_named(tmp_path, monkeypatch):
     with pytest.raises(enc.MissingEncoderError) as ei:
         enc.resolve_flux_files(str(d / "flux.gguf"))
     assert "t5xxl" in ei.value.missing and "vae" in ei.value.missing
+
+
+# ── FLUX.2 (klein): --llm text encoder + flux2 VAE ──────────────────────
+
+def test_flux2_resolves_from_shared_encoders_dir(tmp_path, monkeypatch):
+    img = tmp_path / "img"; (img / "encoders").mkdir(parents=True)
+    monkeypatch.setattr(enc, "IMAGE_MODELS_DIR", str(img))
+    (img / "encoders" / "Qwen3-4B-Q4_K_M.gguf").write_bytes(b"x")
+    (img / "encoders" / "flux2_ae.safetensors").write_bytes(b"x")
+    d = tmp_path / "m"; d.mkdir()
+    (d / "flux-2-klein-4b-Q8_0.gguf").write_bytes(b"x")
+    got = enc.resolve_flux2_files(str(d / "flux-2-klein-4b-Q8_0.gguf"))
+    assert got["llm"].endswith("Qwen3-4B-Q4_K_M.gguf")
+    assert got["vae"].endswith("flux2_ae.safetensors")
+    assert got["diffusion_model"].endswith("flux-2-klein-4b-Q8_0.gguf")
+
+
+def test_flux2_llm_matches_quant_variants_case_insensitively(tmp_path, monkeypatch):
+    """Encoder ggufs come in many quant suffixes; match by qwen3/mistral
+    prefix pattern, not an exact-name list."""
+    img = tmp_path / "img"; (img / "encoders").mkdir(parents=True)
+    monkeypatch.setattr(enc, "IMAGE_MODELS_DIR", str(img))
+    (img / "encoders" / "qwen3-4b-q8_0.gguf").write_bytes(b"x")
+    (img / "encoders" / "flux2_ae.safetensors").write_bytes(b"x")
+    d = tmp_path / "m"; d.mkdir()
+    (d / "flux2.gguf").write_bytes(b"x")
+    got = enc.resolve_flux2_files(str(d / "flux2.gguf"))
+    assert got["llm"].endswith("qwen3-4b-q8_0.gguf")
+
+
+def test_flux2_does_not_take_flux1_vae(tmp_path, monkeypatch):
+    """FLUX.1's ae.safetensors shares the encoders dir but is a different
+    autoencoder — the flux2 resolver must not silently pick it up."""
+    img = tmp_path / "img"; (img / "encoders").mkdir(parents=True)
+    monkeypatch.setattr(enc, "IMAGE_MODELS_DIR", str(img))
+    (img / "encoders" / "ae.safetensors").write_bytes(b"x")        # FLUX.1 VAE
+    (img / "encoders" / "Qwen3-4B-Q4_K_M.gguf").write_bytes(b"x")
+    d = tmp_path / "m"; d.mkdir()
+    (d / "flux2.gguf").write_bytes(b"x")
+    with pytest.raises(enc.MissingEncoderError) as ei:
+        enc.resolve_flux2_files(str(d / "flux2.gguf"))
+    assert ei.value.missing == ["vae"]
+
+
+def test_flux2_explicit_paths_win(tmp_path, monkeypatch):
+    monkeypatch.setattr(enc, "IMAGE_MODELS_DIR", str(tmp_path / "img"))
+    d = tmp_path / "m"; d.mkdir()
+    (d / "flux2.gguf").write_bytes(b"x")
+    llm = d / "my_llm.gguf"; llm.write_bytes(b"x")
+    vae = d / "my_vae.safetensors"; vae.write_bytes(b"x")
+    got = enc.resolve_flux2_files(str(d / "flux2.gguf"), llm=str(llm), vae=str(vae))
+    assert got["llm"].endswith("my_llm.gguf")
+    assert got["vae"].endswith("my_vae.safetensors")

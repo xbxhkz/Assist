@@ -17,9 +17,40 @@ def test_build_argv_flux_four_files_cpu():
     assert "--auto-fit" not in argv
 
 
+def test_build_argv_flux_guidance_distilled_cfg():
+    """FLUX models are guidance-distilled: sd-server's default cfg 7.0 doubles
+    inference and washes out output, so the serve bakes in cfg 1.0."""
+    files = {"diffusion_model": "/m/flux.gguf", "t5xxl": "/m/t5.gguf",
+             "clip_l": "/m/clip.safetensors", "vae": "/m/ae.safetensors"}
+    argv = rt.build_serve_argv("/x/sd-server", files, 8200)
+    assert argv[argv.index("--cfg-scale") + 1] == "1.0"
+    assert "--steps" not in argv  # sd-server default (20) is right for FLUX.1
+
+
 def test_build_argv_gpu_autofit():
     files = {"diffusion_model": "/m/flux.gguf", "t5xxl": "/m/t5.gguf",
              "clip_l": "/m/clip.safetensors", "vae": "/m/ae.safetensors"}
+    argv = rt.build_serve_argv("/x/sd-server", files, 8200, device="gpu")
+    assert "--auto-fit" in argv and "--diffusion-fa" in argv
+
+
+def test_build_argv_flux2_uses_llm_encoder():
+    """FLUX.2 (klein) file set: --llm replaces --t5xxl/--clip_l, and the
+    distilled klein wants 4 steps at cfg 1.0 as server defaults."""
+    files = {"diffusion_model": "/m/flux2-klein.gguf", "llm": "/m/qwen3-4b.gguf",
+             "vae": "/m/flux2_ae.safetensors"}
+    argv = rt.build_serve_argv("/x/sd-server", files, 8200, device="cpu", threads=8)
+    for f in ("--diffusion-model", "/m/flux2-klein.gguf", "--llm", "/m/qwen3-4b.gguf",
+              "--vae", "/m/flux2_ae.safetensors", "-t", "8"):
+        assert f in argv
+    assert "--t5xxl" not in argv and "--clip_l" not in argv
+    assert argv[argv.index("--cfg-scale") + 1] == "1.0"
+    assert argv[argv.index("--steps") + 1] == "4"
+
+
+def test_build_argv_flux2_gpu_autofit():
+    files = {"diffusion_model": "/m/flux2-klein.gguf", "llm": "/m/qwen3-4b.gguf",
+             "vae": "/m/flux2_ae.safetensors"}
     argv = rt.build_serve_argv("/x/sd-server", files, 8200, device="gpu")
     assert "--auto-fit" in argv and "--diffusion-fa" in argv
 

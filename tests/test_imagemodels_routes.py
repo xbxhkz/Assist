@@ -9,6 +9,9 @@ from core.middleware import require_admin
 
 
 class FakeManager:
+    def __init__(self):
+        self.started = None
+
     def list_models(self):
         return [{"name": "flux1.gguf", "path": "/x/flux1.gguf", "size": 4}]
 
@@ -16,37 +19,61 @@ class FakeManager:
         return {"running": False, "model": None, "port": None,
                 "endpoint_id": None, "device": None}
 
+    def start(self, files, device="cpu"):
+        self.started = (files, device)
+        return {"running": True, "model": "m", "port": 8200,
+                "endpoint_id": "img-local-0", "device": device}
+
 
 @pytest.fixture
 def client(monkeypatch, tmp_path):
-    monkeypatch.setattr(imr, "get_manager", lambda: FakeManager())
+    fake = FakeManager()
+    monkeypatch.setattr(imr, "get_manager", lambda: fake)
+    import src.imagemodels.encoders as enc
+    monkeypatch.setattr(enc, "IMAGE_MODELS_DIR", str(tmp_path / "img"))
     app = FastAPI()
     app.include_router(imr.setup_imagemodels_routes())
     app.dependency_overrides[require_admin] = lambda: None
-    return TestClient(app), tmp_path
+    return TestClient(app), fake, tmp_path
 
 
 def test_list_models(client):
-    c, _ = client
+    c, _fake, _ = client
     r = c.get("/api/imagemodels/models")
     assert r.status_code == 200
     assert r.json()["models"][0]["name"] == "flux1.gguf"
 
 
-def test_serve_rejects_flux2_fast_with_clear_message(client):
-    """FLUX.2 ggufs carry the same 'flux' arch tag but need a Mistral --llm
-    encoder; without this guard they fail cryptically after minutes of load."""
-    c, tmp = client
+def test_serve_flux2_missing_encoders_names_what_to_download(client):
+    """A FLUX.2 serve without its Qwen3 --llm encoder / flux2 VAE must fail
+    fast (before the minutes-long model load) and say which files to add."""
+    c, _fake, tmp = client
     f = tmp / "flux-2-klein-4b-Q8_0.gguf"
     f.write_bytes(b"x")
     r = c.post("/api/imagemodels/serve",
                json={"diffusion_model": str(f), "device": "cpu"})
     assert r.status_code == 400
-    assert "FLUX.2" in r.json()["detail"]
+    detail = r.json()["detail"]
+    assert "FLUX.2" in detail and "llm" in detail and "vae" in detail
+
+
+def test_serve_flux2_with_encoders_starts_manager(client):
+    c, fake, tmp = client
+    f = tmp / "flux-2-klein-4b-Q8_0.gguf"
+    f.write_bytes(b"x")
+    (tmp / "Qwen3-4B-Q4_K_M.gguf").write_bytes(b"x")     # sibling resolution
+    (tmp / "flux2_ae.safetensors").write_bytes(b"x")
+    r = c.post("/api/imagemodels/serve",
+               json={"diffusion_model": str(f), "device": "cpu"})
+    assert r.status_code == 200
+    files, device = fake.started
+    assert files["llm"].endswith("Qwen3-4B-Q4_K_M.gguf")
+    assert files["vae"].endswith("flux2_ae.safetensors")
+    assert "t5xxl" not in files and device == "cpu"
 
 
 def test_serve_rejects_missing_file(client):
-    c, _ = client
+    c, _fake, _ = client
     r = c.post("/api/imagemodels/serve",
                json={"diffusion_model": "/no/such/file.gguf"})
     assert r.status_code == 400
