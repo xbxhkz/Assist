@@ -105,3 +105,31 @@ def test_serve_ignores_junk_steps(client):
                json={"diffusion_model": str(f), "steps": "banana"})
     assert r.status_code == 200
     assert fake.steps is None
+
+
+def _flux1_set(tmp):
+    f = tmp / "flux1-dev.gguf"
+    f.write_bytes(b"x")
+    (tmp / "t5xxl.gguf").write_bytes(b"x")
+    (tmp / "clip_l.safetensors").write_bytes(b"x")
+    (tmp / "ae.safetensors").write_bytes(b"x")
+    return f
+
+
+def test_serve_fast_decode_includes_taesd_when_present(client):
+    c, fake, tmp = client
+    f = _flux1_set(tmp)
+    (tmp / "taef1.safetensors").write_bytes(b"x")
+    r = c.post("/api/imagemodels/serve",
+               json={"diffusion_model": str(f), "fast_decode": True})
+    assert r.status_code == 200
+    assert fake.files.get("taesd", "").endswith("taef1.safetensors")
+
+
+def test_serve_without_fast_decode_skips_taesd(client):
+    c, fake, tmp = client
+    f = _flux1_set(tmp)
+    (tmp / "taef1.safetensors").write_bytes(b"x")
+    r = c.post("/api/imagemodels/serve", json={"diffusion_model": str(f)})
+    assert r.status_code == 200
+    assert "taesd" not in fake.files

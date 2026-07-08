@@ -67,6 +67,11 @@ def setup_imagemodels_routes() -> APIRouter:
             steps = max(1, min(50, int(steps))) if steps else None
         except (TypeError, ValueError):
             steps = None
+        if payload.get("fast_decode"):
+            from src.imagemodels.encoders import find_taesd
+            tae = find_taesd(real)
+            if tae:
+                files["taesd"] = tae
         try:
             # Off the event loop: image models load slowly (large mmap).
             return await asyncio.to_thread(get_manager().start, files, device, steps)

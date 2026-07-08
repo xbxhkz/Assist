@@ -36,6 +36,9 @@ def build_serve_argv(binary, files, port, device="cpu", host="127.0.0.1",
         eff_steps = steps
     if eff_steps:
         argv += ["--steps", str(int(eff_steps))]
+    if files.get("taesd"):
+        # Tiny AutoEncoder: near-instant decode at slightly lower detail.
+        argv += ["--taesd", files["taesd"]]
     # 1024x1024 VAE decode wants a ~8.5GB compute buffer; tiling keeps the
     # peak inside 6GB VRAM / small-RAM machines on every device.
     argv += ["--vae-tiling", "--listen-ip", host, "--listen-port", str(port)]

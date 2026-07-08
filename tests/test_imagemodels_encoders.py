@@ -87,6 +87,33 @@ def test_flux2_does_not_take_flux1_vae(tmp_path, monkeypatch):
     assert ei.value.missing == ["vae"]
 
 
+def test_find_taesd_in_encoders_dir(tmp_path, monkeypatch):
+    img = tmp_path / "img"; (img / "encoders").mkdir(parents=True)
+    monkeypatch.setattr(enc, "IMAGE_MODELS_DIR", str(img))
+    (img / "encoders" / "taef1.safetensors").write_bytes(b"x")
+    d = tmp_path / "m"; d.mkdir()
+    (d / "flux1-dev.gguf").write_bytes(b"x")
+    assert enc.find_taesd(str(d / "flux1-dev.gguf")).endswith("taef1.safetensors")
+
+
+def test_find_taesd_none_for_flux2(tmp_path, monkeypatch):
+    """taef1 is the FLUX.1 tiny autoencoder; using it on FLUX.2 latents would
+    misdecode, so the finder must refuse flux2-named models."""
+    img = tmp_path / "img"; (img / "encoders").mkdir(parents=True)
+    monkeypatch.setattr(enc, "IMAGE_MODELS_DIR", str(img))
+    (img / "encoders" / "taef1.safetensors").write_bytes(b"x")
+    d = tmp_path / "m"; d.mkdir()
+    (d / "flux-2-klein.gguf").write_bytes(b"x")
+    assert enc.find_taesd(str(d / "flux-2-klein.gguf")) is None
+
+
+def test_find_taesd_none_when_absent(tmp_path, monkeypatch):
+    monkeypatch.setattr(enc, "IMAGE_MODELS_DIR", str(tmp_path / "img"))
+    d = tmp_path / "m"; d.mkdir()
+    (d / "flux1-dev.gguf").write_bytes(b"x")
+    assert enc.find_taesd(str(d / "flux1-dev.gguf")) is None
+
+
 def test_flux2_explicit_paths_win(tmp_path, monkeypatch):
     monkeypatch.setattr(enc, "IMAGE_MODELS_DIR", str(tmp_path / "img"))
     d = tmp_path / "m"; d.mkdir()

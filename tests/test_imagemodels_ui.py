@@ -12,7 +12,7 @@ def test_index_has_imagemodels_card_elements():
     html = _read("static/index.html")
     for el in ('id="imagemodels-status"', 'id="imagemodels-list"',
                'id="imagemodels-browse-btn"', 'id="imagemodels-serve-btn"',
-               'id="imagemodels-steps"'):
+               'id="imagemodels-steps"', 'id="imagemodels-fast-decode"'):
         assert el in html, f"{el} missing from index.html"
 
 

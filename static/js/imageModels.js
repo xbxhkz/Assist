@@ -33,6 +33,7 @@
     const body = { diffusion_model: path, device: device() };
     const steps = parseInt($('imagemodels-steps')?.value, 10);
     if (steps) body.steps = steps;
+    if ($('imagemodels-fast-decode')?.checked) body.fast_decode = true;
     try {
       await api('/api/imagemodels/serve', {
         method: 'POST',

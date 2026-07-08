@@ -98,3 +98,22 @@ def resolve_flux2_files(diffusion_model, llm=None, vae=None) -> dict:
     text encoder passed to sd-server's --llm."""
     return _resolve(diffusion_model, (("llm", llm), ("vae", vae)),
                     FLUX2_ENCODER_FILENAMES)
+
+
+TAESD_FILENAMES = ["taef1.safetensors", "taesd_flux.safetensors"]
+
+
+def find_taesd(diffusion_model):
+    """Optional Tiny AutoEncoder for fast (lower-quality) decode. FLUX.1 only:
+    no public TAE exists for FLUX.2, and taef1 would misdecode its latents.
+    Returns a realpath or None — absence is never an error."""
+    from src.imagemodels.runtime import looks_like_flux2
+    if looks_like_flux2(diffusion_model):
+        return None
+    diff = os.path.realpath(diffusion_model or "")
+    for d in (os.path.dirname(diff), encoders_dir()):
+        for fn in TAESD_FILENAMES:
+            cand = os.path.join(d, fn)
+            if os.path.isfile(cand):
+                return os.path.realpath(cand)
+    return None
