@@ -175,7 +175,9 @@ def test_start_gpu_resolves_gpu_binary_and_reports_device():
     st = mgr.start("/models/a.gguf", device="gpu")
     assert seen == ["gpu"]
     assert st["device"] == "gpu"
-    assert "-ngl" in spawned[0][0]
+    # No -ngl: the Vulkan build auto-fits layers; an explicit value disables
+    # the fitter and OOMs models larger than the card (see runtime tests).
+    assert "-ngl" not in spawned[0][0]
 
 
 def test_autoserve_restores_device(tmp_path):
