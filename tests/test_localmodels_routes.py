@@ -19,8 +19,9 @@ class FakeManager:
     def status(self):
         return {"running": bool(self.started), "model": self.started,
                 "port": 8123, "endpoint_id": "local-0"}
-    def start(self, model_path):
+    def start(self, model_path, device="cpu"):
         self.started = os.path.basename(model_path)
+        self.device = device
         return self.status()
     def stop(self):
         self.stopped = True
@@ -74,3 +75,23 @@ def test_stop_delegates(client):
     r = c.post("/api/localmodels/stop")
     assert r.status_code == 200
     assert fake.stopped is True
+
+
+def test_serve_passes_device(client):
+    c, fake, tmp = client
+    f = tmp / "m.gguf"
+    f.write_bytes(b"x")
+    r = c.post("/api/localmodels/serve",
+               json={"model_path": str(f), "device": "gpu"})
+    assert r.status_code == 200
+    assert fake.device == "gpu"
+
+
+def test_serve_defaults_bogus_device_to_cpu(client):
+    c, fake, tmp = client
+    f = tmp / "m.gguf"
+    f.write_bytes(b"x")
+    r = c.post("/api/localmodels/serve",
+               json={"model_path": str(f), "device": "quantum"})
+    assert r.status_code == 200
+    assert fake.device == "cpu"

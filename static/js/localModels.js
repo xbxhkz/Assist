@@ -110,6 +110,15 @@
     });
   }
 
+  function serveDevice() {
+    const el = document.querySelector('input[name="localmodels-device"]:checked');
+    return el ? el.value : 'cpu';
+  }
+
+  function runningLabel(status) {
+    return `Running: ${status.model} on ${status.device === 'gpu' ? 'GPU' : 'CPU'} (port ${status.port})`;
+  }
+
   async function refresh() {
     const statusEl = $('localmodels-status');
     const listEl = $('localmodels-list');
@@ -117,15 +126,13 @@
     let status = { running: false };
     try { status = await api('/api/localmodels/status'); } catch (e) {}
     if (statusEl) {
-      statusEl.textContent = status.running
-        ? `Running: ${status.model} (port ${status.port})`
-        : 'No model running';
+      statusEl.textContent = status.running ? runningLabel(status) : 'No model running';
     }
     let data = { models: [] };
     try { data = await api('/api/localmodels/models'); } catch (e) {}
     downloadedNames = new Set((data.models || []).map((m) => m.name));
     if (statusEl && data.disk_bytes != null) {
-      const base = status.running ? `Running: ${status.model} (port ${status.port})` : 'No model running';
+      const base = status.running ? runningLabel(status) : 'No model running';
       statusEl.textContent = `${base}  ·  ${data.models.length} models · ${fmtBytes(data.disk_bytes)}`;
     }
     listEl.innerHTML = '';
@@ -156,7 +163,7 @@
             await api('/api/localmodels/serve', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ model_path: m.path }),
+              body: JSON.stringify({ model_path: m.path, device: serveDevice() }),
             });
           }
         } catch (e) { alert('Local model error: ' + e.message); }

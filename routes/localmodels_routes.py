@@ -73,10 +73,13 @@ def setup_localmodels_routes() -> APIRouter:
     @router.post("/serve")
     async def serve(payload: dict = Body(...)):
         safe = _validate_model_path((payload.get("model_path") or "").strip())
+        device = (payload.get("device") or "cpu").strip().lower()
+        if device not in ("cpu", "gpu"):
+            device = "cpu"
         try:
             # Off the event loop: a large model can take minutes to load, and
             # start() blocks until llama-server is ready.
-            return await asyncio.to_thread(get_manager().start, safe)
+            return await asyncio.to_thread(get_manager().start, safe, device)
         except RuntimeError as e:
             raise HTTPException(status_code=503, detail=str(e))
 

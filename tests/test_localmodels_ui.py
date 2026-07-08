@@ -20,3 +20,10 @@ def test_localmodels_js_calls_all_endpoints():
     for ep in ("/api/localmodels/models", "/api/localmodels/status",
                "/api/localmodels/serve", "/api/localmodels/stop"):
         assert ep in js, f"{ep} not called in localModels.js"
+
+
+def test_localmodels_ui_has_device_toggle():
+    html = _read("static/index.html")
+    assert 'name="localmodels-device"' in html
+    js = _read("static/js/localModels.js")
+    assert "localmodels-device" in js
