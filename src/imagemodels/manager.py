@@ -120,7 +120,7 @@ class ImageModelManager:
             self._sleep(self._probe_interval)
         return False
 
-    def start(self, files: dict, device: str = "cpu") -> dict:
+    def start(self, files: dict, device: str = "cpu", steps=None) -> dict:
         with self._lock:
             if self._proc is not None:
                 self._stop_locked()
@@ -128,7 +128,7 @@ class ImageModelManager:
             port = self._port_chooser()
             threads = os.cpu_count() or 4
             proc = self._spawn(build_serve_argv(binary, files, port, device=device,
-                                                threads=threads))
+                                                threads=threads, steps=steps))
             url = local_image_endpoint_url(port)
             timeout = self._ready_timeout_for(files["diffusion_model"])
             if not self._await_ready(url + "/models", proc, timeout):

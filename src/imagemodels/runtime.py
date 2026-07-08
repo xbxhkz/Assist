@@ -15,21 +15,27 @@ def local_image_endpoint_url(port: int) -> str:
     return f"http://127.0.0.1:{port}/v1"
 
 
-def build_serve_argv(binary, files, port, device="cpu", host="127.0.0.1", threads=0):
+def build_serve_argv(binary, files, port, device="cpu", host="127.0.0.1",
+                     threads=0, steps=None):
     """sd-server argv for a FLUX GGUF. `files` = diffusion_model + the family's
     aux files: FLUX.1 uses t5xxl/clip_l/vae, FLUX.2 (klein) uses llm/vae (the
     "llm" key selects the FLUX.2 layout). FLUX is guidance-distilled, so the
     server default cfg 7.0 is baked down to 1.0; klein additionally wants 4
-    sampling steps instead of the default 20."""
+    sampling steps instead of the default 20. An explicit `steps` wins over
+    the family default."""
     argv = [binary, "--diffusion-model", files["diffusion_model"]]
     if "llm" in files:
         argv += ["--llm", files["llm"], "--vae", files["vae"],
                  "--cfg-scale", "1.0"]
-        if "klein" in os.path.basename(files["diffusion_model"]).lower():
-            argv += ["--steps", "4"]  # klein is step-distilled; dev keeps 20
+        eff_steps = steps or (
+            4 if "klein" in os.path.basename(files["diffusion_model"]).lower()
+            else None)  # klein is step-distilled; flux2-dev keeps 20
     else:
         argv += ["--t5xxl", files["t5xxl"], "--clip_l", files["clip_l"],
                  "--vae", files["vae"], "--cfg-scale", "1.0"]
+        eff_steps = steps
+    if eff_steps:
+        argv += ["--steps", str(int(eff_steps))]
     # 1024x1024 VAE decode wants a ~8.5GB compute buffer; tiling keeps the
     # peak inside 6GB VRAM / small-RAM machines on every device.
     argv += ["--vae-tiling", "--listen-ip", host, "--listen-port", str(port)]

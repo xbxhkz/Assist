@@ -111,6 +111,20 @@ def test_list_image_arch_ggufs_missing_dir_is_empty():
     assert rt.list_image_arch_ggufs("/no/such/dir") == []
 
 
+def test_build_argv_explicit_steps_override():
+    files = {"diffusion_model": "/m/flux2-klein.gguf", "llm": "/m/q.gguf",
+             "vae": "/m/v.safetensors"}
+    argv = rt.build_serve_argv("/x/sd", files, 8200, steps=8)
+    assert argv[argv.index("--steps") + 1] == "8"
+
+
+def test_build_argv_flux1_explicit_steps():
+    files = {"diffusion_model": "/m/flux.gguf", "t5xxl": "/m/t5.gguf",
+             "clip_l": "/m/c.safetensors", "vae": "/m/v.safetensors"}
+    argv = rt.build_serve_argv("/x/sd", files, 8200, steps=12)
+    assert argv[argv.index("--steps") + 1] == "12"
+
+
 def test_looks_like_flux2():
     assert rt.looks_like_flux2("flux-2-klein-4b-Q8_0.gguf")
     assert rt.looks_like_flux2("FLUX.2-dev-Q4_K.gguf")

@@ -1385,9 +1385,10 @@
         <button id="imagemodels-browse-btn" style="display:none;" title="Pick a FLUX diffusion .gguf on this computer">Browse for a FLUX .gguf…</button>
         <span id="imagemodels-picked" style="font-size:12px;opacity:0.75;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;"></span>
       </div>
-      <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;font-size:12px;">
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;font-size:12px;flex-wrap:wrap;">
         <label><input type="radio" name="imagemodels-device" value="cpu" checked> CPU</label>
         <label><input type="radio" name="imagemodels-device" value="gpu"> GPU</label>
+        <label title="Sampling steps baked into this serve; blank = the model's own default (klein: 4, others: 20)">Steps <input id="imagemodels-steps" type="number" min="1" max="50" placeholder="auto" style="width:56px;"></label>
         <button id="imagemodels-serve-btn" disabled>Serve</button>
         <button id="imagemodels-stop-btn" style="display:none;">Stop</button>
       </div>

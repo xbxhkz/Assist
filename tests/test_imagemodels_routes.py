@@ -19,8 +19,10 @@ class FakeManager:
         return {"running": False, "model": None, "port": None,
                 "endpoint_id": None, "device": None}
 
-    def start(self, files, device="cpu"):
+    def start(self, files, device="cpu", steps=None):
         self.started = (files, device)
+        self.files = files
+        self.steps = steps
         return {"running": True, "model": "m", "port": 8200,
                 "endpoint_id": "img-local-0", "device": device}
 
@@ -77,3 +79,29 @@ def test_serve_rejects_missing_file(client):
     r = c.post("/api/imagemodels/serve",
                json={"diffusion_model": "/no/such/file.gguf"})
     assert r.status_code == 400
+
+
+def _flux2_set(tmp):
+    f = tmp / "flux-2-klein-4b-Q8_0.gguf"
+    f.write_bytes(b"x")
+    (tmp / "Qwen3-4B-Q4_K_M.gguf").write_bytes(b"x")
+    (tmp / "flux2_ae.safetensors").write_bytes(b"x")
+    return f
+
+
+def test_serve_clamps_and_passes_steps(client):
+    c, fake, tmp = client
+    f = _flux2_set(tmp)
+    r = c.post("/api/imagemodels/serve",
+               json={"diffusion_model": str(f), "device": "cpu", "steps": 400})
+    assert r.status_code == 200
+    assert fake.steps == 50
+
+
+def test_serve_ignores_junk_steps(client):
+    c, fake, tmp = client
+    f = _flux2_set(tmp)
+    r = c.post("/api/imagemodels/serve",
+               json={"diffusion_model": str(f), "steps": "banana"})
+    assert r.status_code == 200
+    assert fake.steps is None

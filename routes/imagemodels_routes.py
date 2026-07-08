@@ -62,9 +62,14 @@ def setup_imagemodels_routes() -> APIRouter:
                     400, "Missing FLUX files: " + ", ".join(e.missing) +
                     ". Put t5xxl / clip_l / vae next to the model, or download "
                     "the FLUX encoders.")
+        steps = payload.get("steps")
+        try:
+            steps = max(1, min(50, int(steps))) if steps else None
+        except (TypeError, ValueError):
+            steps = None
         try:
             # Off the event loop: image models load slowly (large mmap).
-            return await asyncio.to_thread(get_manager().start, files, device)
+            return await asyncio.to_thread(get_manager().start, files, device, steps)
         except RuntimeError as e:
             raise HTTPException(status_code=503, detail=str(e))
 

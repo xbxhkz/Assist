@@ -30,11 +30,14 @@
   async function serveModel(path, msgPrefix) {
     const msg = $('imagemodels-msg');
     if (msg) { msg.style.color = ''; msg.textContent = `${msgPrefix} image models load slowly — this can take a few minutes.`; }
+    const body = { diffusion_model: path, device: device() };
+    const steps = parseInt($('imagemodels-steps')?.value, 10);
+    if (steps) body.steps = steps;
     try {
       await api('/api/imagemodels/serve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ diffusion_model: path, device: device() }),
+        body: JSON.stringify(body),
       });
       if (msg) msg.textContent = '';
     } catch (e) {
