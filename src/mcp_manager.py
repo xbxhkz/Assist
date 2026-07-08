@@ -9,11 +9,36 @@ import json
 import logging
 import os
 import re
+import sys
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from src.constants import DATA_DIR
 from src.runtime_paths import get_app_root
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_errlog():
+    """File usable as an MCP child's stderr, or None when sys.stderr is fine.
+
+    The frozen windowed app has no console: PyInstaller swaps sys.stderr for a
+    NullWriter without fileno(), which subprocess spawn rejects. Returning an
+    open real file (the shared MCP log) lets stdio_client spawn children —
+    and captures their stderr for debugging. Caller owns closing it.
+    """
+    try:
+        sys.stderr.fileno()
+        return None
+    except Exception:
+        pass
+    try:
+        logs = os.path.join(DATA_DIR, "logs")
+        os.makedirs(logs, exist_ok=True)
+        return open(os.path.join(logs, "mcp-servers.log"), "a",
+                    encoding="utf-8", errors="replace")
+    except Exception:
+        return open(os.devnull, "w")
+
 
 def _format_mcp_connection_error(name: str, command: str = "", args: Optional[List[str]] = None, error: Exception = None) -> str:
     """Return a user-actionable MCP connection error message."""
@@ -193,7 +218,17 @@ class McpManager:
 
             stack = AsyncExitStack()
             try:
-                transport = await stack.enter_async_context(stdio_client(server_params))
+                # stdio_client defaults errlog=sys.stderr, which the windowed
+                # frozen build replaces with a fileno()-less NullWriter —
+                # subprocess spawn then dies and every built-in MCP server
+                # fails at boot. Route the child's stderr to a log file there.
+                errlog = _safe_errlog()
+                if errlog is None:
+                    transport = await stack.enter_async_context(stdio_client(server_params))
+                else:
+                    stack.callback(errlog.close)
+                    transport = await stack.enter_async_context(
+                        stdio_client(server_params, errlog=errlog))
                 read_stream, write_stream = transport
                 session = await stack.enter_async_context(ClientSession(read_stream, write_stream))
 
