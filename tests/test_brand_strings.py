@@ -45,3 +45,26 @@ def test_readme_rebranded():
     assert "docs/assist-wordmark.png" in r
     assert 'alt="Odysseus"' not in r
     assert "ASSIST_" in r  # env-var compatibility note mentions the new prefix
+
+
+def test_dynamic_placeholder_says_assist():
+    """app.js rewrites the composer placeholder on resize — it stomped the
+    rebranded index.html value until 2026-07-08. Guard the JS layer too."""
+    app = _read("static/app.js")
+    assert "'Message Assist...'" in app
+    assert "Message Odysseus" not in app
+
+
+def test_no_stale_brand_strings_in_static_js():
+    """User-visible brand strings across all frontend JS. The Odysseus
+    *character* (presets.js prompt, tasks.js persona dropdown) and the
+    /odyssey Homer quotes are intentionally exempt; comments/identifiers
+    (startOdysseusApp, odysseus-theme keys) are not user-visible."""
+    forbidden = ("Message Odysseus", "Odysseus Chat", "Odysseus Logo",
+                 "Odysseus reminder emails", "Welcome to Odysseus",
+                 "Odysseus Cookbook", "textContent = 'Odysseus'")
+    hits = []
+    for p in (ROOT / "static").rglob("*.js"):
+        text = p.read_text(encoding="utf-8", errors="replace")
+        hits += [f"{p.name}: {s}" for s in forbidden if s in text]
+    assert not hits, f"stale Odysseus brand strings: {hits}"

@@ -155,7 +155,7 @@ function _renderHistoryMessage(msg, modelName) {
     const resolved = pair.actualModel || pair.requestedModel || modelName;
     roleEl.textContent = chatRenderer.modelRouteLabel
       ? chatRenderer.modelRouteLabel(pair.requestedModel, resolved)
-      : (resolved || 'Odysseus');
+      : (resolved || 'Assist');
     if (chatRenderer.applyModelColor) chatRenderer.applyModelColor(roleEl, resolved);
   }
   const timestamp = meta?.timestamp;
@@ -293,7 +293,7 @@ function _deselectCurrentSession(sid) {
   if (currentSessionId !== sid) return;
   currentSessionId = null;
   uiModule.el('chat-history').innerHTML = '';
-  uiModule.el('current-meta').textContent = 'Odysseus Chat';
+  uiModule.el('current-meta').textContent = 'Assist Chat';
   Storage.remove('lastSessionId');
   history.replaceState(null, '', window.location.pathname);
   if (window.chatModule && window.chatModule.showWelcomeScreen) {
@@ -1877,7 +1877,7 @@ export async function selectSession(id, { keepSidebar = false, showLoading = tru
 
     const currentMetaEl = uiModule.el('current-meta');
     if (currentMetaEl) {
-      currentMetaEl.textContent = meta ? meta.name : 'Odysseus Chat';
+      currentMetaEl.textContent = meta ? meta.name : 'Assist Chat';
     }
     // Update model picker visibility
     updateModelPicker();
