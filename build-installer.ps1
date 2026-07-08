@@ -3,7 +3,9 @@
   Build the Assist Windows installer. Runs the portable build first, then
   compiles installer\Assist.iss into installer\Output\Assist-Setup.exe.
   Requires Inno Setup (ISCC.exe) on PATH or at its default location.
+  -Fast: incremental portable build (see build-windows-portable.ps1).
 #>
+param([switch]$Fast)
 $ErrorActionPreference = "Stop"
 Set-Location -Path $PSScriptRoot
 
@@ -11,7 +13,7 @@ function Write-Step($msg) { Write-Host ""; Write-Host ("==> " + $msg) -Foregroun
 function Fail($msg) { Write-Host ""; Write-Host ("ERROR: " + $msg) -ForegroundColor Red; exit 1 }
 
 Write-Step "Building portable app folder"
-& .\build-windows-portable.ps1
+if ($Fast) { & .\build-windows-portable.ps1 -Fast } else { & .\build-windows-portable.ps1 }
 if ($LASTEXITCODE -ne 0) { Fail "Portable build failed." }
 
 Write-Step "Resolving version from src/constants.py (APP_VERSION)"

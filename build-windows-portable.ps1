@@ -13,7 +13,12 @@
 
   Usage:
     powershell -ExecutionPolicy Bypass -File .\build-windows-portable.ps1
+    powershell -ExecutionPolicy Bypass -File .\build-windows-portable.ps1 -Fast
+      (-Fast: skip pip install + asset fetches when build_assets exist, and
+       run PyInstaller incrementally without --clean. Use for iteration;
+       release builds stay full/clean.)
 #>
+param([switch]$Fast)
 
 $ErrorActionPreference = "Stop"
 Set-Location -Path $PSScriptRoot
@@ -46,22 +51,31 @@ if (-not $pyExe) {
 }
 Write-Host ("Using Python: " + $pyExe)
 
-Write-Step "Installing build dependencies"
-& $pyExe -m pip install --upgrade pip --quiet
-& $pyExe -m pip install -r requirements.txt -r requirements-desktop.txt pyinstaller
-if ($LASTEXITCODE -ne 0) { Fail "Dependency install failed." }
+if ($Fast -and (Test-Path "build_assets\llama") -and (Test-Path "build_assets\sd")) {
+    Write-Step "Fast build: skipping pip install + asset fetches (assets present)"
+} else {
+    Write-Step "Installing build dependencies"
+    & $pyExe -m pip install --upgrade pip --quiet
+    & $pyExe -m pip install -r requirements.txt -r requirements-desktop.txt pyinstaller
+    if ($LASTEXITCODE -ne 0) { Fail "Dependency install failed." }
 
-Write-Step "Vendoring offline embedding model"
-& $pyExe scripts/fetch_embedding_model.py
-if ($LASTEXITCODE -ne 0) { Fail "Embedding model fetch failed." }
+    Write-Step "Vendoring offline embedding model"
+    & $pyExe scripts/fetch_embedding_model.py
+    if ($LASTEXITCODE -ne 0) { Fail "Embedding model fetch failed." }
 
-Write-Step "Vendoring llama-server (CPU)"
-& $pyExe scripts/fetch_llama_server.py
-if ($LASTEXITCODE -ne 0) { Fail "llama-server fetch failed." }
+    Write-Step "Vendoring llama-server (CPU + Vulkan)"
+    & $pyExe scripts/fetch_llama_server.py
+    if ($LASTEXITCODE -ne 0) { Fail "llama-server fetch failed." }
+
+    Write-Step "Vendoring sd-server (CPU + Vulkan)"
+    & $pyExe scripts/fetch_sd_server.py
+    if ($LASTEXITCODE -ne 0) { Fail "sd-server fetch failed." }
+}
 
 Write-Step "Building portable exe bundle"
-Remove-Item -Recurse -Force build, dist -ErrorAction SilentlyContinue
-& $pyExe -m PyInstaller --noconfirm --clean Assist.spec
+if (-not $Fast) { Remove-Item -Recurse -Force build, dist -ErrorAction SilentlyContinue }
+$piArgs = @('--noconfirm'); if (-not $Fast) { $piArgs += '--clean' }
+& $pyExe -m PyInstaller @piArgs Assist.spec
 if ($LASTEXITCODE -ne 0) { Fail "PyInstaller build failed." }
 
 Write-Host ""
