@@ -43,13 +43,13 @@ def build_serve_argv(binary, files, port, device="cpu", host="127.0.0.1",
     # peak inside 6GB VRAM / small-RAM machines on every device.
     argv += ["--vae-tiling", "--listen-ip", host, "--listen-port", str(port)]
     if device == "gpu":
-        # Explicit low-VRAM layout: diffusion on the GPU, text encoder + VAE
-        # on CPU. --auto-fit is deliberately NOT used — it ignores --backend
-        # assignments, and its VAE-OOM tiling fallback failed live on a 6GB
-        # card. vulkan0 matches the bundled Vulkan build (a user-installed
-        # CUDA sd-server on PATH would need cuda0 — acceptable limitation).
-        argv += ["--backend", "diffusion=vulkan0,te=cpu,vae=cpu",
-                 "--diffusion-fa"]
+        # sd.cpp's documented low-VRAM recipe: weights live in RAM and stream
+        # into VRAM per use, so models larger than the card still run at GPU
+        # speed (klein Q8 on a 6GB RTX 4050: 1024px in ~80s, verified live).
+        # NOT --auto-fit (its VAE-OOM fallback failed live) and NOT a hard
+        # --backend pin (spills to host-visible memory at ~10x slowdown when
+        # weights exceed VRAM).
+        argv += ["--offload-to-cpu", "--diffusion-fa"]
     elif threads:
         argv += ["-t", str(threads)]
     return argv

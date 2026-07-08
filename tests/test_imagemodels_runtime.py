@@ -28,14 +28,14 @@ def test_build_argv_flux_guidance_distilled_cfg():
 
 
 def test_build_argv_gpu_low_vram_layout():
-    """GPU serves pin diffusion to the GPU and text encoder + VAE to CPU.
-    --auto-fit is NOT used: it ignores explicit --backend assignments and its
-    VAE-OOM tiling fallback fails on 6GB cards at 1024x1024 (observed live)."""
+    """GPU serves use sd.cpp's offload-to-cpu recipe (weights in RAM, streamed
+    to VRAM per use) so models larger than the card still run at GPU speed.
+    --auto-fit's VAE fallback and a hard --backend pin both failed live."""
     files = {"diffusion_model": "/m/flux.gguf", "t5xxl": "/m/t5.gguf",
              "clip_l": "/m/clip.safetensors", "vae": "/m/ae.safetensors"}
     argv = rt.build_serve_argv("/x/sd-server", files, 8200, device="gpu")
-    assert argv[argv.index("--backend") + 1] == "diffusion=vulkan0,te=cpu,vae=cpu"
-    assert "--diffusion-fa" in argv and "--auto-fit" not in argv
+    assert "--offload-to-cpu" in argv and "--diffusion-fa" in argv
+    assert "--auto-fit" not in argv and "--backend" not in argv
 
 
 def test_build_argv_always_tiles_vae():
@@ -65,8 +65,8 @@ def test_build_argv_flux2_gpu_low_vram_layout():
     files = {"diffusion_model": "/m/flux2-klein.gguf", "llm": "/m/qwen3-4b.gguf",
              "vae": "/m/flux2_ae.safetensors"}
     argv = rt.build_serve_argv("/x/sd-server", files, 8200, device="gpu")
-    assert argv[argv.index("--backend") + 1] == "diffusion=vulkan0,te=cpu,vae=cpu"
-    assert "--diffusion-fa" in argv and "--auto-fit" not in argv
+    assert "--offload-to-cpu" in argv and "--diffusion-fa" in argv
+    assert "--auto-fit" not in argv and "--backend" not in argv
 
 
 def test_resolve_prefers_path_binary():
