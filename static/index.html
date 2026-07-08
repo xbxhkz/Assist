@@ -943,6 +943,17 @@
           </svg>
           <span class="grow">Theme</span>
         </div>
+
+        <div class="list-item" id="tool-help-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            style="flex-shrink:0;opacity:0.5;">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <span class="grow">Help</span>
+        </div>
       </div>
     </div>
     <div class="sidebar-user-bar" id="sidebar-user-bar">
@@ -1395,6 +1406,83 @@
       </div>
       <div style="font-size:11px;opacity:0.55;margin-bottom:8px;">Steps: blank = the model's default (klein 4, others 20). Fast decode: near-instant decode via tiny autoencoder, slightly softer detail (FLUX.1 only).</div>
       <div id="imagemodels-msg" style="font-size:12px;opacity:0.85;"></div>
+    </div>
+  </div>
+
+  <!-- Help Modal: manual, tutorials, about -->
+  <div id="help-modal" class="modal hidden">
+    <div class="modal-content admin-modal-content" role="dialog" aria-label="Help">
+      <div class="modal-header">
+        <h4><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Help</h4>
+        <button class="close-btn" id="close-help-modal" aria-label="Close help">&#x2716;</button>
+      </div>
+      <div class="admin-tabs" id="help-tabs">
+        <button class="admin-tab active" data-help-tab="help-tab-manual">Manual</button>
+        <button class="admin-tab" data-help-tab="help-tab-tutorials">Tutorials</button>
+        <button class="admin-tab" data-help-tab="help-tab-about">About</button>
+      </div>
+
+      <div id="help-tab-manual" class="help-tab-panel">
+        <div class="admin-card" style="font-size:13px;line-height:1.55;">
+          <details open>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Getting started</summary>
+            <p>Assist is a local-first AI workspace. Point it at any OpenAI-compatible endpoint or run models fully offline on this computer. Type <code>/setup</code> in the chat box to connect a provider (OpenAI, Anthropic, Groq, a local server, …), or open <b>Local Models</b> in the sidebar to download and run a model with no account at all. Pick the active model with the model picker at the top of the chat box.</p>
+          </details>
+          <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Chat &amp; Agent modes</summary>
+            <p><b>Chat</b> is a plain conversation with the selected model. <b>Agent</b> gives the model tools: web search, files, email, calendar, notes, documents, image generation, model management and more. Toggle tools per-turn with the buttons under the chat box. Slash commands (type <code>/</code>) offer quick actions; <code>/help</code> lists them.</p>
+          </details>
+          <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Local LLMs (Local Models)</summary>
+            <p>Open <b>Local Models</b> to search Hugging Face for GGUF models, download them, or link a .gguf already on disk (Browse). Serve on <b>CPU</b> or <b>GPU</b> — GPU uses a Vulkan build that automatically fits as many layers as your video memory holds; the rest run on CPU. The served model appears in the model picker automatically, and the last model re-serves on the next launch. The hardware line shows what your machine can handle; download suggestions are ranked to fit it.</p>
+          </details>
+          <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Image generation (FLUX)</summary>
+            <p>The <b>Image models</b> card (inside Local Models) serves FLUX diffusion models locally. Downloaded image GGUFs are listed automatically; required text encoders and VAE are resolved from the shared <code>image-models/encoders</code> folder. <b>FLUX.1</b> uses ~20 steps; <b>FLUX.2 klein</b> is distilled to 4 steps and is much faster. <b>Steps</b> overrides the default; <b>Fast decode</b> uses a tiny autoencoder for near-instant decoding (FLUX.1 only, slightly softer detail).</p>
+            <p>Sizing guidance for small GPUs (≈6&nbsp;GB): klein handles 1024×1024; FLUX.1 (a 12B model) fits up to ~512×512 on GPU — use Settings → Image generation → Size, or serve on CPU for larger sizes. Once served, ask for images in chat or use the Gallery.</p>
+          </details>
+          <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Gallery</summary>
+            <p>Generated and imported images live in the <b>Gallery</b>: albums, favorites, and an editor with crop, adjustments, and background removal. Images generated in chat are saved here automatically.</p>
+          </details>
+          <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Email, Calendar &amp; Tasks</summary>
+            <p>Connect an email account in Settings → Services to read, search, and (with confirmation) send mail from chat. The <b>Calendar</b> supports events and reminders. <b>Tasks</b> run in the background on a schedule — say "every weekday at 9am check for urgent emails" in chat, or manage them in the Tasks panel, optionally with a persona.</p>
+          </details>
+          <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Notes, Library &amp; Brain</summary>
+            <p><b>Notes</b> holds quick notes (ask in chat to take one for you). The <b>Library</b> stores documents with an editor the agent can use; PDFs get previews and RAG search. The <b>Brain</b> is persistent memory: facts it learns about you, tidy suggestions, and skills.</p>
+          </details>
+          <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Skills</summary>
+            <p>Skills teach the agent multi-step workflows. Browse and import community skills from GitHub in Brain → Skills (add a GitHub token in Settings → Services to unlock code search), or ask the agent to save one from the current chat.</p>
+          </details>
+          <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Keyboard shortcuts</summary>
+            <p><code>Ctrl+K</code> search · <code>Ctrl+B</code> toggle sidebar · <code>Ctrl+Alt+N</code> new chat · <code>Ctrl+Alt+S</code> star chat · <code>Ctrl+Alt+D</code> delete chat · <code>Ctrl+Shift+U</code> admin panel · <code>Esc</code> cancel. Rebind them in Settings → Appearance.</p>
+          </details>
+          <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Troubleshooting</summary>
+            <p>Logs live in the data folder: <code>data/logs/app.log</code> (application), <code>llama-server.log</code> (local LLM), <code>sd-server.log</code> (image models — the previous run is kept as <code>.prev</code>), <code>mcp-servers.log</code> (built-in tools). Serving an LLM and an image model together on a small-RAM machine pages heavily — the app offers to stop one before starting the other. If a local image generation fails with "no results", the size likely exceeds GPU memory: lower Settings → Image generation → Size.</p>
+          </details>
+        </div>
+      </div>
+
+      <div id="help-tab-tutorials" class="help-tab-panel" style="display:none;">
+        <div class="admin-card">
+          <p style="font-size:12px;opacity:0.7;margin-top:0;">Interactive walkthroughs that run in the chat window. Starting one closes this panel.</p>
+          <div id="help-tutorials-list"></div>
+        </div>
+      </div>
+
+      <div id="help-tab-about" class="help-tab-panel" style="display:none;">
+        <div class="admin-card" style="font-size:13px;line-height:1.6;">
+          <h2 style="margin-top:0;">Assist</h2>
+          <p>Version <span id="help-about-version">…</span></p>
+          <p style="opacity:0.75;">A local-first AI workspace: chat, agents, local LLM &amp; image-model serving, email, calendar, tasks, notes, documents, and skills — your data stays on your machine.</p>
+          <p style="font-size:12px;opacity:0.6;">Data folder: <code>~/.assist/data</code> · Logs: <code>~/.assist/data/logs</code></p>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -2580,6 +2668,7 @@
 <script src="/static/js/cookbookSchedule.js"></script>
 <script src="/static/js/localModels.js"></script>
 <script src="/static/js/imageModels.js"></script>
+<script src="/static/js/help.js"></script>
 <script type="module" src="/static/js/search-chat.js"></script>
 <script type="module" src="/static/js/compare/index.js"></script>
 <script type="module" src="/static/js/theme.js"></script>

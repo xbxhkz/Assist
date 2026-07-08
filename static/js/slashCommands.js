@@ -5938,6 +5938,13 @@ const COMMANDS = {
     handler: _cmdTourBrain,
     usage: '/tour-brain'
   },
+  'tour-notes': {
+    alias: ['notes-tour'],
+    category: 'Tours',
+    help: 'Notes tour: quick notes and note chat',
+    handler: _cmdTourNotes,
+    usage: '/tour-notes'
+  },
   'tour-task-1': {
     alias: ['tour-task', 'tour-tasks', 'tour-tasks-1', 'tasks-tour', 'tasks-tour-1'],
     category: 'Tours',
