@@ -902,7 +902,9 @@ async def do_generate_image(content: str, session_id: Optional[str] = None, owne
     lines = content.strip().split("\n")
     prompt = lines[0].strip() if lines else ""
     model_spec = lines[1].strip() if len(lines) > 1 and lines[1].strip() else ""
-    size = lines[2].strip() if len(lines) > 2 and lines[2].strip() else "1024x1024"
+    from src.settings import get_user_setting
+    _default_size = get_user_setting("image_size", owner or "", "1024x1024") or "1024x1024"
+    size = lines[2].strip() if len(lines) > 2 and lines[2].strip() else _default_size
     quality = lines[3].strip() if len(lines) > 3 and lines[3].strip() else "medium"
 
     if not prompt:
