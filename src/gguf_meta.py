@@ -15,9 +15,10 @@ _MAX_ARRAY_ITEMS = 4096  # bail instead of walking tokenizer vocab arrays
 
 # Architectures sd-server (stable-diffusion.cpp) serves. flux covers FLUX.1
 # and FLUX.2 GGUFs that keep the flux tag; flux2 is listed defensively.
+# lumina2 = Z-Image (turbo).
 IMAGE_ARCHITECTURES = frozenset({
     "flux", "flux2", "sd1", "sd2", "sdxl", "sd3", "wan", "wan2",
-    "ltxv", "qwen_image", "chroma",
+    "ltxv", "qwen_image", "chroma", "lumina2",
 })
 
 # Standalone encoder/VAE files: servable by neither llama-server nor the

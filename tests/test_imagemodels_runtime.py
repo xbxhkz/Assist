@@ -125,6 +125,15 @@ def test_build_argv_no_taesd_by_default():
     assert "--taesd" not in rt.build_serve_argv("/x/sd", files, 8200)
 
 
+def test_build_argv_zimage_turbo_default_steps():
+    """Z-Image turbo is distilled to ~8 steps (sd.cpp docs/z_image.md)."""
+    files = {"diffusion_model": "/m/z-image-turbo-Q5_0.gguf",
+             "llm": "/m/Qwen3-4B-Q4_K_M.gguf", "vae": "/m/ae.safetensors"}
+    argv = rt.build_serve_argv("/x/sd", files, 8200)
+    assert argv[argv.index("--steps") + 1] == "8"
+    assert "--llm" in argv and "--t5xxl" not in argv
+
+
 def test_build_argv_explicit_steps_override():
     files = {"diffusion_model": "/m/flux2-klein.gguf", "llm": "/m/q.gguf",
              "vae": "/m/v.safetensors"}

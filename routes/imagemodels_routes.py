@@ -11,9 +11,11 @@ import os
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from core.middleware import require_admin
+from src.gguf_meta import read_gguf_architecture
 from src.imagemodels.manager import get_manager
 from src.imagemodels.encoders import (
-    resolve_flux_files, resolve_flux2_files, MissingEncoderError,
+    resolve_flux_files, resolve_flux2_files, resolve_zimage_files,
+    MissingEncoderError,
 )
 from src.imagemodels.runtime import looks_like_flux2
 
@@ -39,9 +41,23 @@ def setup_imagemodels_routes() -> APIRouter:
         real = os.path.realpath(diff)
         if not diff or not real.lower().endswith(".gguf") or not os.path.isfile(real):
             raise HTTPException(400, "diffusion_model must be an existing .gguf file")
+        base = os.path.basename(real).lower()
+        # Z-Image (lumina2 arch): Qwen3 --llm encoder + the FLUX.1 ae VAE.
+        if (read_gguf_architecture(real) == "lumina2"
+                or "z-image" in base or "z_image" in base):
+            try:
+                files = resolve_zimage_files(
+                    real, llm=payload.get("llm"), vae=payload.get("vae"))
+            except MissingEncoderError as e:
+                raise HTTPException(
+                    400, "Missing Z-Image files: " + ", ".join(e.missing) +
+                    ". Z-Image needs a Qwen3-4B text encoder (llm, e.g. "
+                    "Qwen3-4B-Q4_K_M.gguf) and the FLUX.1 VAE (vae, "
+                    "ae.safetensors) next to the model or in the shared "
+                    "encoders folder.")
         # FLUX.2 (klein) shares the 'flux' GGUF arch tag but takes a Qwen3/
         # Mistral --llm text encoder + the flux2 VAE instead of t5xxl/clip_l.
-        if looks_like_flux2(real):
+        elif looks_like_flux2(real):
             try:
                 files = resolve_flux2_files(
                     real, llm=payload.get("llm"), vae=payload.get("vae"))

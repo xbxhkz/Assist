@@ -24,12 +24,18 @@ def build_serve_argv(binary, files, port, device="cpu", host="127.0.0.1",
     sampling steps instead of the default 20. An explicit `steps` wins over
     the family default."""
     argv = [binary, "--diffusion-model", files["diffusion_model"]]
+    base = os.path.basename(files["diffusion_model"]).lower()
     if "llm" in files:
         argv += ["--llm", files["llm"], "--vae", files["vae"],
                  "--cfg-scale", "1.0"]
-        eff_steps = steps or (
-            4 if "klein" in os.path.basename(files["diffusion_model"]).lower()
-            else None)  # klein is step-distilled; flux2-dev keeps 20
+        if steps:
+            eff_steps = steps
+        elif "klein" in base:
+            eff_steps = 4       # step-distilled (flux2-dev keeps the default 20)
+        elif ("z-image" in base or "z_image" in base) and "turbo" in base:
+            eff_steps = 8       # Z-Image turbo default per sd.cpp docs
+        else:
+            eff_steps = None
     else:
         argv += ["--t5xxl", files["t5xxl"], "--clip_l", files["clip_l"],
                  "--vae", files["vae"], "--cfg-scale", "1.0"]

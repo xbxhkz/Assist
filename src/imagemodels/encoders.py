@@ -95,9 +95,30 @@ def resolve_flux_files(diffusion_model, t5xxl=None, clip_l=None, vae=None) -> di
 def resolve_flux2_files(diffusion_model, llm=None, vae=None) -> dict:
     """FLUX.2 (klein): return {diffusion_model, llm, vae} of realpaths, or
     raise MissingEncoderError. `llm` is the Qwen3 (klein) / Mistral (dev)
-    text encoder passed to sd-server's --llm."""
+    text encoder passed to sd-server's --llm. klein-9B pairs with the
+    Qwen3-8B encoder, klein-4B with Qwen3-4B — a size mismatch loads but
+    silently degrades conditioning, so the model name drives preference."""
+    names = FLUX2_ENCODER_FILENAMES
+    if "9b" in os.path.basename(diffusion_model or "").lower():
+        llm_pats = list(names["llm"])
+        llm_pats.sort(key=lambda p: 0 if "8b" in p else 1)
+        names = {**names, "llm": llm_pats}
+    return _resolve(diffusion_model, (("llm", llm), ("vae", vae)), names)
+
+
+# Z-Image (lumina2 architecture): Qwen3 text encoder + the FLUX.1 ae VAE
+# (per sd.cpp docs/z_image.md — same ae.safetensors FLUX.1 already uses).
+ZIMAGE_ENCODER_FILENAMES = {
+    "llm": ["qwen3-4b*.gguf", "qwen_3_4b*"],
+    "vae": ENCODER_FILENAMES["vae"],
+}
+
+
+def resolve_zimage_files(diffusion_model, llm=None, vae=None) -> dict:
+    """Z-Image: return {diffusion_model, llm, vae} of realpaths, or raise
+    MissingEncoderError."""
     return _resolve(diffusion_model, (("llm", llm), ("vae", vae)),
-                    FLUX2_ENCODER_FILENAMES)
+                    ZIMAGE_ENCODER_FILENAMES)
 
 
 TAESD_FILENAMES = ["taef1.safetensors", "taesd_flux.safetensors"]

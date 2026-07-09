@@ -66,6 +66,7 @@ def test_is_image_architecture():
     assert gm.is_image_architecture("flux")
     assert gm.is_image_architecture("flux2")
     assert gm.is_image_architecture("sdxl")
+    assert gm.is_image_architecture("lumina2")  # Z-Image (turbo)
     assert not gm.is_image_architecture("llama")
     assert not gm.is_image_architecture(None)
 

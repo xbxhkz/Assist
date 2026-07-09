@@ -1054,8 +1054,20 @@ async def do_generate_image(content: str, session_id: Optional[str] = None, owne
             _fb = _fallback_size(size)
             if resp.status_code == 500 and is_local_diffusion and _fb:
                 logger.info(f"Image generation OOM at {size}; retrying at {_fb}")
-                resp_fb = await client.post(images_url, json={**payload, "size": _fb},
-                                            headers=headers)
+                try:
+                    # Bounded timeout: a GPU OOM can leave sd-server wedged, and
+                    # the retry must fail in minutes, not hang for the full 300s.
+                    resp_fb = await client.post(
+                        images_url, json={**payload, "size": _fb}, headers=headers,
+                        timeout=httpx.Timeout(connect=10.0, read=150.0,
+                                              write=30.0, pool=30.0))
+                except httpx.TimeoutException:
+                    return {"error": (
+                        f"Image generation failed at {size} (GPU out of memory) "
+                        f"and the retry at {_fb} stalled — the failed attempt can "
+                        "leave the image server stuck. Stop and re-serve the "
+                        "image model, and set Settings → Image generation → "
+                        "Size to 512×512 for this model.")}
                 if resp_fb.status_code == 200:
                     resp = resp_fb
                     size = _fb

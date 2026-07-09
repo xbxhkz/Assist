@@ -1439,7 +1439,8 @@
           <details>
             <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Image generation (FLUX)</summary>
             <p>The <b>Image models</b> card (inside Local Models) serves FLUX diffusion models locally. Downloaded image GGUFs are listed automatically; required text encoders and VAE are resolved from the shared <code>image-models/encoders</code> folder. <b>FLUX.1</b> uses ~20 steps; <b>FLUX.2 klein</b> is distilled to 4 steps and is much faster. <b>Steps</b> overrides the default; <b>Fast decode</b> uses a tiny autoencoder for near-instant decoding (FLUX.1 only, slightly softer detail).</p>
-            <p>Sizing guidance for small GPUs (≈6&nbsp;GB): klein handles 1024×1024; FLUX.1 (a 12B model) fits up to ~512×512 on GPU — use Settings → Image generation → Size, or serve on CPU for larger sizes. Once served, ask for images in chat or use the Gallery.</p>
+            <p><b>Z-Image turbo</b> (6B, 8 steps) is also supported — it uses a Qwen3 text encoder and the FLUX.1 VAE, both set up automatically.</p>
+            <p>Sizing guidance for small GPUs (≈6&nbsp;GB): klein handles 1024×1024; FLUX.1 (12B) and Z-Image (6B) fit up to ~512×512 on GPU — set Settings → Image generation → Size, or serve on CPU for larger sizes. If a too-large size fails, Assist retries once at 512×512 automatically. Once served, ask for images in chat or use the Gallery.</p>
           </details>
           <details>
             <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Gallery</summary>

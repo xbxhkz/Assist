@@ -114,6 +114,47 @@ def test_find_taesd_none_when_absent(tmp_path, monkeypatch):
     assert enc.find_taesd(str(d / "flux1-dev.gguf")) is None
 
 
+def test_flux2_9b_prefers_qwen3_8b_encoder(tmp_path, monkeypatch):
+    """klein-9B pairs with the Qwen3-8B encoder; picking the 4B one silently
+    degrades conditioning, so model size must drive the preference."""
+    img = tmp_path / "img"; (img / "encoders").mkdir(parents=True)
+    monkeypatch.setattr(enc, "IMAGE_MODELS_DIR", str(img))
+    (img / "encoders" / "Qwen3-4B-Q4_K_M.gguf").write_bytes(b"x")
+    (img / "encoders" / "Qwen3-8B-Q4_K_M.gguf").write_bytes(b"x")
+    (img / "encoders" / "flux2_ae.safetensors").write_bytes(b"x")
+    d = tmp_path / "m"; d.mkdir()
+    (d / "flux-2-klein-9b-Q4_K_M.gguf").write_bytes(b"x")
+    got = enc.resolve_flux2_files(str(d / "flux-2-klein-9b-Q4_K_M.gguf"))
+    assert got["llm"].endswith("Qwen3-8B-Q4_K_M.gguf")
+    # ...and the 4B model keeps preferring the 4B encoder.
+    (d / "flux-2-klein-4b-Q8_0.gguf").write_bytes(b"x")
+    got4 = enc.resolve_flux2_files(str(d / "flux-2-klein-4b-Q8_0.gguf"))
+    assert got4["llm"].endswith("Qwen3-4B-Q4_K_M.gguf")
+
+
+def test_zimage_resolves_qwen3_llm_and_flux1_vae(tmp_path, monkeypatch):
+    """Z-Image (lumina2): Qwen3 text encoder + the FLUX.1 ae VAE (per sd.cpp
+    docs/z_image.md) — both already shipped for FLUX.1 users."""
+    img = tmp_path / "img"; (img / "encoders").mkdir(parents=True)
+    monkeypatch.setattr(enc, "IMAGE_MODELS_DIR", str(img))
+    (img / "encoders" / "Qwen3-4B-Q4_K_M.gguf").write_bytes(b"x")
+    (img / "encoders" / "ae.safetensors").write_bytes(b"x")
+    d = tmp_path / "m"; d.mkdir()
+    (d / "z-image-turbo-Q5_0.gguf").write_bytes(b"x")
+    got = enc.resolve_zimage_files(str(d / "z-image-turbo-Q5_0.gguf"))
+    assert got["llm"].endswith("Qwen3-4B-Q4_K_M.gguf")
+    assert got["vae"].endswith("ae.safetensors")
+
+
+def test_zimage_missing_raises_named(tmp_path, monkeypatch):
+    monkeypatch.setattr(enc, "IMAGE_MODELS_DIR", str(tmp_path / "img"))
+    d = tmp_path / "m"; d.mkdir()
+    (d / "z-image-turbo-Q5_0.gguf").write_bytes(b"x")
+    with pytest.raises(enc.MissingEncoderError) as ei:
+        enc.resolve_zimage_files(str(d / "z-image-turbo-Q5_0.gguf"))
+    assert set(ei.value.missing) == {"llm", "vae"}
+
+
 def test_flux2_explicit_paths_win(tmp_path, monkeypatch):
     monkeypatch.setattr(enc, "IMAGE_MODELS_DIR", str(tmp_path / "img"))
     d = tmp_path / "m"; d.mkdir()

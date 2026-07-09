@@ -81,6 +81,20 @@ def test_serve_rejects_missing_file(client):
     assert r.status_code == 400
 
 
+def test_serve_zimage_resolves_qwen_llm_and_flux1_vae(client):
+    c, fake, tmp = client
+    f = tmp / "z-image-turbo-Q5_0.gguf"
+    f.write_bytes(b"x")
+    (tmp / "Qwen3-4B-Q4_K_M.gguf").write_bytes(b"x")
+    (tmp / "ae.safetensors").write_bytes(b"x")
+    r = c.post("/api/imagemodels/serve",
+               json={"diffusion_model": str(f), "device": "gpu"})
+    assert r.status_code == 200
+    assert fake.files["llm"].endswith("Qwen3-4B-Q4_K_M.gguf")
+    assert fake.files["vae"].endswith("ae.safetensors")
+    assert "t5xxl" not in fake.files
+
+
 def _flux2_set(tmp):
     f = tmp / "flux-2-klein-4b-Q8_0.gguf"
     f.write_bytes(b"x")
