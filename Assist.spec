@@ -31,6 +31,11 @@ datas = [
 
 hiddenimports = [
     'webview', 'webview.platforms.edgechromium',
+    # mss (screen capture) is imported lazily inside a function
+    # (src/desktop/capture.py _default_grabber), so PyInstaller's static
+    # analysis can't see it — declare it explicitly or capture_screen fails
+    # at runtime in the frozen build with ModuleNotFoundError: mss.
+    'mss', 'mss.windows',
 ] + _collected_hidden
 
 a = Analysis(
