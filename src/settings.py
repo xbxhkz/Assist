@@ -38,6 +38,7 @@ DEFAULT_SETTINGS = {
     # recipients without confirmation.
     "agent_email_confirm": True,
     "image_gen_enabled": False,
+    "screen_access_enabled": False,
     "image_model": "",
     "image_quality": "medium",
     # Default WxH for generation; 512x512 is ~4x cheaper than 1024x1024 on
@@ -337,3 +338,15 @@ def save_features(features: dict):
     from core.atomic_io import atomic_write_json
     atomic_write_json(FEATURES_FILE, features, indent=2)
     _invalidate_caches()
+
+
+def reset_screen_access():
+    """Force screen access off. Called at startup so capture is never silently
+    available across restarts (per the Desktop Control consent model)."""
+    try:
+        s = load_settings()
+        if s.get("screen_access_enabled"):
+            s["screen_access_enabled"] = False
+            save_settings(s)
+    except Exception:
+        pass
