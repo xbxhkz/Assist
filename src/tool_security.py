@@ -49,6 +49,11 @@ NON_ADMIN_BLOCKED_TOOLS = BUILTIN_EMAIL_TOOLS | {
     "ls",
     "get_workspace",
     "open_in_vscode",
+    "launch_app",
+    "find_files",
+    "list_windows",
+    "control_window",
+    "capture_screen",
     "search_chats",
     "manage_memory",
     "manage_skills",
@@ -120,6 +125,9 @@ PLAN_MODE_READONLY_TOOLS = {
     "resolve_contact",
     "chat_with_model",
     "ask_teacher",
+    "find_files",
+    "list_windows",
+    "capture_screen",
 }
 
 

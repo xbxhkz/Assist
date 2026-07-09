@@ -169,6 +169,73 @@ FUNCTION_TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "launch_app",
+            "description": "Launch an installed app by name, or open a file/URL with its default program.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "App name, file path, or URL to launch/open"}
+                },
+                "required": ["name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "find_files",
+            "description": "Search the PC for files by name. Returns paths + size. Read the contents with read_file.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Name or glob pattern to search for"},
+                    "ext": {"type": "string", "description": "Optional file extension filter (e.g. 'pdf')"},
+                    "all_drives": {"type": "boolean", "description": "Search all drives, not just the user's home directory"}
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_windows",
+            "description": "List open windows: id, title, process, state. Use before control_window.",
+            "parameters": {"type": "object", "properties": {}, "required": []}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "control_window",
+            "description": "Focus or change a window. Confirm with the user before close (unsaved work).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "integer", "description": "Window id, from list_windows"},
+                    "action": {"type": "string", "description": "focus|minimize|maximize|restore|close"}
+                },
+                "required": ["id", "action"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "capture_screen",
+            "description": "Capture the screen so you can see it. Requires the user to enable screen access. Use to read on-screen content, forms, errors.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "target": {"type": "string", "description": "full|monitor:1|window:<id> (default full)"}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "write_file",
             "description": "Write/save a file to disk",
             "parameters": {
@@ -1359,7 +1426,9 @@ def function_call_to_tool_block(name: str, arguments: str) -> Optional[ToolBlock
             content = json.dumps(args)
         else:
             content = args.get("path", "")
-    elif tool_type in ("grep", "glob", "ls", "open_in_vscode"):
+    elif tool_type in ("grep", "glob", "ls", "open_in_vscode",
+                       "launch_app", "find_files", "list_windows",
+                       "control_window", "capture_screen"):
         content = json.dumps(args) if args else "{}"
     elif tool_type == "get_workspace":
         content = ""

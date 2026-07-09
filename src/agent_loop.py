@@ -276,6 +276,13 @@ _DOMAIN_RULES = {
 ## Integration/API rules
 - To query or control a configured service integration (Home Assistant, Miniflux, Gitea, Linkding, Jellyfin, or any other registered service), use `api_call` with the integration name, HTTP method, path, and optional JSON body.
 - Do not use shell, curl, or `app_api` to reach a user's connected integration when `api_call` is available.""",
+    "desktop": """\
+## Desktop control rules
+- Use `launch_app` to open an installed app, file, or URL by name — do not shell out to start.exe/subprocess for this.
+- Use `find_files` to search the PC for files by name, then `read_file` to read a match.
+- Call `list_windows` before `control_window` to get a valid window id.
+- Confirm with the user before `control_window ... close` — it can discard unsaved work.
+- `capture_screen` requires the user to have enabled screen access; use it to see on-screen content, not as a default.""",
 }
 
 _DOMAIN_TOOL_MAP = {
@@ -290,6 +297,7 @@ _DOMAIN_TOOL_MAP = {
     "settings": {"manage_settings", "manage_endpoints", "manage_mcp", "manage_webhooks", "manage_tokens", "app_api"},
     "contacts": {"resolve_contact", "manage_contact"},
     "integrations": {"api_call"},
+    "desktop": {"launch_app", "find_files", "list_windows", "control_window", "capture_screen"},
 }
 
 def _domain_rules_for_tools(tool_names: set) -> list[str]:
@@ -374,6 +382,35 @@ Return the absolute path of the active workspace folder. File tools are CONFINED
 {"path": "<file or folder>", "line": 42}
 ```
 Open a file or folder in the user's Visual Studio Code (`line` optional, files only). Use when the user wants to see/edit code in their editor, or after writing code they'll continue working on. The path must be inside the workspace or an allowed folder.""",
+
+    "launch_app": """\
+```launch_app
+{"name": "<app name, file, or URL>"}
+```
+Launch an installed app by name, or open a file/URL with its default program.""",
+
+    "find_files": """\
+```find_files
+{"query": "<name or glob>", "ext": "pdf", "all_drives": false}
+```
+Search the PC for files by name. Returns paths + size. Read the contents with read_file.""",
+
+    "list_windows": """\
+```list_windows
+```
+List open windows: id, title, process, state. Use before control_window.""",
+
+    "control_window": """\
+```control_window
+{"id": <window id>, "action": "focus|minimize|maximize|restore|close"}
+```
+Focus or change a window. Confirm with the user before close (unsaved work).""",
+
+    "capture_screen": """\
+```capture_screen
+{"target": "full|monitor:1|window:<id>"}
+```
+Capture the screen so you can see it. Requires the user to enable screen access. Use to read on-screen content, forms, errors.""",
 
     "create_document": """\
 ```create_document

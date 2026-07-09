@@ -22,6 +22,8 @@ logger = logging.getLogger(__name__)
 from .subprocess_tools import BashTool, PythonTool
 from .web_tools import WebSearchTool, WebFetchTool
 from .filesystem_tools import ReadFileTool, WriteFileTool, EditFileTool, LsTool, GlobTool, GrepTool, GetWorkspaceTool, OpenInVscodeTool
+from .desktop_tools import (LaunchAppTool, FindFilesTool, ListWindowsTool,
+                            ControlWindowTool, CaptureScreenTool)
 from .document_tools import CreateDocumentTool, UpdateDocumentTool, EditDocumentTool, SuggestDocumentTool, ManageDocumentTool
 from .interaction_tools import AskUserTool, UpdatePlanTool
 from .model_interaction_tools import ChatWithModelTool, AskTeacherTool, ListModelsTool
@@ -51,6 +53,11 @@ TOOL_HANDLERS = {
     "manage_documents": ManageDocumentTool().execute,
     "get_workspace": GetWorkspaceTool().execute,
     "open_in_vscode": OpenInVscodeTool().execute,
+    "launch_app": LaunchAppTool().execute,
+    "find_files": FindFilesTool().execute,
+    "list_windows": ListWindowsTool().execute,
+    "control_window": ControlWindowTool().execute,
+    "capture_screen": CaptureScreenTool().execute,
     "ask_user": AskUserTool().execute,
     "update_plan": UpdatePlanTool().execute,
     "chat_with_model": ChatWithModelTool().execute,
@@ -76,6 +83,7 @@ PYTHON_TIMEOUT = 30
 # Tool types that trigger execution
 TOOL_TAGS = {"bash", "python", "web_search", "web_fetch", "read_file", "write_file", "edit_file",
              "grep", "glob", "ls", "get_workspace", "open_in_vscode", "manage_bg_jobs",
+             "launch_app", "find_files", "list_windows", "control_window", "capture_screen",
              "create_document", "update_document", "edit_document",
              "search_chats",
              "chat_with_model", "create_session", "list_sessions",
