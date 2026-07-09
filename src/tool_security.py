@@ -48,6 +48,7 @@ NON_ADMIN_BLOCKED_TOOLS = BUILTIN_EMAIL_TOOLS | {
     "glob",
     "ls",
     "get_workspace",
+    "open_in_vscode",
     "search_chats",
     "manage_memory",
     "manage_skills",

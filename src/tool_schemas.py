@@ -154,6 +154,21 @@ FUNCTION_TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "open_in_vscode",
+            "description": "Open a file or folder in the user's Visual Studio Code editor, optionally at a line. Use when the user wants to view or continue editing code in their editor. Path must be inside the workspace or an allowed folder.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "File or folder to open"},
+                    "line": {"type": "integer", "description": "Optional 1-based line (files only)"}
+                },
+                "required": ["path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "write_file",
             "description": "Write/save a file to disk",
             "parameters": {
@@ -1344,7 +1359,7 @@ def function_call_to_tool_block(name: str, arguments: str) -> Optional[ToolBlock
             content = json.dumps(args)
         else:
             content = args.get("path", "")
-    elif tool_type in ("grep", "glob", "ls"):
+    elif tool_type in ("grep", "glob", "ls", "open_in_vscode"):
         content = json.dumps(args) if args else "{}"
     elif tool_type == "get_workspace":
         content = ""

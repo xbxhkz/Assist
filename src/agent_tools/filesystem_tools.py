@@ -483,6 +483,62 @@ class GrepTool:
             out += f"\n... [capped at {max_hits} matches]"
         return {"output": _truncate(out), "exit_code": 0}
 
+class OpenInVscodeTool:
+    """Open a file or folder in Visual Studio Code on the user's machine.
+
+    Path resolution goes through _resolve_tool_path, so the same workspace/
+    allowlist confinement as the file tools applies. Launch is fire-and-forget
+    (VS Code reuses its running window)."""
+
+    def __init__(self, launcher=None, which=None):
+        import shutil
+        self._launch = launcher or self._default_launch
+        self._which = which or shutil.which
+
+    @staticmethod
+    def _default_launch(argv):
+        import subprocess
+        # code.cmd is a batch file: without CREATE_NO_WINDOW it flashes a
+        # console in the windowed build. Detach so the agent never waits.
+        subprocess.Popen(argv, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         shell=False)
+
+    async def execute(self, content: str, ctx: dict) -> dict:
+        from src.tool_execution import _resolve_tool_path
+        try:
+            args = json.loads(content) if content.strip().startswith("{") else {}
+        except (json.JSONDecodeError, TypeError):
+            args = {}
+        raw_path = (args.get("path") or "").strip() or content.strip()
+        if not raw_path or raw_path.startswith("{"):
+            return {"error": "open_in_vscode: path required", "exit_code": 1}
+        try:
+            path = _resolve_tool_path(raw_path)
+        except ValueError as e:
+            return {"error": f"open_in_vscode: {e}", "exit_code": 1}
+        code = self._which("code") or self._which("code.cmd")
+        if not code:
+            return {"error": "open_in_vscode: VS Code CLI ('code') not found on PATH. "
+                             "Install VS Code or enable its shell command.",
+                    "exit_code": 1}
+        line = args.get("line")
+        try:
+            line = int(line) if line else None
+        except (TypeError, ValueError):
+            line = None
+        if line and os.path.isfile(path):
+            argv = [code, "--goto", f"{path}:{line}"]
+        else:
+            argv = [code, path]
+        try:
+            self._launch(argv)
+        except OSError as e:
+            return {"error": f"open_in_vscode: launch failed: {e}", "exit_code": 1}
+        target = f"{path}:{line}" if line and os.path.isfile(path) else path
+        return {"output": f"Opened in VS Code: {target}", "exit_code": 0}
+
+
 class GetWorkspaceTool:
     """Report the active workspace folder (no args). File tools are confined to
     it; the shell starts there (cwd) but is NOT sandboxed."""

@@ -286,7 +286,7 @@ _DOMAIN_TOOL_MAP = {
     "notes_calendar_tasks": {"manage_notes", "manage_calendar", "manage_tasks"},
     "ui": {"ui_control"},
     "sessions": {"create_session", "list_sessions", "manage_session", "send_to_session", "search_chats"},
-    "files": {"bash", "python", "read_file", "write_file", "edit_file", "grep", "glob", "ls", "get_workspace", "manage_bg_jobs"},
+    "files": {"bash", "python", "read_file", "write_file", "edit_file", "grep", "glob", "ls", "get_workspace", "open_in_vscode", "manage_bg_jobs"},
     "settings": {"manage_settings", "manage_endpoints", "manage_mcp", "manage_webhooks", "manage_tokens", "app_api"},
     "contacts": {"resolve_contact", "manage_contact"},
     "integrations": {"api_call"},
@@ -368,6 +368,12 @@ Edit an EXISTING file by exact string replacement. PREFER this over bash (sed/ec
 ```get_workspace
 ```
 Return the absolute path of the active workspace folder. File tools are CONFINED to it (paths can be RELATIVE to it); the shell starts there (cwd) but is NOT sandboxed. Call this first when the user says "the project"/"the code"/"this folder" without a path, instead of asking them. No arguments.""",
+
+    "open_in_vscode": """\
+```open_in_vscode
+{"path": "<file or folder>", "line": 42}
+```
+Open a file or folder in the user's Visual Studio Code (`line` optional, files only). Use when the user wants to see/edit code in their editor, or after writing code they'll continue working on. The path must be inside the workspace or an allowed folder.""",
 
     "create_document": """\
 ```create_document
