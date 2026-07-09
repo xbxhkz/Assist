@@ -51,6 +51,28 @@ def test_unregister_deletes_row():
     db.close()
 
 
+def test_prune_serve_endpoints_removes_only_per_serve_rows():
+    """Per-serve rows (local-*/img-local-*) die with their process — at boot
+    they are garbage by construction (dynamic ports), and letting them pile
+    up broke Deep Research (its fallback resolved to a dead endpoint) and
+    spammed probe failures. Manual endpoints must survive the sweep."""
+    sf = _mem_session_factory()
+    store.register_local_endpoint("a.gguf", "http://127.0.0.1:50001/v1",
+                                  session_factory=sf)
+    db = sf()
+    db.add(ModelEndpoint(id="img-local-abc", name="flux", is_enabled=True,
+                         base_url="http://127.0.0.1:50002/v1"))
+    db.add(ModelEndpoint(id="manual-ollama", name="Ollama", is_enabled=True,
+                         base_url="http://127.0.0.1:11434/v1"))
+    db.commit(); db.close()
+
+    removed = store.prune_serve_endpoints(session_factory=sf)
+    assert removed == 2
+    db = sf()
+    assert [e.id for e in db.query(ModelEndpoint).all()] == ["manual-ollama"]
+    db.close()
+
+
 def test_register_populates_cached_models_from_probe():
     """Registering must synchronously probe /v1/models and persist the result
     to cached_models, so the freshly-served model appears in the chat picker on

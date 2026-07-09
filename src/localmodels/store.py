@@ -67,6 +67,31 @@ def register_local_endpoint(name: str, base_url: str, session_factory=None,
         db.close()
 
 
+def prune_serve_endpoints(session_factory=None) -> int:
+    """Delete per-serve endpoint rows (`local-*`, `img-local-*`) at boot.
+
+    These rows are created for a specific llama-/sd-server process on a
+    dynamic port; when the app exits uncleanly the row outlives the process
+    and is garbage by construction. Piling up, they broke Deep Research
+    (endpoint fallback resolved to a dead row) and spammed probe failures.
+    Serving re-registers a fresh row, and autoserve runs after this sweep.
+    Manually-added endpoints are untouched. Returns the number removed.
+    """
+    from core.database import SessionLocal, ModelEndpoint
+    sf = session_factory or SessionLocal
+    db = sf()
+    try:
+        rows = db.query(ModelEndpoint).filter(
+            (ModelEndpoint.id.like("local-%"))
+            | (ModelEndpoint.id.like("img-local-%"))).all()
+        for ep in rows:
+            db.delete(ep)
+        db.commit()
+        return len(rows)
+    finally:
+        db.close()
+
+
 def unregister_local_endpoint(endpoint_id: str, session_factory=None) -> None:
     """Delete the ModelEndpoint row with `endpoint_id`, if present."""
     from core.database import SessionLocal, ModelEndpoint
