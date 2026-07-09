@@ -944,6 +944,22 @@
           <span class="grow">Theme</span>
         </div>
 
+        <div class="list-item" id="tool-screen-access-btn" title="Allow the agent's desktop tools to capture your screen. Off by default; resets to off on every restart.">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            style="flex-shrink:0;opacity:0.5;">
+            <rect x="2" y="3" width="20" height="14" rx="2"/>
+            <line x1="8" y1="21" x2="16" y2="21"/>
+            <line x1="12" y1="17" x2="12" y2="21"/>
+          </svg>
+          <span class="grow">Screen access</span>
+          <span id="screen-access-indicator" class="sidebar-notif-dot" style="display:none;background:var(--green,#50fa7b);margin-right:6px;" title="Screen access is ON"></span>
+          <label class="admin-switch" style="flex-shrink:0;" title="Enable screen access for desktop tools">
+            <input type="checkbox" id="screen-access-toggle">
+            <span class="admin-slider"></span>
+          </label>
+        </div>
+
         <div class="list-item" id="tool-help-btn">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -1466,6 +1482,11 @@
           <details>
             <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Keyboard shortcuts</summary>
             <p><code>Ctrl+K</code> search · <code>Ctrl+B</code> toggle sidebar · <code>Ctrl+Alt+N</code> new chat · <code>Ctrl+Alt+S</code> star chat · <code>Ctrl+Alt+D</code> delete chat · <code>Ctrl+Shift+U</code> admin panel · <code>Esc</code> cancel. Rebind them in Settings → Appearance.</p>
+          </details>
+          <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Screen access &amp; desktop control</summary>
+            <p>The agent has five desktop tools: <b>launch apps</b>, <b>find files</b>, <b>list windows</b>, <b>control windows</b> (focus/minimize/close), and <b>capture screen</b>. All five are <b>admin-only</b> — a non-admin account never sees them.</p>
+            <p><b>Capture screen</b> additionally requires the <b>Screen access</b> toggle in the sidebar to be switched on; the other four tools work without it. Screen access defaults to <b>off</b> and automatically resets to off every time Assist restarts, so a previous session can never leave your screen capturable in the background — turn it back on from the sidebar (a small green dot next to the toggle confirms it's active) whenever you want the agent to be able to see your screen.</p>
           </details>
           <details>
             <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Troubleshooting</summary>
@@ -2685,6 +2706,7 @@
 <script src="/static/js/localModels.js"></script>
 <script src="/static/js/imageModels.js"></script>
 <script src="/static/js/help.js"></script>
+<script src="/static/js/screenAccess.js"></script>
 <script type="module" src="/static/js/search-chat.js"></script>
 <script type="module" src="/static/js/compare/index.js"></script>
 <script type="module" src="/static/js/theme.js"></script>
