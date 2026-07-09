@@ -967,6 +967,16 @@ async def _startup_event():
     # GC tasks created with `asyncio.create_task(...)` before they finish.
     _startup_tasks: list[asyncio.Task] = getattr(app.state, "_startup_tasks", [])
     app.state._startup_tasks = _startup_tasks
+    # Sweep per-serve endpoint rows from previous runs (their processes and
+    # dynamic ports are gone; unclean exits leave the rows behind). Must run
+    # BEFORE autoserve, which re-registers a fresh row for the live serve.
+    try:
+        from src.localmodels.store import prune_serve_endpoints
+        _pruned = prune_serve_endpoints()
+        if _pruned:
+            logger.info(f"Pruned {_pruned} stale per-serve endpoint rows")
+    except Exception as _e:
+        logger.debug(f"endpoint prune skipped: {_e}")
     # Auto-serve the last local model that was running, in a background thread
     # so a multi-second model load never delays boot. Best-effort: no record /
     # missing file / already-running / start failure all no-op.
