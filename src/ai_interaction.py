@@ -884,6 +884,18 @@ async def do_ui_control(content: str, session_id: Optional[str] = None, owner: O
 # Image generation
 # ---------------------------------------------------------------------------
 
+def _fallback_size(size: str):
+    """Smaller size to retry a local-diffusion OOM at, or None if already small.
+
+    512x512 is the live-verified safe point for a 12B FLUX.1 on a 6GB card;
+    anything at or below it doesn't get a retry (the failure is then real)."""
+    try:
+        w, h = (int(p) for p in (size or "").lower().split("x"))
+    except ValueError:
+        return None
+    return "512x512" if max(w, h) > 512 else None
+
+
 def _local_diffusion_size_hint(is_local_diffusion: bool, status_code: int, size: str) -> str:
     """Actionable suffix for a failed local-diffusion generation.
 
@@ -1029,10 +1041,26 @@ async def do_generate_image(content: str, session_id: Optional[str] = None, owne
 
     logger.info(f"Image generation: model={model_id}, size={size}, quality={quality}, prompt={prompt[:80]}")
 
+    size_note = ""
     try:
         # GPT image models can take 30-120s+ depending on quality
         async with httpx.AsyncClient(timeout=httpx.Timeout(connect=30.0, read=300.0, write=30.0, pool=30.0)) as client:
             resp = await client.post(images_url, json=payload, headers=headers)
+
+            # Local diffusion 500 at a large size is almost always the compute
+            # buffer not fitting the GPU (verified live: FLUX.1 12B OOMs at
+            # 1024x1024 on 6GB VRAM, works at 512x512). Retry once smaller so
+            # the user gets an image instead of a dead end.
+            _fb = _fallback_size(size)
+            if resp.status_code == 500 and is_local_diffusion and _fb:
+                logger.info(f"Image generation OOM at {size}; retrying at {_fb}")
+                resp_fb = await client.post(images_url, json={**payload, "size": _fb},
+                                            headers=headers)
+                if resp_fb.status_code == 200:
+                    resp = resp_fb
+                    size = _fb
+                    size_note = (f" (Generated at {_fb} — the requested size "
+                                 "didn't fit the GPU's memory.)")
 
             if resp.status_code != 200:
                 error_text = resp.text[:500]
@@ -1115,7 +1143,7 @@ async def do_generate_image(content: str, session_id: Optional[str] = None, owne
                 return {"error": "Image API returned unexpected format (no b64_json or url)"}
 
             return {
-                "results": f"Generated image for: {prompt[:100]}",
+                "results": f"Generated image for: {prompt[:100]}{size_note}",
                 "image_url": image_url,
                 "image_id": image_id,
                 "image_prompt": prompt,

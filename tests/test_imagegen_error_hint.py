@@ -21,3 +21,18 @@ def test_hint_mentions_log_when_already_small():
 def test_no_hint_for_cloud_models_or_other_codes():
     assert _local_diffusion_size_hint(False, 500, "1024x1024") == ""
     assert _local_diffusion_size_hint(True, 400, "1024x1024") == ""
+
+
+def test_fallback_size_retries_large_sizes_at_512():
+    from src.ai_interaction import _fallback_size
+    assert _fallback_size("1024x1024") == "512x512"
+    assert _fallback_size("768x768") == "512x512"
+    assert _fallback_size("1536x1024") == "512x512"
+
+
+def test_fallback_size_none_when_already_small_or_junk():
+    from src.ai_interaction import _fallback_size
+    assert _fallback_size("512x512") is None
+    assert _fallback_size("256x256") is None
+    assert _fallback_size("auto") is None
+    assert _fallback_size("") is None
