@@ -1541,7 +1541,11 @@ def setup_shell_routes() -> APIRouter:
         }
         if pip_name not in known:
             return {"ok": False, "error": f"Unknown package: {pip_name}"}
-        cmd = [_sys.executable, "-m", "pip", "install", pip_name]
+        # Frozen build: sys.executable is the app itself — spawning it directly
+        # forks a second Assist. python_argv routes through --run-py, and pip
+        # simply isn't bundled there, so this fails with a clear error instead.
+        from src.pyexec import python_argv
+        cmd = python_argv("-m", "pip", "install", pip_name)
         proc = await asyncio.create_subprocess_exec(
             *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )

@@ -552,13 +552,18 @@ class McpManager:
         await self.disconnect_server(server_id)
 
         try:
+            # Same frozen-safe spawn as initial registration: sys.executable
+            # is Assist.exe in the frozen build, and spawning it bare forks
+            # the full app (builtin_mcp._python_server_cmd adds --run-mcp).
+            from src.builtin_mcp import _python_server_cmd
+            command, args = _python_server_cmd(script_path)
             ok = await self.connect_server(
                 server_id=server_id,
                 name=name,
                 transport="stdio",
-                command=sys.executable,
-                args=[script_path],
-                env={"PYTHONPATH": base_dir},
+                command=command,
+                args=args,
+                env={"PYTHONPATH": base_dir, "ASSIST_MCP_CHILD": "1"},
             )
             if ok:
                 logger.info(f"Reconnected builtin MCP server: {name}")

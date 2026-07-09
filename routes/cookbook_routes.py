@@ -1061,19 +1061,15 @@ def setup_cookbook_routes() -> APIRouter:
                 cwd=str(Path.home()),
             )
         else:
-            # LOCAL scan: use sys.executable (the venv Python Odysseus is already
-            # running under) — it's guaranteed real Python on all platforms.
-            # Falling back to which_tool on Windows risks hitting the Microsoft
-            # Store stub alias for "python3"/"python", which prints
-            # "Python was not found; run without arguments to install from the
-            # Microsoft Store" and exits 9009, producing empty stdout and a
-            # JSON parse error. sys.executable bypasses PATH entirely.
-            local_py = sys.executable or (
-                which_tool("python3") or which_tool("python")
-                or which_tool("py") or "python"
-            )
+            # LOCAL scan: run through python_argv — sys.executable is real
+            # Python in dev, but in the frozen build it IS Assist.exe and
+            # spawning it directly boots a second full app (+ autoserved LLM);
+            # python_argv routes that case through the --run-py dispatch.
+            # (PATH lookups are avoided entirely: the Microsoft Store "python"
+            # stub prints an install nag and exits 9009.)
+            from src.pyexec import python_argv
             proc = await asyncio.create_subprocess_exec(
-                local_py, str(scan_py),
+                *python_argv(str(scan_py)),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=str(Path.home()),
