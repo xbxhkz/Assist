@@ -157,11 +157,12 @@
             await api('/api/localmodels/stop', { method: 'POST' });
           } else {
             // RAM guard: an image model + an LLM together page out a
-            // small-RAM machine. Offer to stop the image model first
+            // small-RAM machine. Only nag when free RAM is actually tight
             // (advisory — serve proceeds either way).
             try {
               const img = await api('/api/imagemodels/status');
-              if (img.running) {
+              const tight = !hardware || !hardware.ram_gb || hardware.ram_gb < 12;
+              if (img.running && tight) {
                 const ok = confirm(`${img.model} (image model) is running. RAM is tight when both model types are loaded — stop it before loading the LLM?`);
                 if (ok) await api('/api/imagemodels/stop', { method: 'POST' });
               }
@@ -258,7 +259,7 @@
     if (!hardware) { el.textContent = 'Hardware: unknown'; return; }
     const gpu = hardware.has_gpu
       ? `${hardware.gpu_name || 'GPU'} (${hardware.vram_gb} GB VRAM)` : 'no GPU';
-    el.textContent = `Your machine: ${hardware.ram_gb} GB RAM · ${gpu}`;
+    el.textContent = `Your machine: ${hardware.ram_gb} GB free RAM · ${gpu}`;
   }
 
   function fitBadge(fit) {
