@@ -1,6 +1,5 @@
 """Screen capture → PNG bytes. Real capture uses mss; the grabber is injected
 so tests never touch a display."""
-import io
 import struct
 import zlib
 
@@ -60,6 +59,7 @@ def _default_grabber(region):  # pragma: no cover (needs a display)
 
 def _default_window_rect(window_id):  # pragma: no cover (Windows-only)
     import ctypes
-    rect = ctypes.wintypes.RECT() if hasattr(ctypes, "wintypes") else None
+    import ctypes.wintypes
+    rect = ctypes.wintypes.RECT()
     ctypes.windll.user32.GetWindowRect(window_id, ctypes.byref(rect))
     return (rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top)

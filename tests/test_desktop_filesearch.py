@@ -48,3 +48,17 @@ def test_max_results_caps_walk(tmp_path):
     got = fs.search("f", roots=[str(tmp_path)], max_results=3, searcher=None,
                     is_sensitive=lambda p: False)
     assert len(got) == 3
+
+
+def test_walk_is_bounded_by_max_scan(tmp_path):
+    # Build more files than max_scan, all matching the query, so an unbounded
+    # walk would return all of them. A bounded walk must stop scanning once
+    # max_scan entries have been examined (regression guard against freezing
+    # the event loop on huge directory trees).
+    n_files = 10
+    max_scan = 3
+    for i in range(n_files):
+        (tmp_path / f"match{i}.dat").write_text("x")
+    got = fs.search("match", roots=[str(tmp_path)], max_scan=max_scan,
+                    searcher=None, is_sensitive=lambda p: False)
+    assert 0 < len(got) <= max_scan < n_files

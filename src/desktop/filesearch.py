@@ -13,7 +13,7 @@ def _meta(path):
 
 
 def search(query, *, roots, ext=None, all_drives=False, max_results=200,
-           searcher=None, walker=os.walk, is_sensitive=None):
+           searcher=None, walker=os.walk, is_sensitive=None, max_scan=50000):
     if is_sensitive is None:
         from src.tool_execution import _is_sensitive_path as is_sensitive
     q = (query or "").strip()
@@ -40,22 +40,23 @@ def search(query, *, roots, ext=None, all_drives=False, max_results=200,
     # Fallback: bounded walk.
     ql = q.lower()
     extl = ("." + ext.lower().lstrip(".")) if ext else None
+    scanned = 0
     for root in roots:
         if not os.path.isdir(root):
             continue
-        for dp, _dns, fns in walker(root):
+        for dp, dns, fns in walker(root):
+            dns[:] = [d for d in dns if not is_sensitive(os.path.join(dp, d))]
             for fn in fns:
-                if ql and ql not in fn.lower() and not fnmatch.fnmatch(fn.lower(), ql):
-                    continue
-                if extl and not fn.lower().endswith(extl):
-                    continue
-                full = os.path.join(dp, fn)
-                if is_sensitive(full):
-                    continue
-                m = _meta(full)
-                if m:
-                    hits.append(m)
-                if len(hits) >= max_results:
+                scanned += 1
+                matched = ((not ql or ql in fn.lower() or fnmatch.fnmatch(fn.lower(), ql))
+                           and (not extl or fn.lower().endswith(extl)))
+                if matched:
+                    full = os.path.join(dp, fn)
+                    if not is_sensitive(full):
+                        m = _meta(full)
+                        if m:
+                            hits.append(m)
+                if len(hits) >= max_results or scanned >= max_scan:
                     return hits
     return hits
 

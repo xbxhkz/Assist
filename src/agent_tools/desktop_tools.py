@@ -1,14 +1,18 @@
 """Native desktop-control tools. Thin wrappers over src/desktop backends;
 gates and formatting only. Screen capture is consent-gated."""
+import asyncio
 import base64
 import json
 import logging
+import os
+import tempfile
 
 from src.settings import get_setting
 from src.desktop.apps import resolve_app, launch
 from src.desktop.filesearch import search
 from src.desktop.windows import list_windows, control_window
 from src.desktop.capture import capture_png
+from src.document_processor import analyze_image_with_vl_result
 
 logger = logging.getLogger(__name__)
 
@@ -46,16 +50,14 @@ class FindFilesTool:
         query = (a.get("query") or "").strip()
         if not query:
             return {"error": "find_files: query required", "exit_code": 1}
-        from src.constants import DATA_DIR
-        import os
         roots = [os.path.expanduser("~")]
         extra = get_setting("tool_path_extra_roots") or []
         roots += [str(r) for r in extra if r]
         if a.get("all_drives"):
-            roots += [f"{d}:\\" for d in "CDEFG" if os.path.isdir(f"{d}:\\")]
-        hits = search(query, roots=roots, ext=a.get("ext"),
-                      all_drives=bool(a.get("all_drives")),
-                      max_results=int(a.get("max_results") or 200))
+            roots += [f"{d}:\\" for d in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" if os.path.isdir(f"{d}:\\")]
+        hits = await asyncio.to_thread(search, query, roots=roots, ext=a.get("ext"),
+                                        all_drives=bool(a.get("all_drives")),
+                                        max_results=int(a.get("max_results") or 200))
         if not hits:
             return {"output": f"No files matching {query!r}", "exit_code": 0}
         lines = [f"{h['path']}  ({h['size']} bytes)" for h in hits]
@@ -103,4 +105,14 @@ class CaptureScreenTool:
             return {"error": f"capture_screen: {e}", "exit_code": 1}
         logger.info("capture_screen: %s", target)
         uri = "data:image/png;base64," + base64.b64encode(png).decode("ascii")
-        return {"output": f"{target} screenshot captured", "image_url": uri, "exit_code": 0}
+        temp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tf:
+                tf.write(png)
+                temp_path = tf.name
+            desc = analyze_image_with_vl_result(temp_path, owner=ctx.get("owner")).get("text", "")
+        finally:
+            if temp_path:
+                os.remove(temp_path)
+        return {"output": desc or "(vision model returned no description)",
+                "image_url": uri, "exit_code": 0}

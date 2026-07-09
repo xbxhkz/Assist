@@ -55,7 +55,10 @@ def list_windows(user32=None, psapi=None):
     try:
         u.EnumWindows(WNDENUMPROC(_cb) if callable(WNDENUMPROC) else _cb, 0)
     except TypeError:
-        u.EnumWindows(_cb, 0)  # fakes accept the plain callback
+        # Defensive fallback: some ctypes shims (or test fakes standing in for
+        # user32) reject a WINFUNCTYPE-wrapped callback but accept the plain
+        # Python callable directly.
+        u.EnumWindows(_cb, 0)
     return out
 
 

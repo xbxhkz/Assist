@@ -52,10 +52,13 @@ def test_capture_emits_data_uri_when_on(monkeypatch):
     monkeypatch.setattr(dt, "get_setting", lambda k, d=None: True if k == "screen_access_enabled" else d)
     monkeypatch.setattr(dt, "_vision_ready", lambda: True)
     monkeypatch.setattr(dt, "capture_png", lambda target, **k: b"\x89PNG\r\n\x1a\nDATA")
+    monkeypatch.setattr(dt, "analyze_image_with_vl_result",
+                         lambda path, owner=None: {"text": "A desktop with a code editor open", "model": "vl"})
     res = _run(dt.CaptureScreenTool(), json.dumps({"target": "full"}))
     assert res["exit_code"] == 0
     assert res["image_url"].startswith("data:image/png;base64,")
     assert base64.b64decode(res["image_url"].split(",", 1)[1]).startswith(b"\x89PNG")
+    assert "code editor" in res["output"]
 
 
 def test_capture_needs_vision_model(monkeypatch):
