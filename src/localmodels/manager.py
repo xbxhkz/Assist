@@ -22,6 +22,7 @@ from src.constants import MODELS_DIR
 from src.desktop_runtime import choose_port
 from src.localmodels.runtime import (
     resolve_llama_binary, build_serve_argv, local_endpoint_url, list_gguf_models,
+    find_mmproj,
 )
 
 
@@ -153,8 +154,12 @@ class LocalModelManager:
                 self._stop_locked()
             binary = self._resolve_binary(device=device)
             port = self._port_chooser()
+            # Auto-enable vision if a sibling mmproj GGUF is present, so a VL
+            # model (e.g. Qwen2.5-VL) served from the Local Models card gets
+            # its vision encoder instead of loading text-only.
+            mmproj = find_mmproj(model_path)
             proc = self._spawn(build_serve_argv(binary, model_path, port,
-                                                device=device))
+                                                device=device, mmproj=mmproj))
             url = local_endpoint_url(port)
             timeout = self._ready_timeout_for(model_path)
             if not self._await_ready(url + "/models", proc, timeout):

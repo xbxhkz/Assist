@@ -43,7 +43,9 @@ def capture_png(target="full", *, grabber=None, window_rect=None):
 
 def _default_grabber(region):  # pragma: no cover (needs a display)
     import mss
-    with mss.mss() as sct:
+    # mss.MSS (not the deprecated mss.mss factory) — the lowercase alias
+    # warns on every capture in mss >= 10.
+    with mss.MSS() as sct:
         if region == "full":
             mon = sct.monitors[0]
         elif isinstance(region, dict) and "monitor" in region:

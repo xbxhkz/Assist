@@ -17,6 +17,51 @@ def test_build_serve_argv_has_model_host_port():
     assert "--ctx-size" in argv and "4096" in argv
 
 
+def test_build_serve_argv_adds_mmproj_when_given():
+    """A vision model served with its multimodal projector must pass --mmproj,
+    or llama-server loads it text-only (blind)."""
+    argv = rt.build_serve_argv("/x/llama-server", "/m/qwen-vl.gguf", 8123,
+                               mmproj="/m/mmproj-qwen-vl-f16.gguf")
+    assert argv[argv.index("--mmproj") + 1] == "/m/mmproj-qwen-vl-f16.gguf"
+
+
+def test_build_serve_argv_no_mmproj_by_default():
+    argv = rt.build_serve_argv("/x/llama-server", "/m/model.gguf", 8123)
+    assert "--mmproj" not in argv
+
+
+def test_find_mmproj_finds_matching_sibling():
+    listing = ["Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf",
+               "mmproj-Qwen2.5-VL-7B-Instruct-f16.gguf",
+               "some-other-model.gguf"]
+    got = rt.find_mmproj(r"/m/Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf",
+                         listdir=lambda d: listing)
+    assert got.endswith("mmproj-Qwen2.5-VL-7B-Instruct-f16.gguf")
+
+
+def test_find_mmproj_prefers_family_match_over_unrelated():
+    listing = ["Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf",
+               "mmproj-llava-1.6-f16.gguf",
+               "mmproj-Qwen2.5-VL-7B-Instruct-f16.gguf"]
+    got = rt.find_mmproj(r"/m/Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf",
+                         listdir=lambda d: listing)
+    assert "Qwen2.5-VL" in os.path.basename(got)
+
+
+def test_find_mmproj_none_when_absent():
+    listing = ["model-a.gguf", "model-b.gguf"]
+    assert rt.find_mmproj("/m/model-a.gguf", listdir=lambda d: listing) is None
+
+
+def test_list_gguf_models_excludes_mmproj(tmp_path):
+    """A projector must never appear as a servable model in the picker."""
+    (tmp_path / "mmproj-Qwen2.5-VL-7B-Instruct-f16.gguf").write_bytes(b"x")
+    (tmp_path / "plain.gguf").write_bytes(b"x")
+    names = [m["name"] for m in rt.list_gguf_models(str(tmp_path))]
+    assert "plain.gguf" in names
+    assert not any(n.lower().startswith("mmproj") for n in names)
+
+
 def test_build_serve_argv_aliases_to_basename():
     """The served model must be advertised under its .gguf filename, not the
     full path, so the model picker shows a clean, recognizable name."""
