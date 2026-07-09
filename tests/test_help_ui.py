@@ -25,7 +25,7 @@ def test_manual_covers_the_core_features():
     manual = html.split('id="help-tab-manual"', 1)[1].split('id="help-tab-tutorials"', 1)[0]
     for topic in ("Getting started", "Agent", "Local LLMs", "Image generation",
                   "Gallery", "Tasks", "Skills", "Keyboard shortcuts",
-                  "Troubleshooting"):
+                  "Troubleshooting", "VS Code", "Folder access"):
         assert topic in manual, f"manual section missing: {topic}"
 
 

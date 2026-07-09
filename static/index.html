@@ -1459,6 +1459,11 @@
             <p>Skills teach the agent multi-step workflows. Browse and import community skills from GitHub in Brain → Skills (add a GitHub token in Settings → Services to unlock code search), or ask the agent to save one from the current chat.</p>
           </details>
           <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Coding: folders, workspace &amp; VS Code</summary>
+            <p>The agent's file tools (read/write/edit/search) are confined to folders you grant. Two ways to grant access: set a per-chat <b>Workspace</b> (Agent mode → the "+" menu → Workspace — file tools are confined to that folder and the shell starts there), or add standing folders/drives under Settings → <b>Folder access</b>. Sensitive locations (.ssh, .gnupg, key files) stay blocked inside any grant.</p>
+            <p>With access granted, ask the agent to write or fix code and it can open the results in <b>Visual Studio Code</b> (e.g. "open that file in VS Code at the failing line"). VS Code's <code>code</code> command must be installed (it is by default).</p>
+          </details>
+          <details>
             <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Keyboard shortcuts</summary>
             <p><code>Ctrl+K</code> search · <code>Ctrl+B</code> toggle sidebar · <code>Ctrl+Alt+N</code> new chat · <code>Ctrl+Alt+S</code> star chat · <code>Ctrl+Alt+D</code> delete chat · <code>Ctrl+Shift+U</code> admin panel · <code>Esc</code> cancel. Rebind them in Settings → Appearance.</p>
           </details>
@@ -1592,6 +1597,16 @@
               </div>
               <div id="set-defaultChatMsg" style="font-size:11px;color:color-mix(in srgb, var(--fg) 45%, transparent);"></div>
             </div>
+          </div>
+          <div class="admin-card">
+            <h2 style="display:flex;align-items:center;gap:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:1px;opacity:0.6;flex-shrink:0"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Folder access</h2>
+            <div class="admin-toggle-sub" style="margin-bottom:8px">Standing folders/drives the agent's file tools may read and write (in addition to the app's own data). A per-chat Workspace (the folder pill in Agent mode) overrides this list while set. Sensitive folders (.ssh, .gnupg, …) stay blocked inside any grant.</div>
+            <div id="set-folderAccessList" style="margin-bottom:8px;"></div>
+            <div style="display:flex;gap:6px;">
+              <input type="text" id="set-folderAccessInput" class="settings-select" placeholder="C:\Projects  or  D:\" style="flex:1;">
+              <button type="button" id="set-folderAccessAdd">Add</button>
+            </div>
+            <div id="set-folderAccessMsg" style="font-size:11px;opacity:0.7;margin-top:4px;"></div>
           </div>
           <div class="admin-card">
             <h2 style="display:flex;align-items:center;gap:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:1px;opacity:0.6;flex-shrink:0"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Utility Model <span style="font-size:0.72em;opacity:0.55;font-weight:normal;">(Recommended: Local Endpoint)</span></h2>

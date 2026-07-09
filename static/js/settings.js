@@ -740,6 +740,76 @@ async function initTeacherModel() {
   });
 }
 
+/* ── Folder access (agent file-tool extra roots) ── */
+async function initFolderAccess() {
+  const list = el('set-folderAccessList');
+  const input = el('set-folderAccessInput');
+  const addBtn = el('set-folderAccessAdd');
+  const msg = el('set-folderAccessMsg');
+  if (!list || !input || !addBtn) return;
+  let roots = [];
+  try {
+    const res = await fetch('/api/auth/settings', { credentials: 'same-origin' });
+    const settings = await res.json();
+    roots = Array.isArray(settings.tool_path_extra_roots) ? settings.tool_path_extra_roots : [];
+  } catch (e) { /* render empty */ }
+
+  async function save() {
+    try {
+      await fetch('/api/auth/settings', { method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tool_path_extra_roots: roots }) });
+      if (msg) { msg.textContent = 'Saved'; setTimeout(() => { msg.textContent = ''; }, 2000); }
+    } catch (e) { if (msg) msg.textContent = 'Failed to save'; }
+  }
+
+  function render() {
+    list.innerHTML = '';
+    if (!roots.length) {
+      list.innerHTML = '<div style="font-size:12px;opacity:0.5;">No extra folders granted.</div>';
+      return;
+    }
+    roots.forEach((r, i) => {
+      const row = document.createElement('div');
+      row.className = 'list-item';
+      const label = document.createElement('span');
+      label.className = 'grow';
+      label.textContent = r;
+      const rm = document.createElement('button');
+      rm.textContent = 'Remove';
+      rm.onclick = async () => { roots.splice(i, 1); render(); await save(); };
+      row.appendChild(label);
+      row.appendChild(rm);
+      list.appendChild(row);
+    });
+  }
+  render();
+
+  addBtn.addEventListener('click', async () => {
+    const raw = (input.value || '').trim();
+    if (!raw) return;
+    if (roots.includes(raw)) { if (msg) msg.textContent = 'Already granted.'; return; }
+    const isDriveRoot = /^[A-Za-z]:[\\/]?$/.test(raw);
+    if (isDriveRoot) {
+      if (!confirm(`Grant the agent access to the ENTIRE ${raw.toUpperCase().slice(0, 2)} drive? Every file on it becomes readable and writable by agent tools.`)) return;
+    } else {
+      // Vet non-root paths (exists + not a sensitive dir); offer override
+      // because vet also rejects things extra-roots may legitimately allow.
+      try {
+        const res = await fetch(`/api/workspace/vet?path=${encodeURIComponent(raw)}`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!data || !data.ok) {
+          if (!confirm(`"${raw}" could not be verified as a safe folder (missing, or a sensitive/system location). Grant access anyway?`)) return;
+        }
+      } catch (e) { /* backend unreachable: fall through to add */ }
+    }
+    roots.push(raw);
+    input.value = '';
+    render();
+    await save();
+  });
+}
+
 /* ── Image Generation ── */
 async function initImageSettings() {
   const modelSel = el('set-imgModelSelect');
@@ -2330,6 +2400,7 @@ function initAll() {
   initTeacherModel();
   initUtilityModel();
   initImageSettings();
+  initFolderAccess();
   initVisionSettings();
   initTtsSettings();
   initSttSettings();
