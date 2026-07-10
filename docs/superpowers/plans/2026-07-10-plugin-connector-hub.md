@@ -4,15 +4,15 @@
 
 **Goal:** A first-class admin "Plugins" sidebar screen that unifies built-in MCP servers, user MCP servers, and HTTP connectors into one list with status, enable/disable, add-from-catalog, and troubleshooting.
 
-**Architecture:** Client-side aggregation (Approach A): a plain-IIFE `static/js/plugins.js` modal fetches the existing `/api/mcp/servers` and `/api/integrations` plus a new small `/api/mcp/builtins`, and merges them into one list. The only new backend is a per-built-in enable/disable — a `disabled_builtin_mcp` setting honored at boot, and list/toggle endpoints that live-apply via the MCP manager.
+**Architecture:** Client-side aggregation (Approach A): a plain-IIFE `static/js/plugins.js` modal fetches the existing `/api/mcp/servers` and `/api/auth/integrations` plus a new small `/api/mcp/builtins`, and merges them into one list. The only new backend is a per-built-in enable/disable — a `disabled_builtin_mcp` setting honored at boot, and list/toggle endpoints that live-apply via the MCP manager.
 
 **Tech Stack:** FastAPI, pytest (`--import-mode=importlib`), vanilla JS (plain IIFE), the existing MCP manager + OAuth + integrations routes.
 
 ## Global Constraints
 
 - All pytest runs use `--import-mode=importlib` (a global `ultralytics` package shadows `tests/`).
-- Admin-gated: every new route uses `require_admin(request)` (MCP servers spawn local processes). Matches existing `/api/mcp/*` and `/api/integrations/*`.
-- Reuse, don't reimplement: MCP CRUD/OAuth (`routes/mcp_routes.py`), connectors (`routes/auth_routes.py` `/api/integrations*`), and the preset catalogs (`MCP_PRESETS` in `static/js/admin.js`, `INTEGRATION_PRESETS` via `/api/integrations/presets`) are consumed as-is.
+- Admin-gated: every new route uses `require_admin(request)` (MCP servers spawn local processes). Matches existing `/api/mcp/*` and `/api/auth/integrations/*`.
+- Reuse, don't reimplement: MCP CRUD/OAuth (`routes/mcp_routes.py`), connectors (`routes/auth_routes.py` `/api/auth/integrations*`), and the preset catalogs (`MCP_PRESETS` in `static/js/admin.js`, `INTEGRATION_PRESETS` via `/api/auth/integrations/presets`) are consumed as-is.
 - Frontend: plain-IIFE script like `static/js/help.js`/`localModels.js`; listeners via `addEventListener` (CSP forbids inline handlers); no `type="module"`.
 - Built-ins: toggle on/off, never delete. User MCP servers + connectors: full CRUD.
 - The existing Admin → Tools MCP tab stays functional — do not modify or remove it.
@@ -245,7 +245,7 @@ Ensure `Body` and `HTTPException` are imported (the file already imports from `f
 - Test: `tests/test_plugins_ui.py`
 
 **Interfaces:**
-- Consumes: `GET /api/mcp/servers`, `GET /api/mcp/builtins`, `GET /api/integrations`.
+- Consumes: `GET /api/mcp/servers`, `GET /api/mcp/builtins`, `GET /api/auth/integrations`.
 - Produces: a rendered unified list (`plugins-list`) with type badges (Built-in / MCP / Connector), status, and per-row action buttons.
 
 - [ ] **Step 1 — failing UI guard** `tests/test_plugins_ui.py`:
@@ -263,7 +263,7 @@ def test_index_has_plugins_entry_and_modal():
 
 def test_plugins_js_fetches_all_three_sources():
     js = _read("static/js/plugins.js")
-    for ep in ("/api/mcp/servers", "/api/mcp/builtins", "/api/integrations"):
+    for ep in ("/api/mcp/servers", "/api/mcp/builtins", "/api/auth/integrations"):
         assert ep in js, f"{ep} not fetched in plugins.js"
 ```
 
@@ -297,7 +297,7 @@ Add a modal shell before the Settings modal (mirror the Help modal structure):
   </div>
 ```
 
-Add `<script src="/static/js/plugins.js"></script>` beside the other includes. Create `static/js/plugins.js` (plain IIFE mirroring `help.js`): on `tool-plugins-btn` click, open the modal and `refresh()`. `refresh()` does `Promise.all` of the three fetches (`/api/mcp/builtins`, `/api/mcp/servers`, `/api/integrations`), normalizes each into `{id, name, type, status, tools, error}` (type = `builtin` / `mcp` / `connector`), and renders rows into `plugins-list` — each row: a type badge, name, status dot, tool count (mcp/builtin), and a placeholder actions container (filled in Task 4). Include `credentials: 'same-origin'` on all fetches. Wire `close-plugins-modal` + backdrop click to close, and `plugins-refresh-btn` to `refresh()`.
+Add `<script src="/static/js/plugins.js"></script>` beside the other includes. Create `static/js/plugins.js` (plain IIFE mirroring `help.js`): on `tool-plugins-btn` click, open the modal and `refresh()`. `refresh()` does `Promise.all` of the three fetches (`/api/mcp/builtins`, `/api/mcp/servers`, `/api/auth/integrations`), normalizes each into `{id, name, type, status, tools, error}` (type = `builtin` / `mcp` / `connector`), and renders rows into `plugins-list` — each row: a type badge, name, status dot, tool count (mcp/builtin), and a placeholder actions container (filled in Task 4). Include `credentials: 'same-origin'` on all fetches. Wire `close-plugins-modal` + backdrop click to close, and `plugins-refresh-btn` to `refresh()`.
 
 - [ ] **Step 4 — run, expect PASS.** **Step 5 — commit** `feat(plugins): sidebar entry + modal + unified list render`.
 
@@ -310,7 +310,7 @@ Add `<script src="/static/js/plugins.js"></script>` beside the other includes. C
 - Test: `tests/test_plugins_ui.py` (extend)
 
 **Interfaces:**
-- Consumes: existing endpoints — MCP `POST /api/mcp/servers/{id}/reconnect`, `DELETE /api/mcp/servers/{id}`, `GET /api/mcp/servers/{id}/tools`, OAuth authorize (`/api/mcp/oauth/authorize/{id}`), `POST /api/mcp/servers` (add); built-in `POST /api/mcp/builtins/{id}/toggle`; connectors `POST /api/integrations/{id}/test`, `DELETE /api/integrations/{id}`, `POST /api/integrations` (add), `GET /api/integrations/presets`.
+- Consumes: existing endpoints — MCP `POST /api/mcp/servers/{id}/reconnect`, `DELETE /api/mcp/servers/{id}`, `GET /api/mcp/servers/{id}/tools`, OAuth authorize (`/api/mcp/oauth/authorize/{id}`), `POST /api/mcp/servers` (add); built-in `POST /api/mcp/builtins/{id}/toggle`; connectors `POST /api/auth/integrations/{id}/test`, `DELETE /api/auth/integrations/{id}`, `POST /api/auth/integrations` (add), `GET /api/auth/integrations/presets`.
 
 - [ ] **Step 1 — extend the guard test** in `tests/test_plugins_ui.py`:
 
@@ -318,8 +318,8 @@ Add `<script src="/static/js/plugins.js"></script>` beside the other includes. C
 def test_plugins_js_wires_actions():
     js = _read("static/js/plugins.js")
     for ref in ("/reconnect", "/api/mcp/builtins/", "/toggle",
-                "/api/integrations/", "/test", "/api/mcp/servers/",
-                "/api/integrations/presets"):
+                "/api/auth/integrations/", "/test", "/api/mcp/servers/",
+                "/api/auth/integrations/presets"):
         assert ref in js, f"action {ref} not wired in plugins.js"
 ```
 
@@ -327,8 +327,8 @@ def test_plugins_js_wires_actions():
 - [ ] **Step 3 — implement** the per-row action buttons in `plugins.js` `renderRow`, dispatched by `type`:
   - `builtin`: an enable/disable toggle → `POST /api/mcp/builtins/${id}/toggle {enabled}` then `refresh()`.
   - `mcp`: **Reconnect** → `POST /api/mcp/servers/${id}/reconnect`; **Tools** → `GET /api/mcp/servers/${id}/tools` (show count/names in `plugins-msg`); **Authorize** (only when the row's `needs_oauth`) → open `/api/mcp/oauth/authorize/${id}`; **Delete** (confirm) → `DELETE /api/mcp/servers/${id}`; each followed by `refresh()`.
-  - `connector`: **Test** → `POST /api/integrations/${id}/test` (show result in `plugins-msg`); **Delete** (confirm) → `DELETE /api/integrations/${id}`; then `refresh()`.
-  Add the **Add…** flow (`plugins-add-btn`): a small picker with four choices — MCP preset (read the `MCP_PRESETS` array already defined in `static/js/admin.js`; if not importable, fetch is not needed — reference the same preset shape and post to `/api/mcp/servers`), custom MCP, connector preset (`GET /api/integrations/presets` → prefilled → `POST /api/integrations`), custom connector. For v1, "Add" may open the existing add forms by delegating to the admin flow if reachable; otherwise implement a minimal form that POSTs the required fields. All actions surface errors into `plugins-msg` rather than silently failing.
+  - `connector`: **Test** → `POST /api/auth/integrations/${id}/test` (show result in `plugins-msg`); **Delete** (confirm) → `DELETE /api/auth/integrations/${id}`; then `refresh()`.
+  Add the **Add…** flow (`plugins-add-btn`): a small picker with four choices — MCP preset (read the `MCP_PRESETS` array already defined in `static/js/admin.js`; if not importable, fetch is not needed — reference the same preset shape and post to `/api/mcp/servers`), custom MCP, connector preset (`GET /api/auth/integrations/presets` → prefilled → `POST /api/auth/integrations`), custom connector. For v1, "Add" may open the existing add forms by delegating to the admin flow if reachable; otherwise implement a minimal form that POSTs the required fields. All actions surface errors into `plugins-msg` rather than silently failing.
 - [ ] **Step 4 — run, expect PASS.** **Step 5 — commit** `feat(plugins): per-row actions + add-from-catalog`.
 
 ---
@@ -337,7 +337,7 @@ def test_plugins_js_wires_actions():
 
 - [ ] **Step 1 — full affected suite:** `python -m pytest tests/test_builtin_toggle.py tests/test_mcp_builtins_routes.py tests/test_plugins_ui.py --import-mode=importlib -q` → all green.
 - [ ] **Step 2 — build:** `.\build-installer.ps1` (full clean — `-Fast` has dropped bundled deps before). Confirm compile succeeds.
-- [ ] **Step 3 — boot-verify** the packaged exe against an isolated `ODYSSEUS_DATA_DIR` + `ODYSSEUS_INTERNAL_TOKEN`: `GET /api/mcp/builtins` returns the four built-ins with status; `GET /api/mcp/servers` and `GET /api/integrations` respond.
+- [ ] **Step 3 — boot-verify** the packaged exe against an isolated `ODYSSEUS_DATA_DIR` + `ODYSSEUS_INTERNAL_TOKEN`: `GET /api/mcp/builtins` returns the four built-ins with status; `GET /api/mcp/servers` and `GET /api/auth/integrations` respond.
 - [ ] **Step 4 — user manual test:** open **Plugins** from the sidebar — see the four built-ins (with status), any user MCP servers, and any connectors in one list. Toggle **RAG** off → confirm it shows disabled and its tools drop; toggle on → reconnects. Add an MCP preset (e.g. a simple one) and a connector preset; delete them. Confirm the Admin → Tools MCP tab still works unchanged.
 - [ ] **Step 5 — commit** the installer: `git add -f installer/Output/Assist-Setup.exe && git commit -m "build: Assist-Setup.exe with Plugins hub"`.
 
@@ -345,4 +345,4 @@ def test_plugins_js_wires_actions():
 
 - **Spec coverage:** unified sidebar screen (T3), client-side aggregation of the three sources (T3), per-type actions (T4), built-in enable/disable setting + boot-skip (T1) + list/toggle endpoints (T2), add-from-catalog reusing presets/OAuth (T4), troubleshooting log pointer (T3 modal), admin tab untouched (global constraint), package + live-verify (T5). All spec sections covered.
 - **Placeholders:** none. The four spec plan-time verifications are resolved in the Global Constraints (built-ins absent from `/api/mcp/servers` → new `/api/mcp/builtins`; manager methods `disconnect_server`/`_reconnect_builtin`/`get_server_status`/`is_builtin` confirmed; connector routes confirmed; sidebar/CSP conventions from `help.js`). T4's "Add" allows a minimal-form fallback but specifies the exact endpoints and preset sources — not a TODO.
-- **Type consistency:** `disabled_builtin_mcp` (list) used identically in T1/T2; normalized row `{id,name,type,status,tools,error}` consistent T3→T4; endpoint paths match the verified backend (`/api/mcp/builtins`, `/api/mcp/builtins/{id}/toggle`, `/api/mcp/servers/{id}/reconnect`, `/api/integrations/{id}/test`). `set_setting`/`get_setting` names consistent in T2 and its test.
+- **Type consistency:** `disabled_builtin_mcp` (list) used identically in T1/T2; normalized row `{id,name,type,status,tools,error}` consistent T3→T4; endpoint paths match the verified backend (`/api/mcp/builtins`, `/api/mcp/builtins/{id}/toggle`, `/api/mcp/servers/{id}/reconnect`, `/api/auth/integrations/{id}/test`). `set_setting`/`get_setting` names consistent in T2 and its test.

@@ -207,7 +207,7 @@
       testBtn.addEventListener('click', async () => {
         testBtn.disabled = true;
         try {
-          const res = await fetch(`/api/integrations/${item.id}/test`, {
+          const res = await fetch(`/api/auth/integrations/${item.id}/test`, {
             method: 'POST',
             credentials: 'same-origin',
           });
@@ -226,7 +226,7 @@
       deleteBtn.addEventListener('click', async () => {
         if (!confirm(`Delete connector "${item.name}"?`)) return;
         try {
-          const res = await fetch(`/api/integrations/${item.id}`, {
+          const res = await fetch(`/api/auth/integrations/${item.id}`, {
             method: 'DELETE',
             credentials: 'same-origin',
           });
@@ -405,7 +405,7 @@
 
     let presets = {};
     try {
-      const res = await fetch('/api/integrations/presets', { credentials: 'same-origin' });
+      const res = await fetch('/api/auth/integrations/presets', { credentials: 'same-origin' });
       if (!res.ok) throw new Error(String(res.status));
       const data = await res.json();
       presets = (data && data.presets) || {};
@@ -465,7 +465,7 @@
       submitBtn.disabled = true;
       msg.textContent = 'Adding…'; msg.style.color = '';
       try {
-        const res = await fetch('/api/integrations', {
+        const res = await fetch('/api/auth/integrations', {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
@@ -515,7 +515,7 @@
       submitBtn.disabled = true;
       msg.textContent = 'Adding…'; msg.style.color = '';
       try {
-        const res = await fetch('/api/integrations', {
+        const res = await fetch('/api/auth/integrations', {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
@@ -545,7 +545,7 @@
     const results = await Promise.all([
       fetchJson('/api/mcp/builtins').then((d) => ({ ok: true, items: normalizeBuiltins(d) }), (e) => ({ ok: false, error: e })),
       fetchJson('/api/mcp/servers').then((d) => ({ ok: true, items: normalizeServers(d) }), (e) => ({ ok: false, error: e })),
-      fetchJson('/api/integrations').then((d) => ({ ok: true, items: normalizeIntegrations(d) }), (e) => ({ ok: false, error: e })),
+      fetchJson('/api/auth/integrations').then((d) => ({ ok: true, items: normalizeIntegrations(d) }), (e) => ({ ok: false, error: e })),
     ]);
 
     const items = [];

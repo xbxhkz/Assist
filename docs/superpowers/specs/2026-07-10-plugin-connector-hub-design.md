@@ -26,7 +26,7 @@ This is a **UX-consolidation project over existing backends**, not a new engine.
 - **New sidebar entry "Plugins"** (admin-only), opening a full modal like the Local Models screen. Plain-IIFE JS module `static/js/plugins.js` (mirrors `help.js` / `localModels.js`), included via a `<script>` tag.
 - The page fetches **two existing endpoints** and merges them in the browser into one normalized list:
   - `GET /api/mcp/servers` → MCP servers **including built-ins** (built-in rows identified by `id ∈ _BUILTIN_SERVERS` / the `Built-in:` name prefix).
-  - `GET /api/integrations` → HTTP connectors.
+  - `GET /api/auth/integrations` → HTTP connectors.
 - **Normalized row:** `{ id, name, type: "builtin"|"mcp"|"connector", status: "connected"|"error"|"disabled", tools?: number, error?: string }`.
 - **Plan-time verification #1:** confirm `GET /api/mcp/servers` actually returns the built-in servers with a usable status. If it does not, add a tiny `GET /api/mcp/builtins` that lists `_BUILTIN_SERVERS` with each one's live connection status from `mcp_manager`. Either way the client sees built-ins with status.
 
@@ -60,8 +60,8 @@ Each row surfaces its `status` and, on error, the backend `error` string, with *
 ## Testing strategy (TDD)
 
 - **Built-in toggle backend** (injected fakes, no real processes): `disabled_builtin_mcp` defaults `[]`; `register_builtin_servers` skips disabled ids (fake manager records which servers it connected); the toggle endpoint updates the setting and calls disconnect/reconnect on the (fake) manager; re-enabling reconnects.
-- **Aggregation/normalization** (if any is extracted to a testable JS-independent helper, otherwise covered by UI guards): built-in rows are flagged from `/api/mcp/servers` by id/prefix; connector rows from `/api/integrations`.
-- **UI guard tests** (text-guard, mirroring `test_localmodels_ui.py` / `test_vision_settings_ui.py`): sidebar entry present (`id="tool-plugins-btn"`), modal + list elements (`plugins-modal`, `plugins-list`), and the two fetch calls (`/api/mcp/servers`, `/api/integrations`) + the toggle call present in `plugins.js`.
+- **Aggregation/normalization** (if any is extracted to a testable JS-independent helper, otherwise covered by UI guards): built-in rows are flagged from `/api/mcp/servers` by id/prefix; connector rows from `/api/auth/integrations`.
+- **UI guard tests** (text-guard, mirroring `test_localmodels_ui.py` / `test_vision_settings_ui.py`): sidebar entry present (`id="tool-plugins-btn"`), modal + list elements (`plugins-modal`, `plugins-list`), and the two fetch calls (`/api/mcp/servers`, `/api/auth/integrations`) + the toggle call present in `plugins.js`.
 - **Live verification** on the packaged exe: open Plugins, see built-ins + any MCP servers + connectors with status; toggle a built-in (e.g. RAG) off and confirm it disconnects and its tools disappear, then on; add an MCP preset and a connector preset.
 
 ## Plan-time verifications (flagged, not hidden)
