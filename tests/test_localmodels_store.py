@@ -28,6 +28,19 @@ def test_register_creates_local_endpoint():
     db.close()
 
 
+def test_register_marks_supports_tools_true():
+    """Local llama.cpp (llama-server) endpoints support native OpenAI tool
+    calling; without supports_tools=True the agent falls back to fenced-block
+    mode where local models often just *reason* about a tool instead of
+    emitting the call (agent tools silently no-op)."""
+    sf = _mem_session_factory()
+    eid = store.register_local_endpoint("m.gguf", "http://127.0.0.1:8123/v1",
+                                        session_factory=sf)
+    db = sf()
+    assert db.query(ModelEndpoint).filter(ModelEndpoint.id == eid).one().supports_tools is True
+    db.close()
+
+
 def test_register_updates_existing_same_url():
     sf = _mem_session_factory()
     first = store.register_local_endpoint("a.gguf", "http://127.0.0.1:8123/v1",

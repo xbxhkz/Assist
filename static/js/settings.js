@@ -833,11 +833,19 @@ async function initImageSettings() {
         || lower.includes('sd-3.5-med');
     };
     const imageModels = [];
+    const _seenImg = new Set();
+    function _addImg(mid) { if (mid && !_seenImg.has(mid)) { _seenImg.add(mid); imageModels.push(mid); } }
     (modelsData.items || []).forEach(item => {
-      (item.models || []).forEach(mid => {
-        if (_isInpaintModel(mid)) imageModels.push(mid);
-      });
+      (item.models || []).forEach(mid => { if (_isInpaintModel(mid)) _addImg(mid); });
     });
+    // Also list downloaded local diffusion models (FLUX / klein / Z-Image),
+    // served via the Image Models card, so they're selectable here too — not
+    // only the currently-detected inpaint endpoints.
+    try {
+      const imRes = await fetch('/api/imagemodels/models', { credentials: 'same-origin' });
+      const imData = await imRes.json();
+      (imData.models || []).forEach(m => _addImg(m && m.name));
+    } catch (e) { /* image models optional */ }
     sortModelIds(imageModels).forEach(mid => { const opt = document.createElement('option'); opt.value = mid; opt.textContent = mid; modelSel.appendChild(opt); });
     // Hardcoded fallbacks shown as "(not detected)" so users know what to
     // download/serve to enable inpaint here.

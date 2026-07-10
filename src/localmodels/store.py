@@ -52,13 +52,18 @@ def register_local_endpoint(name: str, base_url: str, session_factory=None,
             existing.name = name
             existing.endpoint_kind = "local"
             existing.model_refresh_mode = "auto"
+            # llama-server supports native OpenAI tool-calling; mark it so the
+            # agent sends tool schemas natively instead of falling back to
+            # fenced-block mode (where local models often just narrate the
+            # tool instead of calling it, so agent tools never execute).
+            existing.supports_tools = True
             _apply_cached_models(existing, base_url, probe)
             db.commit()
             return existing.id
         eid = f"local-{uuid.uuid4().hex[:8]}"
         ep = ModelEndpoint(id=eid, name=name, base_url=base_url, api_key=None,
                            is_enabled=True, endpoint_kind="local",
-                           model_refresh_mode="auto")
+                           model_refresh_mode="auto", supports_tools=True)
         db.add(ep)
         _apply_cached_models(ep, base_url, probe)
         db.commit()
