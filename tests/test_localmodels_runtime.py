@@ -14,7 +14,10 @@ def test_build_serve_argv_has_model_host_port():
     assert "--model" in argv and "/m/model.gguf" in argv
     assert "--host" in argv and "127.0.0.1" in argv
     assert "--port" in argv and "8123" in argv
-    assert "--ctx-size" in argv and "4096" in argv
+    # 16384 ctx: 4096 was too small once native tool schemas (~2.5k tokens)
+    # plus a screenshot's vision tokens are included — llama-server 400'd with
+    # "request exceeds the available context size".
+    assert "--ctx-size" in argv and "16384" in argv
 
 
 def test_build_serve_argv_adds_mmproj_when_given():

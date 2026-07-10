@@ -57,7 +57,7 @@ def find_mmproj(model_path: str, listdir=os.listdir) -> str:
 
 
 def build_serve_argv(binary: str, model_path: str, port: int,
-                     ctx_size: int = 4096, host: str = "127.0.0.1",
+                     ctx_size: int = 16384, host: str = "127.0.0.1",
                      device: str = "cpu", mmproj: str = None) -> list:
     """llama-server argv for an OpenAI-compatible loopback server.
 
