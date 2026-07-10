@@ -970,6 +970,11 @@
           </svg>
           <span class="grow">Help</span>
         </div>
+
+        <div class="list-item" id="tool-plugins-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.5;"><path d="M6 3v6M6 15v6M18 3v6M18 15v6M6 9h12v6H6z"/></svg>
+          <span class="grow">Plugins</span>
+        </div>
       </div>
     </div>
     <div class="sidebar-user-bar" id="sidebar-user-bar">
@@ -1422,6 +1427,23 @@
       </div>
       <div style="font-size:11px;opacity:0.55;margin-bottom:8px;">Steps: blank = the model's default (klein 4, others 20). Fast decode: near-instant decode via tiny autoencoder, slightly softer detail (FLUX.1 only).</div>
       <div id="imagemodels-msg" style="font-size:12px;opacity:0.85;"></div>
+    </div>
+  </div>
+
+  <!-- Plugins Modal: unified built-in / MCP / connector list -->
+  <div id="plugins-modal" class="modal hidden">
+    <div class="modal-content admin-modal-content" role="dialog" aria-label="Plugins">
+      <div class="modal-header">
+        <h4>Plugins &amp; Connectors</h4>
+        <button class="close-btn" id="close-plugins-modal" aria-label="Close">&#x2716;</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <button id="plugins-add-btn">Add…</button>
+        <button id="plugins-refresh-btn">Refresh</button>
+      </div>
+      <div id="plugins-list"></div>
+      <div id="plugins-msg" style="font-size:12px;opacity:0.8;margin-top:6px;"></div>
+      <div style="font-size:11px;opacity:0.5;margin-top:8px;">Troubleshooting: data/logs/mcp-servers.log · data/logs/app.log</div>
     </div>
   </div>
 
@@ -2706,6 +2728,7 @@
 <script src="/static/js/localModels.js"></script>
 <script src="/static/js/imageModels.js"></script>
 <script src="/static/js/help.js"></script>
+<script src="/static/js/plugins.js"></script>
 <script src="/static/js/screenAccess.js"></script>
 <script type="module" src="/static/js/search-chat.js"></script>
 <script type="module" src="/static/js/compare/index.js"></script>
