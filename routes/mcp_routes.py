@@ -6,19 +6,26 @@ import uuid
 import urllib.parse
 import html
 from pathlib import Path
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, Body, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse, HTMLResponse
 import logging
 import httpx
 
 from core.database import McpServer, SessionLocal
 from core.middleware import require_admin
+from src.builtin_mcp import _BUILTIN_SERVERS
 from src.constants import DATA_DIR, MCP_OAUTH_DIR
 from src.mcp_manager import McpManager
+from src.settings import get_setting, load_settings, save_settings
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/mcp", tags=["mcp"])
+
+def set_setting(update: dict):
+    """Persist a partial settings update (module-level so tests can patch it)."""
+    s = load_settings()
+    s.update(update)
+    save_settings(s)
 
 
 def _mcp_oauth_base_dir() -> Path:
@@ -115,7 +122,17 @@ def _mcp_oauth_redirect_uri() -> str:
 
 
 def setup_mcp_routes(mcp_manager: McpManager):
-    """Setup MCP routes with the provided manager."""
+    """Setup MCP routes with the provided manager.
+
+    Builds a fresh ``APIRouter`` on every call (rather than reusing a
+    module-level singleton) so repeated calls — e.g. once per test — don't
+    accumulate duplicate route registrations bound to stale ``mcp_manager``
+    closures. Starlette matches routes in registration order, so a leftover
+    duplicate from an earlier call would silently shadow the current one.
+    Production only calls this once at app startup, so behavior there is
+    unchanged.
+    """
+    router = APIRouter(prefix="/api/mcp", tags=["mcp"])
 
     @router.get("/servers")
     def list_servers(request: Request):
@@ -605,6 +622,45 @@ def setup_mcp_routes(mcp_manager: McpManager):
             return HTMLResponse(_oauth_result_page("Error", str(e)), status_code=500)
         finally:
             db.close()
+
+    @router.get("/builtins")
+    def list_builtins(request: Request):
+        require_admin(request)
+        disabled = set(get_setting("disabled_builtin_mcp", []) or [])
+        out = []
+        for sid, (_script, name) in _BUILTIN_SERVERS.items():
+            st = mcp_manager.get_server_status(sid)
+            out.append({
+                "id": sid, "name": name,
+                "status": "disabled" if sid in disabled else st.get("status", "disconnected"),
+                "enabled": sid not in disabled,
+                "tool_count": st.get("tool_count", 0),
+                "error": st.get("error"),
+            })
+        return {"builtins": out}
+
+    @router.post("/builtins/{server_id}/toggle")
+    async def toggle_builtin(server_id: str, request: Request, body: dict = Body(...)):
+        require_admin(request)
+        if server_id not in _BUILTIN_SERVERS:
+            raise HTTPException(status_code=400, detail="unknown built-in server")
+        enabled = bool(body.get("enabled"))
+        disabled = set(get_setting("disabled_builtin_mcp", []) or [])
+        if enabled:
+            disabled.discard(server_id)
+            set_setting({"disabled_builtin_mcp": sorted(disabled)})
+            try:
+                await mcp_manager._reconnect_builtin(server_id)
+            except Exception as e:
+                logger.warning(f"builtin reconnect failed for {server_id}: {e}")
+        else:
+            disabled.add(server_id)
+            set_setting({"disabled_builtin_mcp": sorted(disabled)})
+            try:
+                await mcp_manager.disconnect_server(server_id)
+            except Exception as e:
+                logger.warning(f"builtin disconnect failed for {server_id}: {e}")
+        return {"ok": True, "id": server_id, "enabled": enabled}
 
     return router
 
