@@ -301,6 +301,59 @@ def get_manager() -> "LocalModelManager":
     return _manager
 
 
+_vision_manager = None
+
+
+def get_vision_manager() -> "LocalModelManager":
+    """A SECOND local-model server, dedicated to the vision model, so a
+    tool-calling chat model (served by get_manager) and a vision model can run
+    at the same time — the pair screen-reading needs. Separate base port and
+    log so it never collides with the chat server."""
+    global _vision_manager
+    if _vision_manager is None:
+        from src.localmodels.store import (
+            register_local_endpoint, unregister_local_endpoint,
+        )
+        _vision_manager = LocalModelManager(
+            register_endpoint=register_local_endpoint,
+            unregister_endpoint=unregister_local_endpoint,
+            port_chooser=lambda: choose_port(8110),
+            log_path=os.path.join(os.path.dirname(_default_log_path()),
+                                  "vision-server.log"),
+        )
+    return _vision_manager
+
+
+def _default_vl_resolve(model_name, owner):
+    from src.ai_interaction import _resolve_model
+    return _resolve_model(model_name, owner=owner)
+
+
+def ensure_vision_served(model_name, owner=None, *, resolve=None,
+                         manager=None, models_dir=None):
+    """Return (url, model_id, headers) for the vision model, auto-serving it
+    on a dedicated CPU endpoint if it isn't already reachable.
+
+    Serving on CPU keeps the GPU free for the interactive chat model; the
+    vision model runs occasionally (per screen capture), so CPU latency is
+    acceptable. mmproj is auto-attached by start()->find_mmproj."""
+    resolve = resolve or _default_vl_resolve
+    try:
+        return resolve(model_name, owner)
+    except Exception:
+        pass  # not currently served — serve it below
+    md = models_dir or MODELS_DIR
+    path = os.path.join(md, model_name)
+    if not os.path.isfile(path):
+        raise ValueError(
+            f"vision model '{model_name}' is not served and no matching .gguf "
+            f"is in {md}")
+    mgr = manager or get_vision_manager()
+    if not mgr.status().get("running"):
+        mgr.start(path, device="cpu")
+    return resolve(model_name, owner)
+
+
 def autoserve_last_model(manager=None, model_file=None):
     """Re-serve the last successfully-served model (best-effort).
 

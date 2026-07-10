@@ -110,7 +110,12 @@ class CaptureScreenTool:
             with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tf:
                 tf.write(png)
                 temp_path = tf.name
-            desc = analyze_image_with_vl_result(temp_path, owner=ctx.get("owner")).get("text", "")
+            # Off the event loop: the VL analysis (and a first-time auto-serve
+            # of the vision model) can take tens of seconds; never block the app.
+            import asyncio
+            result = await asyncio.to_thread(
+                analyze_image_with_vl_result, temp_path, ctx.get("owner"))
+            desc = result.get("text", "")
         finally:
             if temp_path:
                 os.remove(temp_path)

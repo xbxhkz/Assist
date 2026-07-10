@@ -312,7 +312,15 @@ def _resolve_vl_model(configured: str, owner: str | None = None) -> tuple:
     from src.ai_interaction import _resolve_model
 
     if configured:
-        return _resolve_model(configured, owner=owner)
+        try:
+            return _resolve_model(configured, owner=owner)
+        except ValueError:
+            # The configured vision model isn't currently served (e.g. the chat
+            # model is a different, tool-calling model). Auto-serve it on a
+            # dedicated CPU endpoint so screen reading works without the user
+            # juggling two model servers.
+            from src.localmodels.manager import ensure_vision_served
+            return ensure_vision_served(configured, owner)
 
     # Auto-detect: try known vision-capable models in priority order
     candidates = [
