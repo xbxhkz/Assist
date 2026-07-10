@@ -53,6 +53,22 @@ def test_find_mmproj_none_when_absent():
     assert rt.find_mmproj("/m/model-a.gguf", listdir=lambda d: listing) is None
 
 
+def test_find_mmproj_none_for_unrelated_model_sharing_dir_with_a_vl_mmproj():
+    """A non-vision model in the same folder as a VL model's projector must
+    NOT be handed that projector — llama-server then fails to load ('you may
+    have the wrong mmproj'). Only a name-family match qualifies."""
+    listing = ["ornith-1.0-9b-Q4_K_M.gguf", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf",
+               "mmproj-Qwen2.5-VL-7B-Instruct-f16.gguf"]
+    assert rt.find_mmproj("/m/ornith-1.0-9b-Q4_K_M.gguf",
+                          listdir=lambda d: listing) is None
+    assert rt.find_mmproj("/m/Qwen3.6-35B-A3B-UD-Q4_K_M.gguf",
+                          listdir=lambda d: listing) is None
+    # ...but the actual VL model still gets its projector.
+    assert rt.find_mmproj("/m/Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf",
+                          listdir=lambda d: listing).endswith(
+        "mmproj-Qwen2.5-VL-7B-Instruct-f16.gguf")
+
+
 def test_list_gguf_models_excludes_mmproj(tmp_path):
     """A projector must never appear as a servable model in the picker."""
     (tmp_path / "mmproj-Qwen2.5-VL-7B-Instruct-f16.gguf").write_bytes(b"x")

@@ -47,6 +47,12 @@ def find_mmproj(model_path: str, listdir=os.listdir) -> str:
         return sum(1 for t in toks if t in fl)
 
     cands.sort(key=_score, reverse=True)
+    # Only attach a projector that actually matches this model's name family.
+    # A non-vision model (Ornith, Qwen3.6) sharing a folder with a VL model's
+    # mmproj must get NO projector — passing a mismatched one makes
+    # llama-server refuse to load ("you may have the wrong mmproj").
+    if _score(cands[0]) == 0:
+        return None
     return os.path.join(d, cands[0])
 
 

@@ -892,14 +892,24 @@ async function initVisionSettings() {
     const modelsRes = await fetch('/api/models', { credentials: 'same-origin' });
     const modelsData = await modelsRes.json();
     const visionModels = [];
+    const _seenVl = new Set();
+    function _addVl(mid) {
+      if (mid && !_seenVl.has(mid) && _isVisionModel(mid)) {
+        _seenVl.add(mid); visionModels.push(mid);
+      }
+    }
     (modelsData.items || []).forEach(item => {
       if (item.offline) return;
-      (item.models || []).forEach(mid => {
-        if (_isVisionModel(mid)) {
-          visionModels.push(mid);
-        }
-      });
+      (item.models || []).forEach(_addVl);
     });
+    // Also list downloaded local models even when not currently served — the
+    // vision model runs on its own auto-served endpoint (ensure_vision_served),
+    // so it doesn't have to be the running chat model to be selectable here.
+    try {
+      const lmRes = await fetch('/api/localmodels/models', { credentials: 'same-origin' });
+      const lmData = await lmRes.json();
+      (lmData.models || []).forEach(m => _addVl(m && m.name));
+    } catch (e) { /* local models optional */ }
     sortModelIds(visionModels).forEach(mid => {
       var opt = document.createElement('option'); opt.value = mid; opt.textContent = mid; vlSel.appendChild(opt);
     });
