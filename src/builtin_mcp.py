@@ -15,6 +15,7 @@ import sys
 
 from core.platform_compat import IS_WINDOWS, which_tool
 from src.runtime_paths import get_app_root
+from src.settings import get_setting
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +130,7 @@ async def register_builtin_servers(mcp_manager):
         return
 
     base_dir = get_app_root()
+    _disabled = set(get_setting("disabled_builtin_mcp", []) or [])
 
     async def _connect_python_server(server_id: str, script_path: str, name: str):
         try:
@@ -152,6 +154,9 @@ async def register_builtin_servers(mcp_manager):
             logger.warning(f"Built-in MCP server {name} error: {type(e).__name__}: {e}")
 
     for server_id, (script, name) in _BUILTIN_SERVERS.items():
+        if server_id in _disabled:
+            logger.info(f"Built-in MCP server disabled by setting: {name}")
+            continue
         script_path = os.path.join(base_dir, script)
         if not os.path.exists(script_path):
             logger.warning(f"Built-in MCP server script not found: {script_path}")

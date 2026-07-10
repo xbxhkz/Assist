@@ -39,6 +39,9 @@ DEFAULT_SETTINGS = {
     "agent_email_confirm": True,
     "image_gen_enabled": False,
     "screen_access_enabled": False,
+    # Built-in MCP server ids (image_gen, memory, rag, email) to skip at
+    # boot. See src/builtin_mcp.py:register_builtin_servers.
+    "disabled_builtin_mcp": [],
     "image_model": "",
     "image_quality": "medium",
     # Default WxH for generation; 512x512 is ~4x cheaper than 1024x1024 on
