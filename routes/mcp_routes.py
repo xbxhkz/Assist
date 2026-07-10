@@ -646,13 +646,17 @@ def setup_mcp_routes(mcp_manager: McpManager):
             raise HTTPException(status_code=400, detail="unknown built-in server")
         enabled = bool(body.get("enabled"))
         disabled = set(get_setting("disabled_builtin_mcp", []) or [])
+        applied = True
+        err = None
         if enabled:
             disabled.discard(server_id)
             set_setting({"disabled_builtin_mcp": sorted(disabled)})
             try:
-                await mcp_manager._reconnect_builtin(server_id)
+                applied = bool(await mcp_manager._reconnect_builtin(server_id))
             except Exception as e:
                 logger.warning(f"builtin reconnect failed for {server_id}: {e}")
+                applied = False
+                err = str(e)
         else:
             disabled.add(server_id)
             set_setting({"disabled_builtin_mcp": sorted(disabled)})
@@ -660,7 +664,9 @@ def setup_mcp_routes(mcp_manager: McpManager):
                 await mcp_manager.disconnect_server(server_id)
             except Exception as e:
                 logger.warning(f"builtin disconnect failed for {server_id}: {e}")
-        return {"ok": True, "id": server_id, "enabled": enabled}
+                applied = False
+                err = str(e)
+        return {"ok": True, "id": server_id, "enabled": enabled, "applied": applied, "error": err}
 
     return router
 

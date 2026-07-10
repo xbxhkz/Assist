@@ -53,6 +53,7 @@ def test_toggle_off_disconnects_and_persists(client):
     c, fake, store = client
     r = c.post("/api/mcp/builtins/rag/toggle", json={"enabled": False})
     assert r.status_code == 200 and r.json()["enabled"] is False
+    assert r.json()["applied"] is True
     assert "rag" in store["disabled_builtin_mcp"]
     assert "rag" in fake.disconnected
 
@@ -62,6 +63,7 @@ def test_toggle_on_reconnects_and_persists(client):
     store["disabled_builtin_mcp"] = ["rag"]
     r = c.post("/api/mcp/builtins/rag/toggle", json={"enabled": True})
     assert r.status_code == 200 and r.json()["enabled"] is True
+    assert r.json()["applied"] is True
     assert "rag" not in store["disabled_builtin_mcp"]
     assert "rag" in fake.reconnected
 
@@ -69,3 +71,36 @@ def test_toggle_on_reconnects_and_persists(client):
 def test_toggle_rejects_unknown_id(client):
     c, *_ = client
     assert c.post("/api/mcp/builtins/nope/toggle", json={"enabled": False}).status_code == 400
+
+
+class FailingReconnectMgr(FakeMgr):
+    async def _reconnect_builtin(self, sid):
+        raise RuntimeError("spawn failed")
+
+
+@pytest.fixture
+def failing_client(monkeypatch):
+    fake = FailingReconnectMgr()
+    store = {"disabled_builtin_mcp": ["rag"]}
+    monkeypatch.setattr(mr, "get_setting",
+                        lambda k, d=None: store.get(k, d), raising=False)
+    def _save(d):
+        store.update(d)
+    monkeypatch.setattr(mr, "set_setting", _save, raising=False)
+    app = FastAPI()
+    app.include_router(mr.setup_mcp_routes(fake))
+    app.dependency_overrides = {}
+    monkeypatch.setattr(mr, "require_admin", lambda request: None)
+    return TestClient(app), fake, store
+
+
+def test_toggle_on_reports_failed_live_apply(failing_client):
+    c, fake, store = failing_client
+    r = c.post("/api/mcp/builtins/rag/toggle", json={"enabled": True})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["ok"] is True
+    assert data["enabled"] is True
+    assert data["applied"] is False
+    assert isinstance(data["error"], str) and data["error"]
+    assert "rag" not in store["disabled_builtin_mcp"]

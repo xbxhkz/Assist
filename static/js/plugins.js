@@ -133,6 +133,10 @@
             body: JSON.stringify({ enabled: !isEnabled }),
           });
           if (!res.ok) throw new Error(String(res.status));
+          const data = await res.json();
+          if (!data.applied) {
+            setMsg(`Toggle saved, but live-apply failed: ${data.error || 'unknown error'}`, true);
+          }
           await refresh();
         } catch (e) {
           setMsg(`Failed to toggle ${item.name}: ${e.message}`, true);
