@@ -63,11 +63,22 @@ def get_value(element):
     return element.get_value()
 
 
+def _foreground_hwnd():
+    """Handle of the current foreground window. Monkeypatched in tests."""
+    import ctypes
+    return ctypes.windll.user32.GetForegroundWindow()
+
+
 def get_root(window_id, *, automation=None):
-    """Return the root Element for a top-level window. `automation` is the
-    duck-typed provider (injected in tests); production uses _real_automation()."""
+    """Return the root Element for a top-level window. `window_id` is a numeric
+    window handle, or "focused"/None for the current foreground window.
+    `automation` is the duck-typed provider (injected in tests)."""
     auto = automation or _real_automation()
-    return auto.element_from_handle(int(window_id))
+    if window_id in (None, "focused"):
+        hwnd = _foreground_hwnd()
+    else:
+        hwnd = int(window_id)
+    return auto.element_from_handle(hwnd)
 
 
 def _real_automation():

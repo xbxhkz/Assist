@@ -62,3 +62,28 @@ def test_invoke_and_set_and_get_value():
     assert save.invoked is True
     uia.set_value(edit, "hello")
     assert uia.get_value(edit) == "hello"
+
+
+def test_get_root_numeric_window_id():
+    seen = {}
+
+    class Auto:
+        def element_from_handle(self, hwnd):
+            seen["hwnd"] = hwnd
+            return "ROOT"
+
+    assert uia.get_root(1234, automation=Auto()) == "ROOT"
+    assert seen["hwnd"] == 1234
+
+
+def test_get_root_focused_uses_foreground(monkeypatch):
+    monkeypatch.setattr(uia, "_foreground_hwnd", lambda: 999)
+    seen = {}
+
+    class Auto:
+        def element_from_handle(self, hwnd):
+            seen["hwnd"] = hwnd
+            return "ROOT"
+
+    assert uia.get_root("focused", automation=Auto()) == "ROOT"
+    assert seen["hwnd"] == 999
