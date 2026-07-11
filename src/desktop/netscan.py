@@ -115,7 +115,7 @@ def net_info(*, run=_run, oui=oui_vendor):
     return {"interfaces": ifaces, "neighbors": neighbors}
 
 
-_LIVENESS_PORTS = (445, 139, 22, 80, 443, 3389, 5353, 9100)
+_LIVENESS_PORTS = (445, 139, 22, 80, 443, 3389, 5353, 9100, 548, 23)
 
 # First matching open port wins (priority order).
 _OS_SIGNATURES = [
@@ -156,7 +156,7 @@ def _tcp_probe(ip, timeout=0.5):
 def _reverse_dns(ip):
     try:
         return socket.gethostbyaddr(ip)[0]
-    except (OSError, socket.herror):
+    except OSError:
         return None
 
 
@@ -164,27 +164,30 @@ def discover_hosts(cidr, *, probe=_tcp_probe, resolve=_reverse_dns, arp=arp_tabl
                    oui=oui_vendor, max_hosts=1024, concurrency=100, timeout=0.5):
     _require_private(cidr)
     net = ipaddress.ip_network(cidr, strict=False)
+    if net.num_addresses > max_hosts:
+        raise ValueError(f"CIDR too large: {net.num_addresses} addresses exceeds max {max_hosts}")
     hosts = [str(h) for h in net.hosts()]
-    if len(hosts) > max_hosts:
-        raise ValueError(f"CIDR too large: {len(hosts)} hosts exceeds max {max_hosts}")
     arp_map = arp() if callable(arp) else dict(arp or {})
 
     def _check(ip):
         up, open_ports = probe(ip, timeout)
-        return (ip, open_ports) if (up or ip in arp_map) else None
+        if up or ip in arp_map:
+            return (ip, open_ports, resolve(ip))  # resolve in parallel, up hosts only
+        return None
 
     found = {}
     with ThreadPoolExecutor(max_workers=concurrency) as ex:
         for r in ex.map(_check, hosts):
             if r:
-                found[r[0]] = r[1]
+                found[r[0]] = (r[1], r[2])  # (open_ports, hostname)
     out = []
     for ip in sorted(found, key=lambda s: ipaddress.IPv4Address(s)):
+        open_ports, hostname = found[ip]
         mac = arp_map.get(ip)
         out.append({
-            "ip": ip, "mac": mac, "hostname": resolve(ip),
+            "ip": ip, "mac": mac, "hostname": hostname,
             "vendor": oui(mac) if mac else None,
-            "os_guess": _os_guess(found[ip]),
+            "os_guess": _os_guess(open_ports),
         })
     logger.info("discover_hosts %s -> %d host(s)", cidr, len(out))
     return out

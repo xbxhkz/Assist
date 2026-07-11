@@ -33,10 +33,14 @@ def test_discover_merges_probe_and_arp():
     assert ips["192.168.1.5"]["os_guess"] == "Linux/Unix"
 
 
-def test_discover_rejects_oversized_cidr():
+def test_discover_rejects_oversized_cidr_without_probing():
+    calls = []
+    def probe(ip, timeout=0.5):
+        calls.append(ip)
+        return (False, [])
     with pytest.raises(ValueError):
-        ns.discover_hosts("10.0.0.0/8", probe=lambda ip, timeout=0.5: (False, []),
-                          arp=lambda: {}, max_hosts=1024)
+        ns.discover_hosts("10.0.0.0/8", probe=probe, arp=lambda: {}, max_hosts=1024)
+    assert calls == []  # rejected O(1), never enumerated/probed
 
 
 def test_discover_rejects_public_cidr():
