@@ -282,7 +282,9 @@ _DOMAIN_RULES = {
 - Use `find_files` to search the PC for files by name, then `read_file` to read a match.
 - Call `list_windows` before `control_window` to get a valid window id.
 - Confirm with the user before `control_window ... close` — it can discard unsaved work.
-- `capture_screen` requires the user to have enabled screen access; use it to see on-screen content, not as a default.""",
+- `capture_screen` requires the user to have enabled screen access; use it to see on-screen content, not as a default.
+- `list_ui_elements` requires screen access; `click_element`/`set_element_text`/`mouse`/`keyboard` require the user to have enabled input control.
+- Prefer `click_element`/`set_element_text` (targeting controls by name) over raw `mouse` coordinates; confirm irreversible actions with the user first.""",
 }
 
 _DOMAIN_TOOL_MAP = {
@@ -297,7 +299,8 @@ _DOMAIN_TOOL_MAP = {
     "settings": {"manage_settings", "manage_endpoints", "manage_mcp", "manage_webhooks", "manage_tokens", "app_api"},
     "contacts": {"resolve_contact", "manage_contact"},
     "integrations": {"api_call"},
-    "desktop": {"launch_app", "find_files", "list_windows", "control_window", "capture_screen"},
+    "desktop": {"launch_app", "find_files", "list_windows", "control_window", "capture_screen",
+                "list_ui_elements", "click_element", "set_element_text", "mouse", "keyboard"},
 }
 
 def _domain_rules_for_tools(tool_names: set) -> list[str]:
@@ -411,6 +414,36 @@ Focus or change a window. Confirm with the user before close (unsaved work).""",
 {"target": "full|monitor:1|window:<id>"}
 ```
 Capture the screen so you can see it. Requires the user to enable screen access. Use to read on-screen content, forms, errors.""",
+
+    "list_ui_elements": """\
+```list_ui_elements
+{"window_id": <id from list_windows> | "focused"}
+```
+List a window's interactable UI controls (name, type, automation_id, bounds). Requires screen access.""",
+
+    "click_element": """\
+```click_element
+{"window_id": <id> | "focused", "name": "Save"}  // or automation_id / control_type, optional nth
+```
+Click a control by identity via UI Automation. Requires input control.""",
+
+    "set_element_text": """\
+```set_element_text
+{"window_id": <id>, "automation_id": "txt", "text": "hello"}
+```
+Set a control's text via UI Automation. Requires input control.""",
+
+    "mouse": """\
+```mouse
+{"action": "click", "x": 840, "y": 220}  // move|click|double|right|drag(to_x,to_y)|scroll(amount)
+```
+Raw mouse actuator at screen coordinates. Requires input control.""",
+
+    "keyboard": """\
+```keyboard
+{"action": "type", "text": "hello"}  // or {"action":"hotkey","keys":["ctrl","s"]}
+```
+Type text or press a hotkey. Requires input control.""",
 
     "create_document": """\
 ```create_document

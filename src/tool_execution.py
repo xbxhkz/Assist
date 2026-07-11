@@ -748,7 +748,9 @@ async def _execute_tool_block_impl(
         result = await _call_mcp_tool(tool, content, progress_cb=progress_cb)
     elif tool in ("grep", "glob", "ls", "get_workspace", "open_in_vscode",
                  "launch_app", "find_files", "list_windows",
-                 "control_window", "capture_screen"):
+                 "control_window", "capture_screen",
+                 "list_ui_elements", "click_element", "set_element_text",
+                 "mouse", "keyboard"):
         # Code-navigation tools — no MCP server; run the direct implementation.
         first_line = content.split(chr(10))[0][:80]
         desc = f"{tool}: {first_line}"

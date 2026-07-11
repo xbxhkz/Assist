@@ -24,6 +24,9 @@ from .web_tools import WebSearchTool, WebFetchTool
 from .filesystem_tools import ReadFileTool, WriteFileTool, EditFileTool, LsTool, GlobTool, GrepTool, GetWorkspaceTool, OpenInVscodeTool
 from .desktop_tools import (LaunchAppTool, FindFilesTool, ListWindowsTool,
                             ControlWindowTool, CaptureScreenTool)
+from .input_tools import (
+    ListUiElementsTool, ClickElementTool, SetElementTextTool, MouseTool, KeyboardTool,
+)
 from .document_tools import CreateDocumentTool, UpdateDocumentTool, EditDocumentTool, SuggestDocumentTool, ManageDocumentTool
 from .interaction_tools import AskUserTool, UpdatePlanTool
 from .model_interaction_tools import ChatWithModelTool, AskTeacherTool, ListModelsTool
@@ -58,6 +61,11 @@ TOOL_HANDLERS = {
     "list_windows": ListWindowsTool().execute,
     "control_window": ControlWindowTool().execute,
     "capture_screen": CaptureScreenTool().execute,
+    "list_ui_elements": ListUiElementsTool().execute,
+    "click_element": ClickElementTool().execute,
+    "set_element_text": SetElementTextTool().execute,
+    "mouse": MouseTool().execute,
+    "keyboard": KeyboardTool().execute,
     "ask_user": AskUserTool().execute,
     "update_plan": UpdatePlanTool().execute,
     "chat_with_model": ChatWithModelTool().execute,
@@ -84,6 +92,7 @@ PYTHON_TIMEOUT = 30
 TOOL_TAGS = {"bash", "python", "web_search", "web_fetch", "read_file", "write_file", "edit_file",
              "grep", "glob", "ls", "get_workspace", "open_in_vscode", "manage_bg_jobs",
              "launch_app", "find_files", "list_windows", "control_window", "capture_screen",
+             "list_ui_elements", "click_element", "set_element_text", "mouse", "keyboard",
              "create_document", "update_document", "edit_document",
              "search_chats",
              "chat_with_model", "create_session", "list_sessions",

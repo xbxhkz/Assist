@@ -236,6 +236,90 @@ FUNCTION_TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "list_ui_elements",
+            "description": "List interactable UI controls of a window via UI Automation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "window_id": {"description": "Window id from list_windows, or 'focused'"}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "click_element",
+            "description": "Click a UI control by name/automation_id/control_type via UI Automation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "window_id": {"description": "Window id or 'focused'"},
+                    "name": {"type": "string"},
+                    "automation_id": {"type": "string"},
+                    "control_type": {"type": "string"},
+                    "nth": {"type": "integer"}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "set_element_text",
+            "description": "Set the text of a UI control via UI Automation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "window_id": {"description": "Window id or 'focused'"},
+                    "name": {"type": "string"},
+                    "automation_id": {"type": "string"},
+                    "text": {"type": "string"}
+                },
+                "required": ["text"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "mouse",
+            "description": "Move/click/drag/scroll the mouse at screen coordinates (SendInput).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "description": "move|click|double|right|drag|scroll"},
+                    "x": {"type": "integer"},
+                    "y": {"type": "integer"},
+                    "to_x": {"type": "integer"},
+                    "to_y": {"type": "integer"},
+                    "amount": {"type": "integer"}
+                },
+                "required": ["action"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "keyboard",
+            "description": "Type text or press a hotkey (SendInput).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "description": "type|hotkey"},
+                    "text": {"type": "string"},
+                    "keys": {"type": "array", "items": {"type": "string"}}
+                },
+                "required": ["action"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "write_file",
             "description": "Write/save a file to disk",
             "parameters": {
@@ -1428,7 +1512,9 @@ def function_call_to_tool_block(name: str, arguments: str) -> Optional[ToolBlock
             content = args.get("path", "")
     elif tool_type in ("grep", "glob", "ls", "open_in_vscode",
                        "launch_app", "find_files", "list_windows",
-                       "control_window", "capture_screen"):
+                       "control_window", "capture_screen",
+                       "list_ui_elements", "click_element", "set_element_text",
+                       "mouse", "keyboard"):
         content = json.dumps(args) if args else "{}"
     elif tool_type == "get_workspace":
         content = ""

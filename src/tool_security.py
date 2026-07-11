@@ -54,6 +54,11 @@ NON_ADMIN_BLOCKED_TOOLS = BUILTIN_EMAIL_TOOLS | {
     "list_windows",
     "control_window",
     "capture_screen",
+    "list_ui_elements",
+    "click_element",
+    "set_element_text",
+    "mouse",
+    "keyboard",
     "search_chats",
     "manage_memory",
     "manage_skills",
@@ -128,6 +133,7 @@ PLAN_MODE_READONLY_TOOLS = {
     "find_files",
     "list_windows",
     "capture_screen",
+    "list_ui_elements",
 }
 
 
