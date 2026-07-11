@@ -978,10 +978,11 @@ async def _startup_event():
     except Exception as _e:
         logger.debug(f"endpoint prune skipped: {_e}")
     try:
-        from src.settings import reset_screen_access
+        from src.settings import reset_screen_access, reset_input_control
         reset_screen_access()
+        reset_input_control()
     except Exception as _e:
-        logger.debug(f"screen-access reset skipped: {_e}")
+        logger.debug(f"screen-access/input-control reset skipped: {_e}")
     # Auto-serve the last local model that was running, in a background thread
     # so a multi-second model load never delays boot. Best-effort: no record /
     # missing file / already-running / start failure all no-op.

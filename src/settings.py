@@ -39,6 +39,7 @@ DEFAULT_SETTINGS = {
     "agent_email_confirm": True,
     "image_gen_enabled": False,
     "screen_access_enabled": False,
+    "input_control_enabled": False,
     # Built-in MCP server ids (image_gen, memory, rag, email) to skip at
     # boot. See src/builtin_mcp.py:register_builtin_servers.
     "disabled_builtin_mcp": [],
@@ -350,6 +351,18 @@ def reset_screen_access():
         s = load_settings()
         if s.get("screen_access_enabled"):
             s["screen_access_enabled"] = False
+            save_settings(s)
+    except Exception:
+        pass
+
+
+def reset_input_control():
+    """Force input control off. Called at startup so mouse/keyboard automation
+    is never silently available across restarts (mirrors reset_screen_access)."""
+    try:
+        s = load_settings()
+        if s.get("input_control_enabled"):
+            s["input_control_enabled"] = False
             save_settings(s)
     except Exception:
         pass
