@@ -286,6 +286,7 @@ _DOMAIN_RULES = {
 - `list_ui_elements` requires screen access; `click_element`/`set_element_text`/`mouse`/`keyboard` require the user to have enabled input control.
 - Prefer `click_element`/`set_element_text` (targeting controls by name) over raw `mouse` coordinates; confirm irreversible actions with the user first.""",
     "network": """\
+## Network rules
 - `net_info` shows this machine's own network; `discover_hosts`/`scan_ports` only work on PRIVATE/local ranges (public IPs are refused).
 - `discover_hosts` defaults to your own subnet; scans are read-only inventory. Prefer `discover_hosts` before `scan_ports` to find a target.""",
 }

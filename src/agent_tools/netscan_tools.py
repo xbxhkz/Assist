@@ -45,8 +45,6 @@ class DiscoverHostsTool:
             cidr = subs[0]
         try:
             hosts = netscan.discover_hosts(cidr)
-        except ValueError as e:
-            return {"error": f"discover_hosts: {e}", "exit_code": 1}
         except Exception as e:
             return {"error": f"discover_hosts: {e}", "exit_code": 1}
         logger.info("discover_hosts %s -> %d", cidr, len(hosts))
@@ -66,8 +64,6 @@ class ScanPortsTool:
         ports = a.get("ports", "common")
         try:
             open_ports = netscan.scan_ports(host, ports)
-        except ValueError as e:
-            return {"error": f"scan_ports: {e}", "exit_code": 1}
         except Exception as e:
             return {"error": f"scan_ports: {e}", "exit_code": 1}
         logger.info("scan_ports %s -> %d open", host, len(open_ports))

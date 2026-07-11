@@ -40,7 +40,7 @@ def _run(args):
     console flashes in the windowed build). Injectable in tests."""
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     out = subprocess.run(args, capture_output=True, text=True, timeout=15,
-                         creationflags=flags)
+                         creationflags=flags, stdin=subprocess.DEVNULL)
     return out.stdout or ""
 
 
@@ -49,8 +49,9 @@ def _norm_mac(raw):
 
 
 def _value_after_colon(line):
-    # ipconfig uses dotted leaders then ": value"; take everything after the
-    # last ": " and strip a "(Preferred)" suffix.
+    # ipconfig uses dotted leaders then ": value"; split on the FIRST colon to
+    # keep the label off (preserves any colons in the value) and strip a
+    # "(Preferred)" suffix.
     if ":" not in line:
         return ""
     return line.split(":", 1)[1].strip().split("(")[0].strip()
