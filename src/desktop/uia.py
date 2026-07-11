@@ -86,7 +86,17 @@ def _real_automation():
     duck-typed Element surface. NOT unit-tested — verified live at packaging
     (plan-time verification #1). If comtypes fails to bundle in the frozen
     build, fall back per the spec's ladder (raw-ctypes vtable wrapper)."""
+    import os
+    import tempfile
     import comtypes.client
+    # comtypes generates the UIAutomationClient wrapper at runtime; in a frozen
+    # build its default gen dir is inside the read-only bundle, so codegen fails
+    # and the subsequent `from comtypes.gen import ...` ImportErrors. Point it at
+    # a writable per-user dir first (resolves plan-time verification #1).
+    _gen = os.path.join(os.environ.get("LOCALAPPDATA") or tempfile.gettempdir(),
+                        "Assist", "comtypes_gen")
+    os.makedirs(_gen, exist_ok=True)
+    comtypes.client.gen_dir = _gen
     uia_mod = comtypes.client.GetModule("UIAutomationCore.dll")
     from comtypes.gen import UIAutomationClient as UIA
     auto = comtypes.client.CreateObject(

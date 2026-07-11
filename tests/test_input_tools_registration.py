@@ -29,3 +29,10 @@ def test_index_and_prompt_sections_present():
     for name in ALL5:
         assert name in ti.BUILTIN_TOOL_DESCRIPTIONS, f"{name} missing from tool index"
         assert name in al.TOOL_SECTIONS, f"{name} missing from TOOL_SECTIONS"
+
+
+def test_plan_mode_actually_blocks_actors():
+    blocked = ts.plan_mode_disabled_tools()
+    for name in ACT:
+        assert name in blocked, f"{name} must be blocked in plan mode"
+    assert "list_ui_elements" not in blocked

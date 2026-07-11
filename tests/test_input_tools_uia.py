@@ -73,3 +73,11 @@ def test_set_element_text_sets_value(monkeypatch):
     r = asyncio.run(it.SetElementTextTool().execute(
         json.dumps({"window_id": 1, "automation_id": "txt", "text": "hi"}), {}))
     assert r["exit_code"] == 0 and edit.value == "hi"
+
+
+def test_set_element_text_refuses_without_input_control(monkeypatch):
+    _gates(monkeypatch, inp=False)
+    _root(monkeypatch, FakeEl(kids=[FakeEl(name="Body", control_type="Edit", automation_id="txt")]))
+    r = asyncio.run(it.SetElementTextTool().execute(
+        json.dumps({"window_id": 1, "automation_id": "txt", "text": "x"}), {}))
+    assert r["exit_code"] == 1 and "input control" in r["error"].lower()

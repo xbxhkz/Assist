@@ -563,6 +563,15 @@ async def _document_tool_dispatch(
     return None
 
 
+def _tool_log_desc(tool, content):
+    """Short human description of a tool call for logging. Redacts the typed
+    text of keyboard/set_element_text so secrets never reach app.log."""
+    first_line = content.split(chr(10))[0][:80]
+    if tool in ("keyboard", "set_element_text"):
+        return f"{tool}: (input redacted)"
+    return f"{tool}: {first_line}"
+
+
 # ---------------------------------------------------------------------------
 # Dispatcher
 # ---------------------------------------------------------------------------
@@ -752,8 +761,7 @@ async def _execute_tool_block_impl(
                  "list_ui_elements", "click_element", "set_element_text",
                  "mouse", "keyboard"):
         # Code-navigation tools — no MCP server; run the direct implementation.
-        first_line = content.split(chr(10))[0][:80]
-        desc = f"{tool}: {first_line}"
+        desc = _tool_log_desc(tool, content)
         result = await _direct_fallback(tool, content, progress_cb=progress_cb) \
             or {"error": f"{tool}: execution failed", "exit_code": 1}
     elif tool == "manage_bg_jobs":

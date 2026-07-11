@@ -20,8 +20,11 @@ MOUSEEVENTF_ABSOLUTE = 0x8000
 KEYEVENTF_KEYUP = 0x0002
 KEYEVENTF_UNICODE = 0x0004
 WHEEL_DELTA = 120
+SM_XVIRTUALSCREEN = 76
+SM_YVIRTUALSCREEN = 77
 SM_CXVIRTUALSCREEN = 78
 SM_CYVIRTUALSCREEN = 79
+MOUSEEVENTF_VIRTUALDESK = 0x4000
 
 _BUTTON = {
     "left": (MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP),
@@ -42,16 +45,19 @@ VK.update({str(d): 0x30 + d for d in range(10)})                       # '0'..'9
 VK.update({f"f{i}": 0x70 + (i - 1) for i in range(1, 13)})             # f1..f12
 
 
-def _screen_size():
-    """Virtual-desktop size (spans all monitors). Monkeypatched in tests."""
+def _virtual_rect():
+    """Virtual-desktop rect (left, top, width, height), spanning all monitors.
+    Monkeypatched in tests. left/top may be negative for monitors above/left of
+    the primary."""
     u = ctypes.windll.user32
-    return (u.GetSystemMetrics(SM_CXVIRTUALSCREEN), u.GetSystemMetrics(SM_CYVIRTUALSCREEN))
+    return (u.GetSystemMetrics(SM_XVIRTUALSCREEN), u.GetSystemMetrics(SM_YVIRTUALSCREEN),
+            u.GetSystemMetrics(SM_CXVIRTUALSCREEN), u.GetSystemMetrics(SM_CYVIRTUALSCREEN))
 
 
 def _norm(x, y):
-    w, h = _screen_size()
-    nx = int(x * 65535 / max(1, w - 1))
-    ny = int(y * 65535 / max(1, h - 1))
+    left, top, w, h = _virtual_rect()
+    nx = int((x - left) * 65535 / max(1, w - 1))
+    ny = int((y - top) * 65535 / max(1, h - 1))
     return nx, ny
 
 
@@ -85,13 +91,17 @@ def _default_emit(events):
         else:
             _, vk, scan, flags = ev
             arr[i] = _INPUT(INPUT_KEYBOARD, _UNION(ki=_KEYBDINPUT(vk, scan, flags, 0, 0)))
-    ctypes.windll.user32.SendInput(len(events), arr, ctypes.sizeof(_INPUT))
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    n = user32.SendInput(len(events), arr, ctypes.sizeof(_INPUT))
+    if n != len(events):
+        raise OSError(f"SendInput injected {n}/{len(events)} events "
+                      f"(GetLastError={ctypes.get_last_error()})")
 
 
 # --- public actuators ------------------------------------------------------
 def move(x, y, *, emit=_default_emit):
     nx, ny = _norm(x, y)
-    emit([("mouse", MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, nx, ny, 0)])
+    emit([("mouse", MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK, nx, ny, 0)])
 
 
 def click(x, y, button="left", double=False, *, emit=_default_emit):
@@ -99,7 +109,7 @@ def click(x, y, button="left", double=False, *, emit=_default_emit):
         raise ValueError(f"unknown button {button!r}")
     down, up = _BUTTON[button]
     nx, ny = _norm(x, y)
-    events = [("mouse", MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, nx, ny, 0)]
+    events = [("mouse", MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK, nx, ny, 0)]
     for _ in range(2 if double else 1):
         events.append(("mouse", down, 0, 0, 0))
         events.append(("mouse", up, 0, 0, 0))
@@ -107,13 +117,15 @@ def click(x, y, button="left", double=False, *, emit=_default_emit):
 
 
 def drag(x1, y1, x2, y2, button="left", *, emit=_default_emit):
+    if button not in _BUTTON:
+        raise ValueError(f"unknown button {button!r}")
     down, up = _BUTTON[button]
     ax1, ay1 = _norm(x1, y1)
     ax2, ay2 = _norm(x2, y2)
     emit([
-        ("mouse", MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, ax1, ay1, 0),
+        ("mouse", MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK, ax1, ay1, 0),
         ("mouse", down, 0, 0, 0),
-        ("mouse", MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, ax2, ay2, 0),
+        ("mouse", MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK, ax2, ay2, 0),
         ("mouse", up, 0, 0, 0),
     ])
 

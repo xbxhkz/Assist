@@ -276,6 +276,7 @@ FUNCTION_TOOL_SCHEMAS = [
                     "window_id": {"description": "Window id or 'focused'"},
                     "name": {"type": "string"},
                     "automation_id": {"type": "string"},
+                    "control_type": {"type": "string"}, "nth": {"type": "integer"},
                     "text": {"type": "string"}
                 },
                 "required": ["text"]

@@ -16,16 +16,16 @@ def test_type_text_emits_unicode_down_up_per_char():
 
 
 def test_click_emits_move_then_down_up(monkeypatch):
-    monkeypatch.setattr(ir, "_screen_size", lambda: (1921, 1081))  # -> divisor 1920/1080
+    monkeypatch.setattr(ir, "_virtual_rect", lambda: (0, 0, 1921, 1081))  # -> divisor 1920/1080
     events, emit = _rec()
     ir.click(960, 540, emit=emit)
-    assert events[0] == ("mouse", ir.MOUSEEVENTF_MOVE | ir.MOUSEEVENTF_ABSOLUTE, 32767, 32767, 0)
+    assert events[0] == ("mouse", ir.MOUSEEVENTF_MOVE | ir.MOUSEEVENTF_ABSOLUTE | ir.MOUSEEVENTF_VIRTUALDESK, 32767, 32767, 0)
     assert events[1] == ("mouse", ir.MOUSEEVENTF_LEFTDOWN, 0, 0, 0)
     assert events[2] == ("mouse", ir.MOUSEEVENTF_LEFTUP, 0, 0, 0)
 
 
 def test_double_click_emits_two_down_up_pairs(monkeypatch):
-    monkeypatch.setattr(ir, "_screen_size", lambda: (1001, 1001))
+    monkeypatch.setattr(ir, "_virtual_rect", lambda: (0, 0, 1001, 1001))
     events, emit = _rec()
     ir.click(0, 0, double=True, emit=emit)
     # move + (down,up) + (down,up)
@@ -35,14 +35,22 @@ def test_double_click_emits_two_down_up_pairs(monkeypatch):
 
 
 def test_right_click_uses_right_flags(monkeypatch):
-    monkeypatch.setattr(ir, "_screen_size", lambda: (101, 101))
+    monkeypatch.setattr(ir, "_virtual_rect", lambda: (0, 0, 101, 101))
     events, emit = _rec()
     ir.click(0, 0, button="right", emit=emit)
     assert events[1][1] == ir.MOUSEEVENTF_RIGHTDOWN and events[2][1] == ir.MOUSEEVENTF_RIGHTUP
 
 
+def test_norm_offsets_by_virtual_origin(monkeypatch):
+    # A monitor whose top-left is (100, 200): clicking the origin maps to (0, 0).
+    monkeypatch.setattr(ir, "_virtual_rect", lambda: (100, 200, 1001, 1001))
+    events, emit = _rec()
+    ir.click(100, 200, emit=emit)
+    assert events[0][2] == 0 and events[0][3] == 0
+
+
 def test_drag_emits_down_move_up(monkeypatch):
-    monkeypatch.setattr(ir, "_screen_size", lambda: (1001, 1001))
+    monkeypatch.setattr(ir, "_virtual_rect", lambda: (0, 0, 1001, 1001))
     events, emit = _rec()
     ir.drag(0, 0, 500, 500, emit=emit)
     flags = [e[1] for e in events]
