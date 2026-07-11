@@ -191,3 +191,35 @@ def discover_hosts(cidr, *, probe=_tcp_probe, resolve=_reverse_dns, arp=arp_tabl
         })
     logger.info("discover_hosts %s -> %d host(s)", cidr, len(out))
     return out
+
+
+_SERVICES = {
+    21: "ftp", 22: "ssh", 23: "telnet", 25: "smtp", 53: "dns", 80: "http",
+    110: "pop3", 135: "msrpc", 139: "netbios", 143: "imap", 443: "https",
+    445: "smb", 515: "printer", 548: "afp", 631: "ipp", 993: "imaps",
+    995: "pop3s", 1433: "mssql", 3306: "mysql", 3389: "rdp", 5353: "mdns",
+    5432: "postgres", 5900: "vnc", 8080: "http-alt", 8443: "https-alt",
+    9100: "jetdirect", 32400: "plex",
+}
+COMMON_PORTS = sorted(_SERVICES)
+
+
+def scan_ports(host, ports="common", *, connect=_tcp_connect, concurrency=100,
+               timeout=0.5, max_ports=1024):
+    _require_private(host)
+    plist = COMMON_PORTS if ports in (None, "common") else [int(p) for p in ports]
+    if len(plist) > max_ports:
+        raise ValueError(f"too many ports: {len(plist)} exceeds max {max_ports}")
+
+    def _check(port):
+        return (port, connect(host, port, timeout))
+
+    out = []
+    with ThreadPoolExecutor(max_workers=concurrency) as ex:
+        for port, is_open in ex.map(_check, plist):
+            if is_open:
+                out.append({"port": port, "open": True,
+                            "service": _SERVICES.get(port, "unknown")})
+    out.sort(key=lambda d: d["port"])
+    logger.info("scan_ports %s -> %d open", host, len(out))
+    return out
