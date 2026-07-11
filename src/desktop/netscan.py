@@ -113,3 +113,78 @@ def net_info(*, run=_run, oui=oui_vendor):
     neighbors = [{"ip": ip, "mac": mac, "vendor": oui(mac)}
                  for ip, mac in sorted(arp_table(run=run).items())]
     return {"interfaces": ifaces, "neighbors": neighbors}
+
+
+_LIVENESS_PORTS = (445, 139, 22, 80, 443, 3389, 5353, 9100)
+
+# First matching open port wins (priority order).
+_OS_SIGNATURES = [
+    (445, "Windows"), (139, "Windows"), (3389, "Windows"),
+    (548, "Apple/macOS"), (5353, "Apple/mDNS device"),
+    (9100, "Printer"), (22, "Linux/Unix"), (23, "Network device"),
+]
+
+
+def _os_guess(open_ports, ttl=None):
+    op = set(open_ports or [])
+    for port, name in _OS_SIGNATURES:
+        if port in op:
+            return name
+    if ttl is not None:
+        if ttl >= 200:
+            return "Network device"
+        if ttl >= 100:
+            return "Windows"
+        if ttl > 0:
+            return "Linux/Unix"
+    return "unknown"
+
+
+def _tcp_connect(host, port, timeout=0.5):
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except (OSError, ValueError):
+        return False
+
+
+def _tcp_probe(ip, timeout=0.5):
+    open_ports = [p for p in _LIVENESS_PORTS if _tcp_connect(ip, p, timeout)]
+    return (bool(open_ports), open_ports)
+
+
+def _reverse_dns(ip):
+    try:
+        return socket.gethostbyaddr(ip)[0]
+    except (OSError, socket.herror):
+        return None
+
+
+def discover_hosts(cidr, *, probe=_tcp_probe, resolve=_reverse_dns, arp=arp_table,
+                   oui=oui_vendor, max_hosts=1024, concurrency=100, timeout=0.5):
+    _require_private(cidr)
+    net = ipaddress.ip_network(cidr, strict=False)
+    hosts = [str(h) for h in net.hosts()]
+    if len(hosts) > max_hosts:
+        raise ValueError(f"CIDR too large: {len(hosts)} hosts exceeds max {max_hosts}")
+    arp_map = arp() if callable(arp) else dict(arp or {})
+
+    def _check(ip):
+        up, open_ports = probe(ip, timeout)
+        return (ip, open_ports) if (up or ip in arp_map) else None
+
+    found = {}
+    with ThreadPoolExecutor(max_workers=concurrency) as ex:
+        for r in ex.map(_check, hosts):
+            if r:
+                found[r[0]] = r[1]
+    out = []
+    for ip in sorted(found, key=lambda s: ipaddress.IPv4Address(s)):
+        mac = arp_map.get(ip)
+        out.append({
+            "ip": ip, "mac": mac, "hostname": resolve(ip),
+            "vendor": oui(mac) if mac else None,
+            "os_guess": _os_guess(found[ip]),
+        })
+    logger.info("discover_hosts %s -> %d host(s)", cidr, len(out))
+    return out
