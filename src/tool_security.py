@@ -59,6 +59,9 @@ NON_ADMIN_BLOCKED_TOOLS = BUILTIN_EMAIL_TOOLS | {
     "set_element_text",
     "mouse",
     "keyboard",
+    "net_info",
+    "discover_hosts",
+    "scan_ports",
     "search_chats",
     "manage_memory",
     "manage_skills",
@@ -134,6 +137,9 @@ PLAN_MODE_READONLY_TOOLS = {
     "list_windows",
     "capture_screen",
     "list_ui_elements",
+    "net_info",
+    "discover_hosts",
+    "scan_ports",
 }
 
 

@@ -321,6 +321,47 @@ FUNCTION_TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "net_info",
+            "description": "Show this machine's own network config (interfaces, IP, subnet, gateway, DNS) + ARP neighbors.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "discover_hosts",
+            "description": "Discover live devices on a PRIVATE LAN subnet (defaults to your own subnet).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "cidr": {"type": "string", "description": "Private CIDR, e.g. 192.168.1.0/24 (optional)"}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "scan_ports",
+            "description": "TCP-connect scan a PRIVATE host's ports; report which are open.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "host": {"type": "string", "description": "Private host IP"},
+                    "ports": {"description": "List of ports, or 'common' (default)"}
+                },
+                "required": ["host"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "write_file",
             "description": "Write/save a file to disk",
             "parameters": {
@@ -1515,7 +1556,8 @@ def function_call_to_tool_block(name: str, arguments: str) -> Optional[ToolBlock
                        "launch_app", "find_files", "list_windows",
                        "control_window", "capture_screen",
                        "list_ui_elements", "click_element", "set_element_text",
-                       "mouse", "keyboard"):
+                       "mouse", "keyboard",
+                       "net_info", "discover_hosts", "scan_ports"):
         content = json.dumps(args) if args else "{}"
     elif tool_type == "get_workspace":
         content = ""

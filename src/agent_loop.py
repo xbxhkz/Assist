@@ -285,6 +285,9 @@ _DOMAIN_RULES = {
 - `capture_screen` requires the user to have enabled screen access; use it to see on-screen content, not as a default.
 - `list_ui_elements` requires screen access; `click_element`/`set_element_text`/`mouse`/`keyboard` require the user to have enabled input control.
 - Prefer `click_element`/`set_element_text` (targeting controls by name) over raw `mouse` coordinates; confirm irreversible actions with the user first.""",
+    "network": """\
+- `net_info` shows this machine's own network; `discover_hosts`/`scan_ports` only work on PRIVATE/local ranges (public IPs are refused).
+- `discover_hosts` defaults to your own subnet; scans are read-only inventory. Prefer `discover_hosts` before `scan_ports` to find a target.""",
 }
 
 _DOMAIN_TOOL_MAP = {
@@ -301,6 +304,7 @@ _DOMAIN_TOOL_MAP = {
     "integrations": {"api_call"},
     "desktop": {"launch_app", "find_files", "list_windows", "control_window", "capture_screen",
                 "list_ui_elements", "click_element", "set_element_text", "mouse", "keyboard"},
+    "network": {"net_info", "discover_hosts", "scan_ports"},
 }
 
 def _domain_rules_for_tools(tool_names: set) -> list[str]:
@@ -444,6 +448,24 @@ Raw mouse actuator at screen coordinates. Requires input control.""",
 {"action": "type", "text": "hello"}  // or {"action":"hotkey","keys":["ctrl","s"]}
 ```
 Type text or press a hotkey. Requires input control.""",
+
+    "net_info": """\
+```net_info
+{}
+```
+Show this machine's network config + ARP neighbors. Read-only.""",
+
+    "discover_hosts": """\
+```discover_hosts
+{"cidr": "192.168.1.0/24"}  // optional; defaults to your own subnet
+```
+List live devices on a PRIVATE subnet (IP, MAC, hostname, vendor, best-guess OS).""",
+
+    "scan_ports": """\
+```scan_ports
+{"host": "192.168.1.1", "ports": [22,80,443]}  // ports optional; default = common set
+```
+TCP-connect scan a PRIVATE host's ports; reports open ports + service.""",
 
     "create_document": """\
 ```create_document

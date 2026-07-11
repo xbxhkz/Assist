@@ -759,7 +759,8 @@ async def _execute_tool_block_impl(
                  "launch_app", "find_files", "list_windows",
                  "control_window", "capture_screen",
                  "list_ui_elements", "click_element", "set_element_text",
-                 "mouse", "keyboard"):
+                 "mouse", "keyboard",
+                 "net_info", "discover_hosts", "scan_ports"):
         # Code-navigation tools — no MCP server; run the direct implementation.
         desc = _tool_log_desc(tool, content)
         result = await _direct_fallback(tool, content, progress_cb=progress_cb) \
