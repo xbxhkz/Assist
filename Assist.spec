@@ -36,6 +36,11 @@ hiddenimports = [
     # analysis can't see it — declare it explicitly or capture_screen fails
     # at runtime in the frozen build with ModuleNotFoundError: mss.
     'mss', 'mss.windows',
+    # comtypes (UI Automation backend, src/desktop/uia.py _real_automation)
+    # is imported lazily so its COM plumbing never runs in unit tests — but
+    # that also hides it from PyInstaller's static analysis. Declare it
+    # explicitly or the frozen build fails at runtime with ModuleNotFoundError.
+    'comtypes', 'comtypes.client', 'comtypes.gen',
 ] + _collected_hidden
 
 a = Analysis(
