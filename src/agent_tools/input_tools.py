@@ -72,3 +72,69 @@ class KeyboardTool:
             return {"error": f"keyboard: {e}", "exit_code": 1}
         logger.info("keyboard: %s", action)
         return {"output": f"keyboard {action} ok", "exit_code": 0}
+
+
+def _screen_on():
+    return bool(get_setting("screen_access_enabled", False))
+
+
+def _resolve(a):
+    """Find the target element from args; returns (element, error_str)."""
+    root = uia.get_root(a.get("window_id") or "focused")
+    el = uia.find_element(root, name=a.get("name"), automation_id=a.get("automation_id"),
+                          control_type=a.get("control_type"), nth=int(a.get("nth", 0)))
+    if el is None:
+        return None, "no matching UI element"
+    return el, None
+
+
+class ListUiElementsTool:
+    async def execute(self, content, ctx):
+        if not _screen_on():
+            return {"error": "Screen access is off. Ask the user to enable 'Allow screen "
+                             "access' in the sidebar before reading UI elements.", "exit_code": 1}
+        a = _args(content)
+        try:
+            root = uia.get_root(a.get("window_id") or "focused")
+            els = uia.list_elements(root)
+        except Exception as e:
+            return {"error": f"list_ui_elements: {e}", "exit_code": 1}
+        if not els:
+            return {"output": "No interactable UI elements found", "exit_code": 0}
+        lines = [f"[{e['control_type']}] {e['name']!r} id={e['automation_id']!r} @{e['bounds']}"
+                 for e in els]
+        return {"output": f"{len(els)} element(s):\n" + "\n".join(lines), "exit_code": 0}
+
+
+class ClickElementTool:
+    async def execute(self, content, ctx):
+        if not _input_on():
+            return {"error": _OFF_MSG, "exit_code": 1}
+        a = _args(content)
+        try:
+            el, err = _resolve(a)
+            if err:
+                return {"error": f"click_element: {err}", "exit_code": 1}
+            uia.invoke(el)
+        except Exception as e:
+            return {"error": f"click_element: {e}", "exit_code": 1}
+        logger.info("click_element: %s", {k: a.get(k) for k in ("name", "automation_id", "control_type")})
+        return {"output": "click_element ok", "exit_code": 0}
+
+
+class SetElementTextTool:
+    async def execute(self, content, ctx):
+        if not _input_on():
+            return {"error": _OFF_MSG, "exit_code": 1}
+        a = _args(content)
+        if "text" not in a:
+            return {"error": "set_element_text: text required", "exit_code": 1}
+        try:
+            el, err = _resolve(a)
+            if err:
+                return {"error": f"set_element_text: {err}", "exit_code": 1}
+            uia.set_value(el, str(a["text"]))
+        except Exception as e:
+            return {"error": f"set_element_text: {e}", "exit_code": 1}
+        logger.info("set_element_text: %s", {k: a.get(k) for k in ("name", "automation_id")})
+        return {"output": "set_element_text ok", "exit_code": 0}
