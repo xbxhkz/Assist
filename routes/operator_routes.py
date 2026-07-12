@@ -28,21 +28,24 @@ def set_input_control(on: bool):
     save_settings(s)
 
 
-def _new_state(goal):
+def _new_state(goal, owner=None):
     return {"goal": goal, "status": "starting", "round": 0, "transcript": [],
             "pending": None, "_wake": asyncio.Event(), "_decision": None,
-            "_answer": None, "_stop": False, "result": None}
+            "_answer": None, "_stop": False, "result": None, "owner": owner,
+            "_task": None}
 
 
 async def _run_session(state):
     """Drive run_operator with real primitives + UI-bridged confirm/ask."""
-    ctx = {"owner": None}
+    ctx = {"owner": state.get("owner")}
 
     async def call_model(messages):
         from src.llm_core import llm_call_async
         from src.ai_interaction import _resolve_model  # (url, model, headers)
-        url, model, headers = await asyncio.to_thread(
-            _resolve_model, get_setting("default_model", "") or "", None)
+        from src.settings import get_user_setting
+        owner = state.get("owner")
+        spec = get_user_setting("default_model", owner=owner or "", default="") or ""
+        url, model, headers = await asyncio.to_thread(_resolve_model, spec, owner)
         return await llm_call_async(url=url, model=model, messages=messages,
                                     headers=headers, temperature=0.2, max_tokens=800, timeout=90)
 
@@ -60,6 +63,8 @@ async def _run_session(state):
         return obs
 
     async def confirm(action):
+        if state["_stop"]:
+            return "stop"
         state["pending"] = {"kind": "confirm", "tool": action.tool,
                             "args": action.args, "rationale": action.rationale}
         state["status"] = "awaiting_confirmation"
@@ -72,6 +77,8 @@ async def _run_session(state):
         return state["_decision"]
 
     async def ask(question):
+        if state["_stop"]:
+            return ""
         state["pending"] = {"kind": "ask", "question": question}
         state["status"] = "awaiting_answer"
         state["_wake"].clear()
@@ -114,8 +121,9 @@ def setup_operator_routes():
             require_consent(get_setting)
         except PermissionError as e:
             raise HTTPException(400, str(e))
-        _SESSION = _new_state(goal)
-        asyncio.create_task(_run_session(_SESSION))
+        owner = getattr(request.state, "current_user", None)
+        _SESSION = _new_state(goal, owner)
+        _SESSION["_task"] = asyncio.create_task(_run_session(_SESSION))
         return {"ok": True, "status": "starting"}
 
     @router.get("/status")
@@ -138,7 +146,8 @@ def setup_operator_routes():
         elif _SESSION["pending"]["kind"] == "ask":
             _SESSION["_answer"] = body.get("answer", "")
         elif d == "edit":
-            _SESSION["_decision"] = ("edit", body.get("args") or {})
+            _args = body.get("args")
+            _SESSION["_decision"] = ("edit", _args if isinstance(_args, dict) else {})
         elif d in ("approve", "deny"):
             _SESSION["_decision"] = d
         else:

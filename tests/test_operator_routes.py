@@ -54,3 +54,39 @@ def test_stop_flips_input_control_off(client, monkeypatch):
     client.post("/api/operator/start", json={"goal": "a"})
     r = client.post("/api/operator/stop")
     assert r.status_code == 200 and flipped["v"] is False
+
+
+def test_stop_during_decide_ends_session_no_lingering_card(monkeypatch):
+    import asyncio as _a
+    from src.operator.actions import Action
+    orr._reset_for_test()
+    monkeypatch.setattr(orr, "set_input_control", lambda on: None)
+    monkeypatch.setattr(orr, "get_setting",
+                        lambda k, d=None: {"screen_access_enabled": True, "input_control_enabled": True,
+                                           "operator_max_rounds": 30, "operator_max_seconds": 600}.get(k, d))
+    release = {}
+
+    async def fake_perceive(*a, **k):
+        return {"windows": [], "elements": []}
+    async def fake_decide(goal, history, percept, **k):
+        await release["ev"].wait()  # simulate a long model call
+        return Action(kind="act", tool="mouse", args={"action": "click", "x": 1, "y": 1})
+    async def fake_execute(action, ctx, **k):
+        return {"output": "ok"}
+    monkeypatch.setattr(orr.primitives, "real_perceive", fake_perceive)
+    monkeypatch.setattr(orr.primitives, "real_decide", fake_decide)
+    monkeypatch.setattr(orr.primitives, "real_execute", fake_execute)
+
+    async def drive():
+        release["ev"] = _a.Event()
+        state = orr._new_state("g", None)
+        task = _a.create_task(orr._run_session(state))
+        await _a.sleep(0)          # let it reach the blocked decide()
+        state["_stop"] = True      # user hits panic Stop mid-decide
+        state["_wake"].set()
+        release["ev"].set()        # decide now returns a mutating action
+        await _a.wait_for(task, timeout=5)  # MUST NOT hang
+        return state
+    state = _a.run(drive())
+    assert state["status"] == "stopped"
+    assert state["pending"] is None  # no fresh approval card after Stop
