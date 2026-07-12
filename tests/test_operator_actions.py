@@ -23,15 +23,18 @@ def test_parse_tolerates_json_fence_and_prose():
     assert act.kind == "act" and act.tool == "keyboard"
 
 
-def test_malformed_becomes_ask():
-    assert a.parse_action("not json at all").kind == "ask"
-    assert a.parse_action("").kind == "ask"
-    assert a.parse_action("{bad json").kind == "ask"
+def test_malformed_becomes_invalid():
+    assert a.parse_action("not json at all").kind == "invalid"
+    assert a.parse_action("").kind == "invalid"
+    assert a.parse_action("{bad json").kind == "invalid"
 
 
-def test_unknown_tool_becomes_ask():
-    assert a.parse_action('{"kind":"act","tool":"rm_rf","args":{}}').kind == "ask"
+def test_unknown_tool_becomes_invalid():
+    assert a.parse_action('{"kind":"act","tool":"rm_rf","args":{}}').kind == "invalid"
 
 
-def test_unknown_kind_becomes_ask():
-    assert a.parse_action('{"kind":"teleport"}').kind == "ask"
+def test_unknown_kind_becomes_invalid():
+    assert a.parse_action('{"kind":"teleport"}').kind == "invalid"
+
+def test_genuine_ask_stays_ask():
+    assert a.parse_action('{"kind":"ask","rationale":"which file?"}').kind == "ask"

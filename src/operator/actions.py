@@ -24,15 +24,17 @@ def is_mutating(action):
 
 def parse_action(reply):
     """Parse the model reply into ONE Action. The model must emit a JSON object
-    {kind, tool?, args?, rationale?}. Malformed / unknown-tool / unknown-kind
-    all degrade to Action(kind="ask") so the loop never executes a wild action."""
+    {kind, tool?, args?, rationale?}. A genuine model question is kind="ask"
+    (pauses for the user). A MALFORMED / unknown-tool / unknown-kind reply is
+    kind="invalid" (the loop self-corrects by re-prompting — it never blocks the
+    user with a dead question and never executes a wild action)."""
     text = (reply or "").strip()
     try:
         data = json.loads(text[text.index("{"): text.rindex("}") + 1])
         if not isinstance(data, dict):
             raise ValueError("not an object")
     except (ValueError, TypeError):
-        return Action(kind="ask", rationale="could not parse the model's action")
+        return Action(kind="invalid", rationale="could not parse the model's reply as a JSON action")
     kind = str(data.get("kind", "")).strip().lower()
     rationale = str(data.get("rationale", "") or data.get("question", ""))
     if kind in ("wait", "done", "ask"):
@@ -40,8 +42,11 @@ def parse_action(reply):
     if kind == "act":
         tool = str(data.get("tool", "")).strip()
         if tool not in OPERATOR_TOOLS:
-            return Action(kind="ask", rationale=f"unknown or disallowed tool {tool!r}")
+            return Action(kind="invalid",
+                          rationale=f"tool {tool!r} is not available to the operator; "
+                                    f"use one of {sorted(OPERATOR_TOOLS)}")
         args = data.get("args")
         return Action(kind="act", tool=tool,
                       args=args if isinstance(args, dict) else {}, rationale=rationale)
-    return Action(kind="ask", rationale=f"unrecognized action kind {kind!r}")
+    return Action(kind="invalid", rationale=f"unrecognized action kind {kind!r}; "
+                                            "use kind act|wait|ask|done")

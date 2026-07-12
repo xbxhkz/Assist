@@ -171,3 +171,25 @@ def test_should_stop_checked_each_round():
         "g", perceive=perceive, decide=decide, execute=execute,
         confirm=_approve, ask=_ask_noop, should_stop=should_stop, max_rounds=50))
     assert r["status"] == "stopped"
+
+
+def test_invalid_action_reprompts_not_pauses():
+    # An invalid model reply must NOT call ask() (no user block); it re-prompts.
+    asked = []
+    async def ask(q): asked.append(q); return "x"
+    async def execute(a): return {}
+    r = _run(perceive=_perceive_const,
+             decide=_seq([Action(kind="invalid", rationale="disallowed tool 'write_file'"),
+                          Action(kind="done")]),
+             execute=execute, confirm=_approve, ask=ask)
+    assert r["status"] == "done" and asked == []  # never paused the user
+    assert any(h[0] == "invalid" for h in r["history"])  # correction fed back
+
+
+def test_consecutive_invalid_stops():
+    async def execute(a): return {}
+    async def decide(goal, history, percept):
+        return Action(kind="invalid", rationale="nope")
+    r = asyncio.run(s.run_operator("g", perceive=_perceive_const, decide=decide,
+                                   execute=execute, confirm=_approve, ask=_ask_noop, max_rounds=50))
+    assert r["status"] == "stuck"

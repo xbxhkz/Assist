@@ -10,6 +10,8 @@
   const POLL_MS = 1500;
 
   let pollTimer = null;
+  let lastRenderSig = null;   // skip re-render when nothing changed, so a
+                              // half-typed answer isn't wiped by the poll loop
 
   function open() {
     const m = $('operator-modal');
@@ -218,9 +220,17 @@
   function render(status) {
     const transcriptEl = $('operator-transcript');
     if (!transcriptEl) return;
+
+    // Only rebuild the DOM when the visible content actually changed — otherwise
+    // the 1.5s poll would wipe a half-typed answer / lose button focus.
+    const entriesArr = Array.isArray(status.transcript) ? status.transcript : [];
+    const sig = JSON.stringify({ n: entriesArr.length, p: status.pending || null, s: status.status });
+    if (sig === lastRenderSig) return;
+    lastRenderSig = sig;
+
     transcriptEl.innerHTML = '';
 
-    const entries = Array.isArray(status.transcript) ? status.transcript : [];
+    const entries = entriesArr;
     entries.forEach((entry) => transcriptEl.appendChild(renderTranscriptEntry(entry)));
 
     const pending = status.pending;

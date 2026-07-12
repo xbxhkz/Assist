@@ -21,6 +21,7 @@ async def run_operator(goal, *, perceive, decide, execute, confirm, ask,
     history = []
     start = now()
     last_act_percept = None  # percept captured just before the previous mutating act
+    consecutive_invalid = 0  # bound a model that keeps emitting unparseable/disallowed actions
     for rounds in range(1, max_rounds + 1):
         if should_stop is not None and should_stop():
             return {"status": "stopped", "rounds": rounds - 1, "history": history}
@@ -34,6 +35,17 @@ async def run_operator(goal, *, perceive, decide, execute, confirm, ask,
             return {"status": "stuck", "rounds": rounds, "history": history}
         last_act_percept = None
         action = await decide(goal, history, percept)
+        if action.kind == "invalid":
+            # A malformed / disallowed model reply — do NOT block the user with a
+            # dead question. Feed the reason back into history and re-prompt so
+            # the model self-corrects; bound consecutive failures.
+            consecutive_invalid += 1
+            history.append(("invalid", action.rationale))
+            logger.info("operator round %d: invalid action (%s)", rounds, action.rationale)
+            if consecutive_invalid > 3:
+                return {"status": "stuck", "rounds": rounds, "history": history}
+            continue
+        consecutive_invalid = 0
         if action.kind == "done":
             history.append(("done", action.rationale))
             logger.info("operator done after %d round(s)", rounds)

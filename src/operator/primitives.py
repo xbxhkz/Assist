@@ -3,8 +3,11 @@ perception (UIA + windows), execution (existing TOOL_HANDLERS), and the decide
 step (the agent model). Deps are injectable so these are unit-testable; the
 actual model wire + real GUI are exercised at live-verify."""
 import json
+import logging
 
-from src.operator.actions import OPERATOR_TOOLS, MUTATING_TOOLS, parse_action
+from src.operator.actions import OPERATOR_TOOLS, MUTATING_TOOLS, READONLY_TOOLS, parse_action
+
+logger = logging.getLogger(__name__)
 
 
 async def real_perceive(*, get_root=None, list_elements=None, list_windows=None):
@@ -40,20 +43,29 @@ def build_decide_prompt(goal, history, percept):
     wins = ", ".join(w.get("title", "") for w in percept.get("windows", [])[:10])
     hist = "\n".join(str(h) for h in history[-8:])
     system = (
-        "You are an on-screen operator. Each turn, return EXACTLY ONE next action "
-        "as a single JSON object and nothing else. Schema: "
-        '{"kind":"act|wait|ask|done","tool":"<tool>","args":{...},"rationale":"..."}. '
-        f"Allowed tools: {sorted(OPERATOR_TOOLS)}. Mutating tools {sorted(MUTATING_TOOLS)} "
-        "need user confirmation. Prefer click_element/set_element_text (target controls by "
-        "name/automation_id) over raw mouse coordinates. Use capture_screen when you need to "
-        "read on-screen text the element list lacks. Use kind=done when the goal is complete, "
-        "kind=ask when you need the user, kind=wait to let the UI settle.")
+        "You drive the on-screen GUI to complete the goal. Each turn, reply with "
+        "EXACTLY ONE JSON object and NOTHING else (no prose, no markdown, no code fence). "
+        'Schema: {"kind":"act|wait|ask|done","tool":"<tool>","args":{...},"rationale":"..."}. '
+        f"You may ONLY use these tools: {sorted(OPERATOR_TOOLS)}. "
+        "You have NO file, shell, or document tools — do NOT emit write_file, bash, python, "
+        "create_document, or anything not in that list. Accomplish file tasks through the GUI "
+        "(open the app with launch_app, type with keyboard/set_element_text, use its Save dialog). "
+        f"Mutating tools {sorted(MUTATING_TOOLS)} require user confirmation; read-only tools "
+        f"{sorted(READONLY_TOOLS)} run automatically. Prefer click_element/set_element_text "
+        "(target controls by name/automation_id from the element list) over raw mouse coordinates. "
+        "Use capture_screen only when you need on-screen text the element list lacks. "
+        "kind=done when the goal is complete; kind=ask ONLY to ask the user a real question; "
+        "kind=wait to let the UI settle. If RECENT HISTORY contains an ('invalid', ...) entry, "
+        "your previous reply was rejected — fix it and pick a valid tool from the list.")
     user = (f"GOAL: {goal}\n\nOPEN WINDOWS: {wins}\n\n"
             f"INTERACTABLE UI ELEMENTS:\n{elems or '(none)'}\n\n"
-            f"RECENT HISTORY:\n{hist or '(none)'}\n\nReturn the next action as JSON.")
+            f"RECENT HISTORY:\n{hist or '(none)'}\n\nReturn the next action as a single JSON object.")
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
 
 async def real_decide(goal, history, percept, *, call_model):
     reply = await call_model(build_decide_prompt(goal, history, percept))
-    return parse_action(reply)
+    action = parse_action(reply)
+    logger.info("operator decide -> kind=%s tool=%s | raw reply: %r",
+                action.kind, action.tool, (reply or "")[:300])
+    return action
