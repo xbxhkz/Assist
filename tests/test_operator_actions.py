@@ -40,6 +40,17 @@ def test_genuine_ask_stays_ask():
     assert a.parse_action('{"kind":"ask","rationale":"which file?"}').kind == "ask"
 
 
+def test_parse_recovers_tool_name_in_kind_field():
+    # Model malformation: the tool name lands in "kind" instead of "act".
+    act = a.parse_action('{"kind":"capture_screen","tool":"capture_screen","args":{}}')
+    assert act.kind == "act" and act.tool == "capture_screen"
+    # kind holds the tool, "tool" omitted entirely -> still recovered
+    act2 = a.parse_action('{"kind":"list_windows"}')
+    assert act2.kind == "act" and act2.tool == "list_windows"
+    # a genuinely unknown kind is still invalid (not a tool name)
+    assert a.parse_action('{"kind":"frobnicate"}').kind == "invalid"
+
+
 def test_parse_tolerates_flattened_toplevel_args():
     # Model sometimes puts params at the top level instead of inside "args".
     act = a.parse_action('{"kind":"act","tool":"launch_app","name":"notepad"}')

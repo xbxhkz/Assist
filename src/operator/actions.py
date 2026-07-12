@@ -36,11 +36,17 @@ def parse_action(reply):
     except (ValueError, TypeError):
         return Action(kind="invalid", rationale="could not parse the model's reply as a JSON action")
     kind = str(data.get("kind", "")).strip().lower()
+    tool = str(data.get("tool", "")).strip()
     rationale = str(data.get("rationale", "") or data.get("question", ""))
+    # Recover a common malformation: the model puts the TOOL NAME in "kind"
+    # (e.g. {"kind":"capture_screen","tool":"capture_screen"} or {"kind":"list_windows"}).
+    # If kind names a real tool rather than a real action-kind, treat it as an act.
+    if kind not in ("act", "wait", "done", "ask") and kind in OPERATOR_TOOLS:
+        tool = tool or kind
+        kind = "act"
     if kind in ("wait", "done", "ask"):
         return Action(kind=kind, rationale=rationale)
     if kind == "act":
-        tool = str(data.get("tool", "")).strip()
         if tool not in OPERATOR_TOOLS:
             return Action(kind="invalid",
                           rationale=f"tool {tool!r} is not available to the operator; "
