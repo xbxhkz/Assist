@@ -90,3 +90,47 @@ def test_stop_during_decide_ends_session_no_lingering_card(monkeypatch):
     state = _a.run(drive())
     assert state["status"] == "stopped"
     assert state["pending"] is None  # no fresh approval card after Stop
+
+
+def test_resolve_operator_chat_prefers_served_model(monkeypatch):
+    # The stale default_model must NOT be used when the endpoint serves a model:
+    # the operator uses whatever the default endpoint actually reports.
+    monkeypatch.setattr(orr, "get_setting",
+                        lambda k, d=None: "ep1" if k == "default_endpoint_id" else d)
+
+    def probe(ep_id, owner):
+        assert ep_id == "ep1"
+        return ("http://127.0.0.1:8100/v1/chat/completions", "served-agent-model", {"H": "1"})
+
+    url, model, headers = orr._resolve_operator_chat("admin", probe=probe)
+    assert model == "served-agent-model" and url.endswith("/chat/completions")
+
+
+def test_resolve_operator_chat_falls_back_when_probe_has_no_model(monkeypatch):
+    monkeypatch.setattr(orr, "get_setting",
+                        lambda k, d=None: {"default_endpoint_id": "ep1",
+                                           "default_model": "agent-x"}.get(k, d))
+
+    def probe(ep_id, owner):
+        return (None, None, None)  # endpoint reports no usable model
+
+    def fake_resolve(spec, owner):
+        return ("http://fallback/v1/chat/completions", spec, {})
+
+    _, model, _ = orr._resolve_operator_chat("admin", probe=probe, resolve_model=fake_resolve)
+    assert model == "agent-x"  # fell back to default_model
+
+
+def test_resolve_operator_chat_falls_back_when_probe_raises(monkeypatch):
+    monkeypatch.setattr(orr, "get_setting",
+                        lambda k, d=None: {"default_endpoint_id": "ep1",
+                                           "default_model": "agent-x"}.get(k, d))
+
+    def probe(ep_id, owner):
+        raise RuntimeError("endpoint down")
+
+    def fake_resolve(spec, owner):
+        return ("http://fallback", spec, {})
+
+    _, model, _ = orr._resolve_operator_chat("admin", probe=probe, resolve_model=fake_resolve)
+    assert model == "agent-x"

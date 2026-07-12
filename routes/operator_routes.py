@@ -35,17 +35,66 @@ def _new_state(goal, owner=None):
             "_task": None}
 
 
+def _probe_endpoint_model(ep_id, owner):
+    """(chat_url, model_id, headers) for the model ACTUALLY served on endpoint
+    `ep_id` — whatever it currently reports on /v1/models — or (None, None, None).
+    This is what makes the operator robust to a stale `default_model` that names
+    a model no endpoint is serving (e.g. a vision-only model)."""
+    import httpx
+    from core.database import ModelEndpoint, SessionLocal
+    from src.endpoint_resolver import resolve_endpoint_runtime
+    from src.ai_interaction import build_models_url, build_chat_url, build_headers
+    db = SessionLocal()
+    try:
+        ep = db.query(ModelEndpoint).filter(ModelEndpoint.id == ep_id).first()
+    finally:
+        db.close()
+    if not ep:
+        return (None, None, None)
+    base, api_key = resolve_endpoint_runtime(ep, owner=owner)
+    headers = build_headers(api_key, base)
+    r = httpx.get(build_models_url(base), headers=headers, timeout=5)
+    r.raise_for_status()
+    data = r.json()
+    items = data if isinstance(data, list) else (data.get("data") or [])
+    ids = [m.get("id") for m in items if isinstance(m, dict) and m.get("id")]
+    return (build_chat_url(base), (ids[0] if ids else None), headers)
+
+
+def _resolve_operator_chat(owner, *, probe=None, resolve_model=None):
+    """Resolve (url, model, headers) for the operator's decide step. Prefer the
+    model actually SERVED on the user's default endpoint; fall back to
+    _resolve_model(default_model). Robust to a stale default_model that names a
+    model no endpoint currently serves."""
+    probe = probe or _probe_endpoint_model
+    ep_id = get_setting("default_endpoint_id", "") or ""
+    if ep_id:
+        try:
+            url, model, headers = probe(ep_id, owner)
+            if model:
+                return (url, model, headers)
+        except Exception as e:
+            logger.warning("operator: default-endpoint probe failed (%s); "
+                           "falling back to default_model", e)
+    if resolve_model is None:
+        from src.ai_interaction import _resolve_model
+        resolve_model = _resolve_model
+    from src.settings import get_user_setting
+    spec = (get_user_setting("default_model", owner=owner or "", default="")
+            or get_setting("default_model", "") or "")
+    if not spec:
+        raise ValueError("no chat model available — serve a tool-calling model "
+                         "and select it as your default")
+    return resolve_model(spec, owner)
+
+
 async def _run_session(state):
     """Drive run_operator with real primitives + UI-bridged confirm/ask."""
     ctx = {"owner": state.get("owner")}
 
     async def call_model(messages):
         from src.llm_core import llm_call_async
-        from src.ai_interaction import _resolve_model  # (url, model, headers)
-        from src.settings import get_user_setting
-        owner = state.get("owner")
-        spec = get_user_setting("default_model", owner=owner or "", default="") or ""
-        url, model, headers = await asyncio.to_thread(_resolve_model, spec, owner)
+        url, model, headers = await asyncio.to_thread(_resolve_operator_chat, state.get("owner"))
         return await llm_call_async(url=url, model=model, messages=messages,
                                     headers=headers, temperature=0.2, max_tokens=800, timeout=90)
 
