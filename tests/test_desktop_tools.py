@@ -17,6 +17,15 @@ def test_launch_app_resolves_and_launches(monkeypatch):
     assert res["exit_code"] == 0 and launched["t"]["target"] == "np.exe"
 
 
+def test_launch_app_accepts_app_alias(monkeypatch):
+    # The operator model naturally emits {"app": ...} rather than {"name": ...}.
+    launched = {}
+    monkeypatch.setattr(dt, "resolve_app", lambda n: {"name": n, "target": "wp.exe", "kind": "exe"})
+    monkeypatch.setattr(dt, "launch", lambda t: launched.setdefault("t", t))
+    res = _run(dt.LaunchAppTool(), json.dumps({"app": "Wordpad"}))
+    assert res["exit_code"] == 0 and launched["t"]["target"] == "wp.exe"
+
+
 def test_launch_app_unknown(monkeypatch):
     monkeypatch.setattr(dt, "resolve_app", lambda n: None)
     res = _run(dt.LaunchAppTool(), json.dumps({"name": "nope"}))

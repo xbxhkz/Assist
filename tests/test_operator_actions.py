@@ -38,3 +38,12 @@ def test_unknown_kind_becomes_invalid():
 
 def test_genuine_ask_stays_ask():
     assert a.parse_action('{"kind":"ask","rationale":"which file?"}').kind == "ask"
+
+
+def test_parse_tolerates_flattened_toplevel_args():
+    # Model sometimes puts params at the top level instead of inside "args".
+    act = a.parse_action('{"kind":"act","tool":"launch_app","name":"notepad"}')
+    assert act.kind == "act" and act.tool == "launch_app" and act.args == {"name": "notepad"}
+    # explicit args still win when present
+    act2 = a.parse_action('{"kind":"act","tool":"launch_app","args":{"name":"wordpad"}}')
+    assert act2.args == {"name": "wordpad"}

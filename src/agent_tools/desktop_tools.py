@@ -30,7 +30,9 @@ def _vision_ready():
 
 class LaunchAppTool:
     async def execute(self, content, ctx):
-        name = (_args(content).get("name") or content).strip()
+        a = _args(content)
+        name = (a.get("name") or a.get("app") or a.get("application")
+                or a.get("path") or content).strip()
         if not name or name.startswith("{"):
             return {"error": "launch_app: name required", "exit_code": 1}
         target = resolve_app(name)

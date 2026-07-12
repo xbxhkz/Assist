@@ -56,7 +56,16 @@ def build_decide_prompt(goal, history, percept):
         "Use capture_screen only when you need on-screen text the element list lacks. "
         "kind=done when the goal is complete; kind=ask ONLY to ask the user a real question; "
         "kind=wait to let the UI settle. If RECENT HISTORY contains an ('invalid', ...) entry, "
-        "your previous reply was rejected — fix it and pick a valid tool from the list.")
+        "your previous reply was rejected — fix it and pick a valid tool from the list.\n"
+        "Put every parameter INSIDE the \"args\" object, using these exact keys:\n"
+        '  launch_app {"name":"<app/file/url>"}   (key is "name", NOT "app")\n'
+        '  click_element {"window_id":<id>|"focused","name":"<label>"}  (or automation_id / control_type / nth)\n'
+        '  set_element_text {"window_id":<id>,"automation_id":"<id>","text":"<text>"}\n'
+        '  mouse {"action":"move|click|double|right|drag|scroll","x":<int>,"y":<int>,"to_x"?:<int>,"to_y"?:<int>,"amount"?:<int>}\n'
+        '  keyboard {"action":"type","text":"<text>"}  OR  {"action":"hotkey","keys":["ctrl","s"]}\n'
+        '  control_window {"id":<id>,"action":"focus|minimize|maximize|restore|close"}\n'
+        '  find_files {"query":"<name>"}   list_ui_elements {"window_id":<id>|"focused"}   '
+        'list_windows {}   capture_screen {}')
     user = (f"GOAL: {goal}\n\nOPEN WINDOWS: {wins}\n\n"
             f"INTERACTABLE UI ELEMENTS:\n{elems or '(none)'}\n\n"
             f"RECENT HISTORY:\n{hist or '(none)'}\n\nReturn the next action as a single JSON object.")

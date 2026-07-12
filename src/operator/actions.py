@@ -46,7 +46,11 @@ def parse_action(reply):
                           rationale=f"tool {tool!r} is not available to the operator; "
                                     f"use one of {sorted(OPERATOR_TOOLS)}")
         args = data.get("args")
-        return Action(kind="act", tool=tool,
-                      args=args if isinstance(args, dict) else {}, rationale=rationale)
+        if not isinstance(args, dict) or not args:
+            # Tolerate a flattened reply where the params sit at the top level
+            # (e.g. {"kind":"act","tool":"launch_app","name":"notepad"}).
+            args = {k: v for k, v in data.items()
+                    if k not in ("kind", "tool", "args", "rationale")}
+        return Action(kind="act", tool=tool, args=args, rationale=rationale)
     return Action(kind="invalid", rationale=f"unrecognized action kind {kind!r}; "
                                             "use kind act|wait|ask|done")
