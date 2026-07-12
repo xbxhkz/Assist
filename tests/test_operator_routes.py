@@ -98,8 +98,8 @@ def test_resolve_operator_chat_prefers_served_model(monkeypatch):
     monkeypatch.setattr(orr, "get_setting",
                         lambda k, d=None: "ep1" if k == "default_endpoint_id" else d)
 
-    def probe(ep_id, owner):
-        assert ep_id == "ep1"
+    def probe(owner, prefer_ep_id=None):
+        assert prefer_ep_id == "ep1"
         return ("http://127.0.0.1:8100/v1/chat/completions", "served-agent-model", {"H": "1"})
 
     url, model, headers = orr._resolve_operator_chat("admin", probe=probe)
@@ -111,8 +111,8 @@ def test_resolve_operator_chat_falls_back_when_probe_has_no_model(monkeypatch):
                         lambda k, d=None: {"default_endpoint_id": "ep1",
                                            "default_model": "agent-x"}.get(k, d))
 
-    def probe(ep_id, owner):
-        return (None, None, None)  # endpoint reports no usable model
+    def probe(owner, prefer_ep_id=None):
+        return (None, None, None)  # no endpoint reports a served model
 
     def fake_resolve(spec, owner):
         return ("http://fallback/v1/chat/completions", spec, {})
@@ -126,7 +126,7 @@ def test_resolve_operator_chat_falls_back_when_probe_raises(monkeypatch):
                         lambda k, d=None: {"default_endpoint_id": "ep1",
                                            "default_model": "agent-x"}.get(k, d))
 
-    def probe(ep_id, owner):
+    def probe(owner, prefer_ep_id=None):
         raise RuntimeError("endpoint down")
 
     def fake_resolve(spec, owner):
