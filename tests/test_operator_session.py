@@ -147,3 +147,27 @@ def test_confirm_gate_fails_closed_on_unrecognized_decision():
                           Action(kind="done")]),
              execute=execute, confirm=weird, ask=_ask_noop)
     assert executed == []  # fail closed: never executed without explicit approve
+
+
+def test_should_stop_true_ends_immediately():
+    async def execute(a): return {}
+    async def decide(g, h, p): return Action(kind="act", tool="list_windows")
+    r = __import__("asyncio").run(s.run_operator(
+        "g", perceive=_perceive_const, decide=decide, execute=execute,
+        confirm=_approve, ask=_ask_noop, should_stop=lambda: True))
+    assert r["status"] == "stopped"
+
+
+def test_should_stop_checked_each_round():
+    n = {"c": 0}
+    def should_stop():
+        n["c"] += 1
+        return n["c"] > 2  # stop on the 3rd round's check
+    seq = iter(range(1000))
+    async def perceive(): return next(seq)   # changing percept -> never "stuck"
+    async def decide(g, h, p): return Action(kind="act", tool="list_windows")  # read-only, auto-runs, never done
+    async def execute(a): return {}
+    r = __import__("asyncio").run(s.run_operator(
+        "g", perceive=perceive, decide=decide, execute=execute,
+        confirm=_approve, ask=_ask_noop, should_stop=should_stop, max_rounds=50))
+    assert r["status"] == "stopped"

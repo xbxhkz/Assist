@@ -17,11 +17,13 @@ def require_consent(get_setting):
 
 
 async def run_operator(goal, *, perceive, decide, execute, confirm, ask,
-                       max_rounds=30, max_seconds=600, now=time.monotonic):
+                       should_stop=None, max_rounds=30, max_seconds=600, now=time.monotonic):
     history = []
     start = now()
     last_act_percept = None  # percept captured just before the previous mutating act
     for rounds in range(1, max_rounds + 1):
+        if should_stop is not None and should_stop():
+            return {"status": "stopped", "rounds": rounds - 1, "history": history}
         if now() - start > max_seconds:
             return {"status": "time_cap", "rounds": rounds - 1, "history": history}
         percept = await perceive()

@@ -30,9 +30,8 @@ def set_input_control(on: bool):
 
 def _new_state(goal):
     return {"goal": goal, "status": "starting", "round": 0, "transcript": [],
-            "pending": None,            # {"kind": "confirm"|"ask", "action"/"question"}
-            "_event": asyncio.Event(), "_decision": None, "_answer": None,
-            "result": None}
+            "pending": None, "_wake": asyncio.Event(), "_decision": None,
+            "_answer": None, "_stop": False, "result": None}
 
 
 async def _run_session(state):
@@ -64,26 +63,30 @@ async def _run_session(state):
         state["pending"] = {"kind": "confirm", "tool": action.tool,
                             "args": action.args, "rationale": action.rationale}
         state["status"] = "awaiting_confirmation"
-        state["_event"] = asyncio.Event()
-        await state["_event"].wait()
-        state["status"] = "running"
+        state["_wake"].clear()
+        await state["_wake"].wait()
         state["pending"] = None
+        if state["_stop"]:
+            return "stop"
+        state["status"] = "running"
         return state["_decision"]
 
     async def ask(question):
         state["pending"] = {"kind": "ask", "question": question}
         state["status"] = "awaiting_answer"
-        state["_event"] = asyncio.Event()
-        await state["_event"].wait()
-        state["status"] = "running"
+        state["_wake"].clear()
+        await state["_wake"].wait()
         state["pending"] = None
+        if state["_stop"]:
+            return ""
+        state["status"] = "running"
         return state["_answer"]
 
     state["status"] = "running"
     try:
         result = await run_operator(
             state["goal"], perceive=perceive, decide=decide, execute=execute,
-            confirm=confirm, ask=ask,
+            confirm=confirm, ask=ask, should_stop=lambda: state["_stop"],
             max_rounds=int(get_setting("operator_max_rounds", 30)),
             max_seconds=int(get_setting("operator_max_seconds", 600)))
         state["result"] = result
@@ -125,31 +128,32 @@ def setup_operator_routes():
                 "transcript": _SESSION["transcript"], "result": _SESSION["result"]}
 
     @router.post("/decision")
-    def decision(request: Request, body: dict = Body(...)):
+    async def decision(request: Request, body: dict = Body(...)):
         require_admin(request)
         if _SESSION is None or _SESSION["pending"] is None:
             raise HTTPException(409, "no pending decision")
         d = (body.get("decision") or "").strip().lower()
-        if _SESSION["pending"]["kind"] == "ask":
+        if d == "stop":
+            _SESSION["_stop"] = True
+        elif _SESSION["pending"]["kind"] == "ask":
             _SESSION["_answer"] = body.get("answer", "")
         elif d == "edit":
             _SESSION["_decision"] = ("edit", body.get("args") or {})
-        elif d in ("approve", "deny", "stop"):
+        elif d in ("approve", "deny"):
             _SESSION["_decision"] = d
         else:
             raise HTTPException(400, "decision must be approve|deny|edit|stop")
-        _SESSION["_event"].set()
+        _SESSION["_wake"].set()
         return {"ok": True}
 
     @router.post("/stop")
-    def stop(request: Request):
+    async def stop(request: Request):
         require_admin(request)
-        global _SESSION
         if _SESSION is not None:
-            _SESSION["_decision"] = "stop"
+            _SESSION["_stop"] = True
             _SESSION["status"] = "stopped"
-            _SESSION["_event"].set()
-        set_input_control(False)   # panic: flip input control off
+            _SESSION["_wake"].set()
+        set_input_control(False)
         return {"ok": True}
 
     return router
