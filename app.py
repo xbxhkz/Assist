@@ -777,6 +777,10 @@ set_mcp_manager(mcp_manager)
 app.include_router(setup_mcp_routes(mcp_manager))
 logger.info("MCP routes initialized")
 
+# AI Operator (bounded on-screen operator loop)
+from routes.operator_routes import setup_operator_routes
+app.include_router(setup_operator_routes())
+
 # AI Interaction tools (debates, pipelines, self-managing AI, UI control)
 from src.ai_interaction import set_session_manager as set_ai_session_manager, set_memory_manager as set_ai_memory_manager, set_rag_manager as set_ai_rag_manager
 set_ai_session_manager(session_manager)
