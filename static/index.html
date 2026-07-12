@@ -985,6 +985,12 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.5;"><path d="M6 3v6M6 15v6M18 3v6M18 15v6M6 9h12v6H6z"/></svg>
           <span class="grow">Plugins</span>
         </div>
+
+        <div class="list-item" id="tool-operator-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.5;"><circle cx="12" cy="12" r="3"/><path d="M12 1v6M12 17v6M4.2 4.2l4.3 4.3M15.5 15.5l4.3 4.3M1 12h6M17 12h6"/></svg>
+          <span class="grow">AI Operator</span>
+          <span id="operator-active-indicator" class="sidebar-notif-dot" style="display:none;background:var(--green,#50fa7b);margin-right:6px;" title="Operator active"></span>
+        </div>
       </div>
     </div>
     <div class="sidebar-user-bar" id="sidebar-user-bar">
@@ -1437,6 +1443,22 @@
       </div>
       <div style="font-size:11px;opacity:0.55;margin-bottom:8px;">Steps: blank = the model's default (klein 4, others 20). Fast decode: near-instant decode via tiny autoencoder, slightly softer detail (FLUX.1 only).</div>
       <div id="imagemodels-msg" style="font-size:12px;opacity:0.85;"></div>
+    </div>
+  </div>
+
+  <!-- AI Operator Modal: goal box + live transcript of proposed actions -->
+  <div id="operator-modal" class="modal hidden">
+    <div class="modal-content admin-modal-content" role="dialog" aria-label="AI Operator">
+      <div class="modal-header"><h4>AI Operator</h4>
+        <button class="close-btn" id="close-operator-modal" aria-label="Close">&#x2716;</button></div>
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <input id="operator-goal" placeholder="Describe the task…" style="flex:1;">
+        <button id="operator-start-btn">Start</button>
+        <button id="operator-stop-btn" style="display:none;">Stop</button>
+      </div>
+      <div id="operator-transcript"></div>
+      <div id="operator-msg" style="font-size:12px;opacity:0.8;margin-top:6px;"></div>
+      <div style="font-size:11px;opacity:0.6;margin-top:6px;">Requires screen access + input control ON. Each action needs your approval.</div>
     </div>
   </div>
 
@@ -2739,6 +2761,7 @@
 <script src="/static/js/imageModels.js"></script>
 <script src="/static/js/help.js"></script>
 <script src="/static/js/plugins.js"></script>
+<script src="/static/js/operator.js"></script>
 <script src="/static/js/screenAccess.js"></script>
 <script src="/static/js/inputControl.js"></script>
 <script type="module" src="/static/js/search-chat.js"></script>
