@@ -50,10 +50,15 @@ def test_stops_on_done():
 
 
 def test_mutating_requires_confirm_readonly_does_not():
+    # Percept changes each round (unlike _perceive_const) so this test exercises
+    # confirm-gating in isolation, without tripping the objective stuck guard —
+    # a real screen would change after the mutating "mouse" click below.
+    screens = iter(["S1", "S2", "S3"])
+    async def perceive(): return next(screens)
     confirmed = []
     async def confirm(a): confirmed.append(a.tool); return "approve"
     async def execute(a): return {"output": "ok"}
-    r = _run(perceive=_perceive_const,
+    r = _run(perceive=perceive,
              decide=_seq([Action(kind="act", tool="list_ui_elements"),      # read-only
                           Action(kind="act", tool="mouse", args={"action": "click", "x": 1, "y": 2}),  # mutating
                           Action(kind="done")]),
@@ -120,3 +125,25 @@ def test_time_cap():
     r = asyncio.run(s.run_operator("g", perceive=_perceive_const, decide=decide, execute=execute,
                                    confirm=_approve, ask=_ask_noop, max_rounds=100, max_seconds=150, now=now))
     assert r["status"] == "time_cap"
+
+
+def test_stuck_guard_wins_over_done():
+    # After a no-progress mutating act, the objective stuck guard fires BEFORE
+    # the model is consulted — a queued "done" claim is never even reached.
+    async def execute(a): return {"output": "ok"}
+    r = _run(perceive=_perceive_const,
+             decide=_seq([Action(kind="act", tool="mouse", args={"action": "click", "x": 1, "y": 1}),
+                          Action(kind="done", rationale="claims finished")]),
+             execute=execute, confirm=_approve, ask=_ask_noop)
+    assert r["status"] == "stuck"
+
+
+def test_confirm_gate_fails_closed_on_unrecognized_decision():
+    executed = []
+    async def execute(a): executed.append(a.tool); return {"output": "ok"}
+    async def weird(a): return None  # malformed confirm return
+    r = _run(perceive=_perceive_const,
+             decide=_seq([Action(kind="act", tool="keyboard", args={"action": "type", "text": "x"}),
+                          Action(kind="done")]),
+             execute=execute, confirm=weird, ask=_ask_noop)
+    assert executed == []  # fail closed: never executed without explicit approve

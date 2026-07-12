@@ -25,14 +25,17 @@ async def run_operator(goal, *, perceive, decide, execute, confirm, ask,
         if now() - start > max_seconds:
             return {"status": "time_cap", "rounds": rounds - 1, "history": history}
         percept = await perceive()
+        # Objective no-progress circuit breaker: if the UI did not change after
+        # the previous MUTATING act, stop BEFORE consulting the model, so the
+        # model's own claim cannot override objective stuck detection.
+        if last_act_percept is not None and percept == last_act_percept:
+            return {"status": "stuck", "rounds": rounds, "history": history}
+        last_act_percept = None
         action = await decide(goal, history, percept)
         if action.kind == "done":
             history.append(("done", action.rationale))
             logger.info("operator done after %d round(s)", rounds)
             return {"status": "done", "rounds": rounds, "history": history}
-        if last_act_percept is not None and percept == last_act_percept:
-            return {"status": "stuck", "rounds": rounds, "history": history}
-        last_act_percept = None
         if action.kind == "ask":
             answer = await ask(action.rationale)
             history.append(("ask", action.rationale, answer))
@@ -47,11 +50,12 @@ async def run_operator(goal, *, perceive, decide, execute, confirm, ask,
             if decision == "stop":
                 logger.info("operator stopped by user at round %d", rounds)
                 return {"status": "stopped", "rounds": rounds, "history": history}
-            if decision == "deny":
-                history.append(("denied", action.tool, action.args))
-                continue
             if isinstance(decision, tuple) and decision and decision[0] == "edit":
                 action.args = decision[1]
+            elif decision != "approve":
+                # Fail closed: deny or any unrecognized decision does NOT execute.
+                history.append(("denied", action.tool, action.args))
+                continue
         obs = await execute(action)
         history.append(("act", action.tool, action.args, obs))
         logger.info("operator round %d: %s %s", rounds, action.tool, action.args)
