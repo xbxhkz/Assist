@@ -40,6 +40,8 @@ DEFAULT_SETTINGS = {
     "image_gen_enabled": False,
     "screen_access_enabled": False,
     "input_control_enabled": False,
+    "operator_max_rounds": 30,
+    "operator_max_seconds": 600,
     # Built-in MCP server ids (image_gen, memory, rag, email) to skip at
     # boot. See src/builtin_mcp.py:register_builtin_servers.
     "disabled_builtin_mcp": [],
