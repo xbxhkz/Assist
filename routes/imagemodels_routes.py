@@ -11,7 +11,7 @@ import os
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from core.middleware import require_admin
-from src.gguf_meta import read_gguf_architecture
+from src.gguf_meta import read_gguf_architecture, gguf_is_full_checkpoint
 from src.imagemodels.manager import get_manager
 from src.imagemodels.encoders import (
     resolve_flux_files, resolve_flux2_files, resolve_zimage_files,
@@ -42,8 +42,14 @@ def setup_imagemodels_routes() -> APIRouter:
         if not diff or not real.lower().endswith(".gguf") or not os.path.isfile(real):
             raise HTTPException(400, "diffusion_model must be an existing .gguf file")
         base = os.path.basename(real).lower()
+        # All-in-one SD/SDXL checkpoint (embedded text encoder + VAE): served
+        # via -m with no external encoders. Detect by tensor names since these
+        # GGUFs usually carry no architecture tag. Checked first — it's
+        # self-contained regardless of arch.
+        if gguf_is_full_checkpoint(real):
+            files = {"checkpoint": real}
         # Z-Image (lumina2 arch): Qwen3 --llm encoder + the FLUX.1 ae VAE.
-        if (read_gguf_architecture(real) == "lumina2"
+        elif (read_gguf_architecture(real) == "lumina2"
                 or "z-image" in base or "z_image" in base):
             try:
                 files = resolve_zimage_files(
@@ -95,7 +101,7 @@ def setup_imagemodels_routes() -> APIRouter:
             steps = max(1, min(50, int(steps))) if steps else None
         except (TypeError, ValueError):
             steps = None
-        if payload.get("fast_decode"):
+        if payload.get("fast_decode") and "checkpoint" not in files:
             from src.imagemodels.encoders import find_taesd
             tae = find_taesd(real)
             if tae:

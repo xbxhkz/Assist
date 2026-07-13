@@ -62,6 +62,54 @@ def test_missing_file_returns_none(tmp_path):
     assert gm.read_gguf_architecture(str(tmp_path / "nope.gguf")) is None
 
 
+def _tensor_info(name: str) -> bytes:
+    nb = name.encode()
+    return (struct.pack("<Q", len(nb)) + nb + struct.pack("<I", 1) +
+            struct.pack("<Q", 16) + struct.pack("<I", 0) + struct.pack("<Q", 0))
+
+
+def _gguf_tensors(names, kvs=None) -> bytes:
+    kvs = kvs or []
+    return (b"GGUF" + struct.pack("<I", 3) + struct.pack("<Q", len(names)) +
+            struct.pack("<Q", len(kvs)) + b"".join(kvs) +
+            b"".join(_tensor_info(n) for n in names))
+
+
+def test_read_tensor_names(tmp_path):
+    p = tmp_path / "m.gguf"
+    p.write_bytes(_gguf_tensors(["a.weight", "b.bias"]))
+    assert gm.read_gguf_tensor_names(str(p)) == ["a.weight", "b.bias"]
+
+
+def test_read_tensor_names_skips_metadata_kv(tmp_path):
+    p = tmp_path / "m.gguf"
+    p.write_bytes(_gguf_tensors(
+        ["x.weight"],
+        kvs=[_kv_u32("general.file_type", 7), _kv_string("general.architecture", "sdxl")]))
+    assert gm.read_gguf_tensor_names(str(p)) == ["x.weight"]
+
+
+def test_full_checkpoint_detected_by_embedded_text_encoder(tmp_path):
+    # An all-in-one SDXL checkpoint embeds its text encoder + VAE.
+    p = tmp_path / "sdxl.gguf"
+    p.write_bytes(_gguf_tensors([
+        "conditioner.embedders.0.transformer.text_model.embeddings.token_embedding.weight",
+        "model.diffusion_model.time_embed.0.weight",
+        "first_stage_model.decoder.norm_out.weight",
+    ]))
+    assert gm.gguf_is_full_checkpoint(str(p))
+
+
+def test_bare_diffusion_gguf_is_not_full_checkpoint(tmp_path):
+    # FLUX/klein/chroma ship diffusion tensors ONLY (encoders are external).
+    p = tmp_path / "flux.gguf"
+    p.write_bytes(_gguf_tensors(
+        ["model.diffusion_model.double_blocks.0.img_attn.qkv.weight",
+         "model.diffusion_model.final_layer.linear.weight"],
+        kvs=[_kv_string("general.architecture", "flux")]))
+    assert not gm.gguf_is_full_checkpoint(str(p))
+
+
 def test_is_image_architecture():
     assert gm.is_image_architecture("flux")
     assert gm.is_image_architecture("flux2")

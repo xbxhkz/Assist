@@ -185,3 +185,52 @@ def test_build_argv_chroma_steps_override():
              "vae": "/m/ae.safetensors"}
     argv = rt.build_serve_argv("/x/sd", files, 8200, steps=30)
     assert argv[argv.index("--steps") + 1] == "30"
+
+
+def test_build_argv_checkpoint_uses_dash_m_no_flash_attn():
+    """An all-in-one SD/SDXL checkpoint serves via -m (embedded encoders+VAE),
+    at real cfg, and WITHOUT flash attention — --diffusion-fa crashes SDXL on
+    the bundled Vulkan build (verified live)."""
+    files = {"checkpoint": "/m/juggernaut-xl-v9-Q8_0.gguf"}
+    argv = rt.build_serve_argv("/x/sd", files, 8200, device="gpu")
+    assert "-m" in argv and argv[argv.index("-m") + 1] == "/m/juggernaut-xl-v9-Q8_0.gguf"
+    assert "--diffusion-model" not in argv
+    assert "--t5xxl" not in argv and "--clip_l" not in argv and "--llm" not in argv
+    assert argv[argv.index("--cfg-scale") + 1] == "7.0"
+    assert "--offload-to-cpu" in argv and "--vae-tiling" in argv
+    assert "--diffusion-fa" not in argv
+
+
+def test_build_argv_checkpoint_cpu_threads_no_flash_attn():
+    files = {"checkpoint": "/m/sdxl.gguf"}
+    argv = rt.build_serve_argv("/x/sd", files, 8200, device="cpu", threads=8)
+    assert argv[argv.index("-t") + 1] == "8"
+    assert "--diffusion-fa" not in argv
+
+
+def test_build_argv_checkpoint_lightning_low_cfg_few_steps():
+    """Distilled few-step SDXL (Lightning/Turbo/Hyper) burns out at cfg 7 —
+    detect it by name and drop to low cfg + few steps."""
+    files = {"checkpoint": "/m/RealVisXL_V5.0_Lightning_q5_1.gguf"}
+    argv = rt.build_serve_argv("/x/sd", files, 8200, device="gpu")
+    assert argv[argv.index("--cfg-scale") + 1] == "2.0"
+    assert int(argv[argv.index("--steps") + 1]) <= 8
+    assert "--diffusion-fa" not in argv
+
+
+def test_list_image_arch_ggufs_includes_arch_less_full_checkpoint(tmp_path):
+    """An SDXL all-in-one checkpoint has NO general.architecture tag, but its
+    embedded text encoder marks it as an image checkpoint — it must still list."""
+    import struct
+    def tinfo(name):
+        nb = name.encode()
+        return (struct.pack("<Q", len(nb)) + nb + struct.pack("<I", 1) +
+                struct.pack("<Q", 16) + struct.pack("<I", 0) + struct.pack("<Q", 0))
+    names = ["conditioner.embedders.0.transformer.text_model.x.weight",
+             "model.diffusion_model.y.weight"]
+    blob = (b"GGUF" + struct.pack("<I", 3) + struct.pack("<Q", len(names)) +
+            struct.pack("<Q", 0) + b"".join(tinfo(n) for n in names))
+    (tmp_path / "juggernaut-xl.gguf").write_bytes(blob)
+    (tmp_path / "chat.gguf").write_bytes(_gguf_with_arch("llama"))
+    got = rt.list_image_arch_ggufs(str(tmp_path))
+    assert [m["name"] for m in got] == ["juggernaut-xl.gguf"]

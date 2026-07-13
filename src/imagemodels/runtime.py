@@ -7,7 +7,9 @@ import re
 import shutil
 import sys
 
-from src.gguf_meta import read_gguf_architecture, is_image_architecture
+from src.gguf_meta import (
+    read_gguf_architecture, is_image_architecture, gguf_is_full_checkpoint,
+)
 
 
 def local_image_endpoint_url(port: int) -> str:
@@ -17,37 +19,53 @@ def local_image_endpoint_url(port: int) -> str:
 
 def build_serve_argv(binary, files, port, device="cpu", host="127.0.0.1",
                      threads=0, steps=None):
-    """sd-server argv for a FLUX GGUF. `files` = diffusion_model + the family's
-    aux files: FLUX.1 uses t5xxl/clip_l/vae, FLUX.2 (klein) uses llm/vae (the
-    "llm" key selects the FLUX.2 layout). FLUX is guidance-distilled, so the
-    server default cfg 7.0 is baked down to 1.0; klein additionally wants 4
-    sampling steps instead of the default 20. An explicit `steps` wins over
-    the family default."""
-    argv = [binary, "--diffusion-model", files["diffusion_model"]]
-    base = os.path.basename(files["diffusion_model"]).lower()
-    if "llm" in files:
-        argv += ["--llm", files["llm"], "--vae", files["vae"],
-                 "--cfg-scale", "1.0"]
-        if steps:
-            eff_steps = steps
-        elif "klein" in base:
-            eff_steps = 4       # step-distilled (flux2-dev keeps the default 20)
-        elif ("z-image" in base or "z_image" in base) and "turbo" in base:
-            eff_steps = 8       # Z-Image turbo default per sd.cpp docs
+    """sd-server argv for an image GGUF. `files` selects the layout:
+    - "checkpoint": an all-in-one SD/SDXL checkpoint (embedded encoders+VAE),
+      served via -m at real cfg. Flash attention is OMITTED — --diffusion-fa
+      crashes SDXL on the bundled Vulkan build (verified live).
+    - "diffusion_model" + aux: FLUX.1 (t5xxl/clip_l/vae, cfg 1.0), FLUX.2/Z-Image
+      (llm/vae via "llm"), or Chroma (t5xxl/vae, no clip_l, cfg 4.0). FLUX is
+      guidance-distilled so its default cfg 7.0 is baked to 1.0.
+    An explicit `steps` always wins over the family default."""
+    use_fa = True
+    if "checkpoint" in files:
+        # Full SD/SDXL checkpoint: everything is embedded (no external encoders).
+        # Distilled few-step variants (Lightning/Turbo/Hyper/LCM/DMD) burn out at
+        # the normal SDXL cfg 7, so drop to low cfg + few steps for those.
+        cbase = os.path.basename(files["checkpoint"]).lower()
+        argv = [binary, "-m", files["checkpoint"]]
+        if any(k in cbase for k in ("lightning", "hyper", "turbo", "lcm", "dmd")):
+            argv += ["--cfg-scale", "2.0"]
+            eff_steps = steps or 6
         else:
-            eff_steps = None
-    elif "clip_l" in files:
-        argv += ["--t5xxl", files["t5xxl"], "--clip_l", files["clip_l"],
-                 "--vae", files["vae"], "--cfg-scale", "1.0"]
-        eff_steps = steps
+            argv += ["--cfg-scale", "7.0"]
+            eff_steps = steps      # sd-server default (20) is right for base SDXL
+        use_fa = False             # flash attention crashes SDXL on Vulkan
     else:
-        # Chroma: an uncensored FLUX finetune that drops CLIP (conditions on T5
-        # only, so NO --clip_l) and is NOT guidance-distilled — it needs a real
-        # cfg (~4) and more sampling steps than distilled FLUX. Disable the DiT
-        # attention mask per the sd.cpp Chroma recipe.
-        argv += ["--t5xxl", files["t5xxl"], "--vae", files["vae"],
-                 "--cfg-scale", "4.0", "--model-args", "chroma_use_dit_mask=0"]
-        eff_steps = steps or 26
+        argv = [binary, "--diffusion-model", files["diffusion_model"]]
+        base = os.path.basename(files["diffusion_model"]).lower()
+        if "llm" in files:
+            argv += ["--llm", files["llm"], "--vae", files["vae"],
+                     "--cfg-scale", "1.0"]
+            if steps:
+                eff_steps = steps
+            elif "klein" in base:
+                eff_steps = 4       # step-distilled (flux2-dev keeps the default 20)
+            elif ("z-image" in base or "z_image" in base) and "turbo" in base:
+                eff_steps = 8       # Z-Image turbo default per sd.cpp docs
+            else:
+                eff_steps = None
+        elif "clip_l" in files:
+            argv += ["--t5xxl", files["t5xxl"], "--clip_l", files["clip_l"],
+                     "--vae", files["vae"], "--cfg-scale", "1.0"]
+            eff_steps = steps
+        else:
+            # Chroma: an uncensored FLUX finetune that drops CLIP (conditions on
+            # T5 only, so NO --clip_l) and is NOT guidance-distilled — it needs a
+            # real cfg (~4) and more steps. Disable the DiT mask per sd.cpp.
+            argv += ["--t5xxl", files["t5xxl"], "--vae", files["vae"],
+                     "--cfg-scale", "4.0", "--model-args", "chroma_use_dit_mask=0"]
+            eff_steps = steps or 26
     if eff_steps:
         argv += ["--steps", str(int(eff_steps))]
     if files.get("taesd"):
@@ -63,7 +81,9 @@ def build_serve_argv(binary, files, port, device="cpu", host="127.0.0.1",
         # NOT --auto-fit (its VAE-OOM fallback failed live) and NOT a hard
         # --backend pin (spills to host-visible memory at ~10x slowdown when
         # weights exceed VRAM).
-        argv += ["--offload-to-cpu", "--diffusion-fa"]
+        argv += ["--offload-to-cpu"]
+        if use_fa:
+            argv += ["--diffusion-fa"]
     elif threads:
         argv += ["-t", str(threads)]
     return argv
@@ -123,9 +143,15 @@ def list_gguf_image_models(models_dir: str) -> list:
 def list_image_arch_ggufs(models_dir: str) -> list:
     """Diffusion-architecture `.gguf` files in `models_dir` (by GGUF header).
     Used to surface image models the user downloaded into the shared LLM
-    models dir; anything unparseable or LLM-architected is skipped."""
-    return [m for m in list_gguf_image_models(models_dir)
-            if is_image_architecture(read_gguf_architecture(m["path"]))]
+    models dir; anything unparseable or LLM-architected is skipped. Also admits
+    an all-in-one SD/SDXL checkpoint, which carries NO architecture tag but is
+    identifiable by its embedded text-encoder tensors."""
+    out = []
+    for m in list_gguf_image_models(models_dir):
+        arch = read_gguf_architecture(m["path"])
+        if is_image_architecture(arch) or (arch is None and gguf_is_full_checkpoint(m["path"])):
+            out.append(m)
+    return out
 
 
 _FLUX2_NAME = re.compile(r"flux[-_. ]?2", re.IGNORECASE)
