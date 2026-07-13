@@ -65,6 +65,17 @@ def test_start_launches_and_registers():
     assert registered[0]["base_url"] == "http://127.0.0.1:8200/v1"
 
 
+def test_start_with_full_checkpoint_dict():
+    """An all-in-one SD/SDXL checkpoint dict carries 'checkpoint' and no
+    'diffusion_model' key — start() must resolve the model path from either,
+    not KeyError (which surfaced as a 500 when serving SDXL)."""
+    mgr, spawned, registered, _ = make_manager()
+    st = mgr.start({"checkpoint": "/m/juggernaut-xl-v9-Q8_0.gguf"}, device="gpu")
+    assert st["running"] is True and st["model"] == "juggernaut-xl-v9-Q8_0.gguf"
+    assert registered[0]["name"] == "juggernaut-xl-v9-Q8_0.gguf"
+    assert "-m" in spawned[0][0]  # served via -m (checkpoint), not --diffusion-model
+
+
 def test_start_readiness_failure_kills_and_raises():
     import pytest
     mgr, spawned, registered, _ = make_manager(ready=False)

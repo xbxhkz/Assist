@@ -136,8 +136,11 @@ class ImageModelManager:
             threads = os.cpu_count() or 4
             proc = self._spawn(build_serve_argv(binary, files, port, device=device,
                                                 threads=threads, steps=steps))
+            # A bare diffusion model uses "diffusion_model"; an all-in-one
+            # SD/SDXL checkpoint uses "checkpoint" — the primary file is either.
+            model_path = files.get("diffusion_model") or files.get("checkpoint")
             url = local_image_endpoint_url(port)
-            timeout = self._ready_timeout_for(files["diffusion_model"])
+            timeout = self._ready_timeout_for(model_path)
             if not self._await_ready(url + "/models", proc, timeout):
                 exited = _poll(proc) is not None
                 tail = _read_log_tail(self._log_path)
@@ -153,9 +156,9 @@ class ImageModelManager:
             endpoint_id = None
             if self._register:
                 endpoint_id = self._register(
-                    name=os.path.basename(files["diffusion_model"]), base_url=url)
+                    name=os.path.basename(model_path), base_url=url)
             self._proc = proc
-            self._state = {"model_path": files["diffusion_model"], "port": port,
+            self._state = {"model_path": model_path, "port": port,
                            "endpoint_id": endpoint_id,
                            "pid": getattr(proc, "pid", None), "device": device}
             return self.status()
