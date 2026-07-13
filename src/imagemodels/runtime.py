@@ -36,10 +36,18 @@ def build_serve_argv(binary, files, port, device="cpu", host="127.0.0.1",
             eff_steps = 8       # Z-Image turbo default per sd.cpp docs
         else:
             eff_steps = None
-    else:
+    elif "clip_l" in files:
         argv += ["--t5xxl", files["t5xxl"], "--clip_l", files["clip_l"],
                  "--vae", files["vae"], "--cfg-scale", "1.0"]
         eff_steps = steps
+    else:
+        # Chroma: an uncensored FLUX finetune that drops CLIP (conditions on T5
+        # only, so NO --clip_l) and is NOT guidance-distilled — it needs a real
+        # cfg (~4) and more sampling steps than distilled FLUX. Disable the DiT
+        # attention mask per the sd.cpp Chroma recipe.
+        argv += ["--t5xxl", files["t5xxl"], "--vae", files["vae"],
+                 "--cfg-scale", "4.0", "--model-args", "chroma_use_dit_mask=0"]
+        eff_steps = steps or 26
     if eff_steps:
         argv += ["--steps", str(int(eff_steps))]
     if files.get("taesd"):
@@ -129,3 +137,10 @@ def looks_like_flux2(filename: str) -> bool:
     instead of t5xxl/clip_l — serving one with FLUX.1 encoders fails after a
     long load, so we reject early on the naming convention."""
     return bool(_FLUX2_NAME.search(os.path.basename(filename or "")))
+
+
+def looks_like_chroma(filename: str) -> bool:
+    """Best-effort Chroma detection by filename. Chroma GGUFs carry the `flux`
+    (or `chroma`) architecture tag but take t5xxl + vae only (no clip_l) and a
+    non-distilled cfg; a filename check routes them to the Chroma encoder set."""
+    return "chroma" in os.path.basename(filename or "").lower()

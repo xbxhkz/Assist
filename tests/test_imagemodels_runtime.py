@@ -155,3 +155,33 @@ def test_looks_like_flux2():
     assert not rt.looks_like_flux2("flux1-dev-Q3_K_S.gguf")
     assert not rt.looks_like_flux2("flux-dev.gguf")
     assert not rt.looks_like_flux2("")
+
+
+def test_looks_like_chroma():
+    assert rt.looks_like_chroma("Chroma1-HD-Q4_K_M.gguf")
+    assert rt.looks_like_chroma("chroma-unlocked-v37.gguf")
+    assert not rt.looks_like_chroma("flux1-dev.gguf")
+    assert not rt.looks_like_chroma("")
+
+
+def test_build_argv_chroma_t5_vae_no_clip_real_cfg():
+    """Chroma drops CLIP (T5 only) and is NOT guidance-distilled: no --clip_l,
+    real cfg (~4), extra steps, and the DiT mask disabled per the sd.cpp recipe."""
+    files = {"diffusion_model": "/m/Chroma1-HD-Q4_K_M.gguf",
+             "t5xxl": "/m/t5.gguf", "vae": "/m/ae.safetensors"}
+    argv = rt.build_serve_argv("/x/sd", files, 8200, device="gpu")
+    for f in ("--diffusion-model", "/m/Chroma1-HD-Q4_K_M.gguf",
+              "--t5xxl", "/m/t5.gguf", "--vae", "/m/ae.safetensors"):
+        assert f in argv
+    assert "--clip_l" not in argv
+    assert argv[argv.index("--cfg-scale") + 1] == "4.0"
+    assert "chroma_use_dit_mask=0" in argv
+    assert int(argv[argv.index("--steps") + 1]) >= 20
+    assert "--offload-to-cpu" in argv and "--vae-tiling" in argv
+
+
+def test_build_argv_chroma_steps_override():
+    files = {"diffusion_model": "/m/chroma.gguf", "t5xxl": "/m/t5.gguf",
+             "vae": "/m/ae.safetensors"}
+    argv = rt.build_serve_argv("/x/sd", files, 8200, steps=30)
+    assert argv[argv.index("--steps") + 1] == "30"

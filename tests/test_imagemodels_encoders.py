@@ -47,6 +47,32 @@ def test_missing_raises_named(tmp_path, monkeypatch):
 
 # ── FLUX.2 (klein): --llm text encoder + flux2 VAE ──────────────────────
 
+def test_chroma_resolves_t5xxl_and_flux1_vae_without_clip(tmp_path, monkeypatch):
+    """Chroma reuses the FLUX.1 t5xxl + ae VAE but conditions on T5 only, so no
+    clip_l is required or returned."""
+    img = tmp_path / "img"; (img / "encoders").mkdir(parents=True)
+    monkeypatch.setattr(enc, "IMAGE_MODELS_DIR", str(img))
+    (img / "encoders" / "t5-v1_1-xxl-encoder-Q8_0.gguf").write_bytes(b"x")
+    (img / "encoders" / "ae.safetensors").write_bytes(b"x")
+    d = tmp_path / "m"; d.mkdir()
+    (d / "Chroma1-HD-Q4_K_M.gguf").write_bytes(b"x")
+    got = enc.resolve_chroma_files(str(d / "Chroma1-HD-Q4_K_M.gguf"))
+    assert got["t5xxl"].endswith("t5-v1_1-xxl-encoder-Q8_0.gguf")
+    assert got["vae"].endswith("ae.safetensors")
+    assert "clip_l" not in got
+
+
+def test_chroma_missing_t5xxl_raises_named(tmp_path, monkeypatch):
+    img = tmp_path / "img"; (img / "encoders").mkdir(parents=True)
+    monkeypatch.setattr(enc, "IMAGE_MODELS_DIR", str(img))
+    (img / "encoders" / "ae.safetensors").write_bytes(b"x")  # vae present, t5xxl absent
+    d = tmp_path / "m"; d.mkdir()
+    (d / "Chroma1-HD-Q4_K_M.gguf").write_bytes(b"x")
+    with pytest.raises(enc.MissingEncoderError) as ei:
+        enc.resolve_chroma_files(str(d / "Chroma1-HD-Q4_K_M.gguf"))
+    assert "t5xxl" in ei.value.missing
+
+
 def test_flux2_resolves_from_shared_encoders_dir(tmp_path, monkeypatch):
     img = tmp_path / "img"; (img / "encoders").mkdir(parents=True)
     monkeypatch.setattr(enc, "IMAGE_MODELS_DIR", str(img))

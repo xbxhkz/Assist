@@ -15,9 +15,9 @@ from src.gguf_meta import read_gguf_architecture
 from src.imagemodels.manager import get_manager
 from src.imagemodels.encoders import (
     resolve_flux_files, resolve_flux2_files, resolve_zimage_files,
-    MissingEncoderError,
+    resolve_chroma_files, MissingEncoderError,
 )
-from src.imagemodels.runtime import looks_like_flux2
+from src.imagemodels.runtime import looks_like_flux2, looks_like_chroma
 
 
 def setup_imagemodels_routes() -> APIRouter:
@@ -68,6 +68,18 @@ def setup_imagemodels_routes() -> APIRouter:
                     "Qwen3-4B-Q4_K_M.gguf) and the FLUX.2 VAE (vae, "
                     "flux2_ae.safetensors) next to the model or in the "
                     "shared encoders folder.")
+        # Chroma (uncensored FLUX finetune): t5xxl + FLUX.1 VAE, but NO clip_l
+        # and a non-distilled cfg. Detect by GGUF arch or the naming convention.
+        elif read_gguf_architecture(real) == "chroma" or looks_like_chroma(real):
+            try:
+                files = resolve_chroma_files(
+                    real, t5xxl=payload.get("t5xxl"), vae=payload.get("vae"))
+            except MissingEncoderError as e:
+                raise HTTPException(
+                    400, "Missing Chroma files: " + ", ".join(e.missing) +
+                    ". Chroma needs a T5-XXL text encoder (t5xxl, e.g. "
+                    "t5xxl_q8_0.gguf) and the FLUX.1 VAE (vae, ae.safetensors) "
+                    "next to the model or in the shared encoders folder.")
         else:
             try:
                 files = resolve_flux_files(

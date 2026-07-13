@@ -106,6 +106,15 @@ def resolve_flux2_files(diffusion_model, llm=None, vae=None) -> dict:
     return _resolve(diffusion_model, (("llm", llm), ("vae", vae)), names)
 
 
+def resolve_chroma_files(diffusion_model, t5xxl=None, vae=None) -> dict:
+    """Chroma (uncensored FLUX finetune): return {diffusion_model, t5xxl, vae}
+    of realpaths, or raise MissingEncoderError. Chroma reuses FLUX.1's t5xxl +
+    ae VAE but drops the CLIP-L encoder (it conditions on T5 only), so no
+    clip_l is resolved or passed to sd-server."""
+    return _resolve(diffusion_model, (("t5xxl", t5xxl), ("vae", vae)),
+                    ENCODER_FILENAMES)
+
+
 # Z-Image (lumina2 architecture): Qwen3 text encoder + the FLUX.1 ae VAE
 # (per sd.cpp docs/z_image.md — same ae.safetensors FLUX.1 already uses).
 ZIMAGE_ENCODER_FILENAMES = {
