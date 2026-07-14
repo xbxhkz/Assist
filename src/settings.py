@@ -40,6 +40,7 @@ DEFAULT_SETTINGS = {
     "image_gen_enabled": False,
     "screen_access_enabled": False,
     "input_control_enabled": False,
+    "shell_exec_enabled": False,
     "operator_max_rounds": 30,
     "operator_max_seconds": 600,
     # Built-in MCP server ids (image_gen, memory, rag, email) to skip at
@@ -366,5 +367,22 @@ def reset_input_control():
         if s.get("input_control_enabled"):
             s["input_control_enabled"] = False
             save_settings(s)
+    except Exception:
+        pass
+
+
+def reset_shell_exec():
+    """Force shell execution off. Called at startup so AI shell access is never
+    silently available across restarts (mirrors reset_input_control)."""
+    try:
+        s = load_settings()
+        if s.get("shell_exec_enabled"):
+            s["shell_exec_enabled"] = False
+            save_settings(s)
+    except Exception:
+        pass
+    try:                                   # also drop any stale approval state
+        from src.shell_exec.approval import reset_all
+        reset_all()
     except Exception:
         pass
