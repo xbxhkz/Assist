@@ -22,6 +22,18 @@ from src.imagemodels.runtime import (
 )
 
 
+VRAM_MARGIN_GB = 1.0  # free VRAM left as headroom for sd-server compute buffers
+
+
+def _default_vram_probe():
+    """Live free VRAM (GB) or None. Lazy import keeps hwfit off the hot path."""
+    try:
+        from services.hwfit.hardware import free_vram_gb
+        return free_vram_gb()
+    except Exception:
+        return None
+
+
 def _default_log_path() -> str:
     return os.path.join(os.path.dirname(IMAGE_MODELS_DIR), "logs", "sd-server.log")
 
@@ -75,7 +87,7 @@ class ImageModelManager:
                  register_endpoint=None, unregister_endpoint=None,
                  resolve_binary=resolve_sd_binary, log_path=None,
                  sleep=None, now=None, ready_timeout=45.0, probe_interval=0.5,
-                 sec_per_gb=12.0, force_kill=None):
+                 sec_per_gb=12.0, force_kill=None, vram_probe=None):
         self._log_path = log_path or _default_log_path()
         self._spawn = spawn or self._default_spawn
         self._port_chooser = port_chooser or (lambda: choose_port(8200))
@@ -89,6 +101,7 @@ class ImageModelManager:
         self._unregister = unregister_endpoint
         self._resolve_binary = resolve_binary
         self._force_kill = force_kill or _default_force_kill
+        self._vram_probe = vram_probe or _default_vram_probe
         self._lock = threading.Lock()
         self._proc = None
         self._logf = None
@@ -131,17 +144,41 @@ class ImageModelManager:
         with self._lock:
             if self._proc is not None:
                 self._stop_locked()
-            binary = self._resolve_binary(device)
-            port = self._port_chooser()
-            threads = os.cpu_count() or 4
-            proc = self._spawn(build_serve_argv(binary, files, port, device=device,
-                                                threads=threads, steps=steps))
             # A bare diffusion model uses "diffusion_model"; an all-in-one
             # SD/SDXL checkpoint uses "checkpoint" — the primary file is either.
             model_path = files.get("diffusion_model") or files.get("checkpoint")
-            url = local_image_endpoint_url(port)
-            timeout = self._ready_timeout_for(model_path)
-            if not self._await_ready(url + "/models", proc, timeout):
+            threads = os.cpu_count() or 4
+            # Ordered attempt ladder. A GPU request fills VRAM (Tier 1), then
+            # falls back to all-RAM offload (Tier 2), then a pure-CPU serve
+            # (Tier 3). No GPU tiers for an explicit CPU request.
+            if device == "gpu":
+                free = self._vram_probe()
+                budget = max(1.0, free - VRAM_MARGIN_GB) if free else None
+                attempts = ([("gpu", budget)] if budget else []) + \
+                    [("gpu", None), ("cpu", None)]
+            else:
+                attempts = [("cpu", None)]
+
+            last_msg = "sd-server did not start."
+            for attempt_device, max_vram_gb in attempts:
+                binary = self._resolve_binary(attempt_device)
+                port = self._port_chooser()
+                proc = self._spawn(build_serve_argv(
+                    binary, files, port, device=attempt_device,
+                    threads=threads, steps=steps, max_vram_gb=max_vram_gb))
+                url = local_image_endpoint_url(port)
+                timeout = self._ready_timeout_for(model_path)
+                if self._await_ready(url + "/models", proc, timeout):
+                    endpoint_id = None
+                    if self._register:
+                        endpoint_id = self._register(
+                            name=os.path.basename(model_path), base_url=url)
+                    self._proc = proc
+                    self._state = {"model_path": model_path, "port": port,
+                                   "endpoint_id": endpoint_id,
+                                   "pid": getattr(proc, "pid", None),
+                                   "device": attempt_device}
+                    return self.status()
                 exited = _poll(proc) is not None
                 tail = _read_log_tail(self._log_path)
                 self._terminate(proc)
@@ -149,19 +186,10 @@ class ImageModelManager:
                 reason = ("exited on startup (the bundled sd.cpp may not support "
                           "this model's architecture)"
                           if exited else "did not become ready in time")
-                msg = f"sd-server {reason}."
+                last_msg = f"sd-server {reason}."
                 if tail:
-                    msg += "\n\n--- sd-server output (tail) ---\n" + tail
-                raise RuntimeError(msg)
-            endpoint_id = None
-            if self._register:
-                endpoint_id = self._register(
-                    name=os.path.basename(model_path), base_url=url)
-            self._proc = proc
-            self._state = {"model_path": model_path, "port": port,
-                           "endpoint_id": endpoint_id,
-                           "pid": getattr(proc, "pid", None), "device": device}
-            return self.status()
+                    last_msg += "\n\n--- sd-server output (tail) ---\n" + tail
+            raise RuntimeError(last_msg)
 
     def stop(self) -> dict:
         with self._lock:

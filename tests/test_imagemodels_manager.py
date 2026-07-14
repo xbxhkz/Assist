@@ -32,10 +32,12 @@ class FakeProc:
 
 
 def make_manager(ready=True, spawned=None, registered=None, unregistered=None,
-                 proc_exit_code=None):
+                 proc_exit_code=None, vram=6.0, ready_after=None):
     spawned = spawned if spawned is not None else []
     registered = registered if registered is not None else []
     unregistered = unregistered if unregistered is not None else []
+    if ready_after is None:
+        ready_after = 0 if ready else 999  # 0 = first attempt ready; 999 = never
 
     def spawn(argv):
         p = FakeProc(exit_code=proc_exit_code)
@@ -47,13 +49,18 @@ def make_manager(ready=True, spawned=None, registered=None, unregistered=None,
         registered.append({"name": name, "base_url": base_url, "id": eid})
         return eid
 
+    def probe(url):
+        # The latest spawn is the current attempt (0-based index).
+        return (len(spawned) - 1) >= ready_after
+
     clock = itertools.count(0, 10)
     mgr = ImageModelManager(
-        spawn=spawn, port_chooser=lambda: 8200, probe=lambda url: ready,
+        spawn=spawn, port_chooser=lambda: 8200, probe=probe,
         register_endpoint=register, unregister_endpoint=lambda eid: unregistered.append(eid),
-        resolve_binary=lambda device: "/bin/sd-server",
+        resolve_binary=lambda device: f"/bin/sd-{device}",
         log_path="/nonexistent/sd-server.log",
-        sleep=lambda _s: None, now=lambda: next(clock), ready_timeout=45.0)
+        sleep=lambda _s: None, now=lambda: next(clock), ready_timeout=45.0,
+        vram_probe=lambda: vram)
     return mgr, spawned, registered, unregistered
 
 
@@ -92,6 +99,71 @@ def test_start_fails_fast_on_early_exit():
     with pytest.raises(RuntimeError, match="exited on startup"):
         mgr.start(FILES)
     assert registered == []
+
+
+def test_start_gpu_tier1_fills_vram():
+    mgr, spawned, registered, _ = make_manager(vram=6.0)
+    st = mgr.start(FILES, device="gpu")
+    assert st["running"] is True and st["device"] == "gpu"
+    argv = spawned[0][0]
+    assert argv[argv.index("--max-vram") + 1] == "5"  # 6.0 - 1.0 margin
+    assert "--stream-layers" in argv and "--offload-to-cpu" not in argv
+    assert len(spawned) == 1
+
+
+def test_start_gpu_falls_back_to_offload():
+    mgr, spawned, registered, _ = make_manager(vram=6.0, ready_after=1)
+    st = mgr.start(FILES, device="gpu")
+    assert st["running"] is True and st["device"] == "gpu"
+    assert "--max-vram" in spawned[0][0]           # Tier 1 attempted
+    assert "--offload-to-cpu" in spawned[1][0]     # Tier 2 succeeded
+    assert spawned[0][0][0] == "/bin/sd-gpu" and spawned[1][0][0] == "/bin/sd-gpu"
+    assert len(spawned) == 2
+
+
+def test_start_gpu_falls_back_to_cpu():
+    mgr, spawned, registered, _ = make_manager(vram=6.0, ready_after=2)
+    st = mgr.start(FILES, device="gpu")
+    assert st["running"] is True and st["device"] == "cpu"
+    assert spawned[2][0][0] == "/bin/sd-cpu"       # Tier 3 uses the CPU binary
+    assert "--max-vram" not in spawned[2][0] and "--offload-to-cpu" not in spawned[2][0]
+    assert len(spawned) == 3
+
+
+def test_start_gpu_no_budget_skips_tier1():
+    mgr, spawned, registered, _ = make_manager(vram=None)
+    st = mgr.start(FILES, device="gpu")
+    assert st["running"] is True
+    assert "--offload-to-cpu" in spawned[0][0] and "--max-vram" not in spawned[0][0]
+    assert len(spawned) == 1
+
+
+def test_start_cpu_does_not_probe_vram():
+    probed = []
+    clock = itertools.count(0, 10)
+    spawned = []
+    mgr = ImageModelManager(
+        spawn=lambda argv: (spawned.append((argv, FakeProc())) or spawned[-1][1]),
+        port_chooser=lambda: 8200, probe=lambda url: True,
+        register_endpoint=lambda name, base_url: "eid",
+        unregister_endpoint=lambda eid: None,
+        resolve_binary=lambda device: f"/bin/sd-{device}",
+        log_path="/nonexistent/sd-server.log", sleep=lambda _s: None,
+        now=lambda: next(clock),
+        vram_probe=lambda: probed.append(1))
+    st = mgr.start(FILES, device="cpu")
+    assert st["running"] is True and st["device"] == "cpu"
+    assert probed == []            # VRAM probe not consulted for a CPU request
+    assert spawned[0][0][0] == "/bin/sd-cpu"
+
+
+def test_start_gpu_all_tiers_fail_raises():
+    import pytest
+    mgr, spawned, registered, _ = make_manager(vram=6.0, ready_after=999)
+    with pytest.raises(RuntimeError, match="did not become ready"):
+        mgr.start(FILES, device="gpu")
+    assert registered == [] and len(spawned) == 3  # tried all three tiers
+    assert mgr.status()["running"] is False
 
 
 def test_stop_terminates_and_unregisters():
