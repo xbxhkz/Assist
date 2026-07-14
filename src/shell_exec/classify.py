@@ -5,7 +5,7 @@ anything else — any compose character or unrecognized leading token — is "wr
 
 # Any of these means the command can compose or redirect, so it may hide a
 # mutation (e.g. `Get-Content x | Remove-Item`). Presence → always "write".
-_COMPOSE = ("|", ">", "<", ";", "&", "`", "$(", "\n")
+_COMPOSE = ("|", ">", "<", ";", "&", "`", "$(", "\n", "\r")
 
 # PowerShell reads: the Get-/Format- verbs plus a few explicit safe cmdlets.
 _PS_READ = frozenset({"test-path", "select-object", "select-string",
@@ -24,6 +24,11 @@ def classify_command(command: str, shell: str) -> str:
         return "write"
     low = cmd.lower()
     if any(tok in low for tok in _COMPOSE):
+        return "write"
+    # Any newline / vertical / unicode-line-separator / control whitespace is a
+    # statement separator that str.split() would silently collapse — force write
+    # so a hidden second statement can't ride inside a "read".
+    if any(ch.isspace() and ch not in " \t" for ch in cmd):
         return "write"
     lead = low.split()[0]
     if shell == "powershell":

@@ -29,6 +29,14 @@ def test_compose_chars_force_write():
     assert c("dir & whoami", "cmd") == "write"                          # background/sep
 
 
+def test_newline_and_control_whitespace_force_write():
+    assert c("Get-Process\rStop-Process -Force", "powershell") == "write"   # bare CR
+    assert c("Get-Process\r\nStop-Process", "powershell") == "write"        # CRLF
+    assert c("dir\vwhoami", "cmd") == "write"                               # vertical tab
+    assert c("Get-Process Remove-Item x", "powershell") == "write"     # unicode line sep
+    assert c("Get-ChildItem\tC:\\", "powershell") == "read"                 # plain tab is fine
+
+
 def test_empty_is_write():
     assert c("", "powershell") == "write"
     assert c("   ", "cmd") == "write"
