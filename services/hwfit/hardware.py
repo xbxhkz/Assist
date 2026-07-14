@@ -178,6 +178,27 @@ def _detect_nvidia():
     }
 
 
+def free_vram_gb():
+    """Live free VRAM of the first NVIDIA GPU in GB, or None when there is no
+    usable NVIDIA GPU / nvidia-smi is unavailable / the value is non-numeric
+    (unified-memory parts report '[N/A]'). Never raises. Mirrors _detect_nvidia's
+    _run + absolute-path fallback."""
+    q = ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits"]
+    out = _run(q)
+    if not out:
+        for _p in NVIDIA_PATH_CANDIDATES:
+            out = _run([_p, "--query-gpu=memory.free", "--format=csv,noheader,nounits"])
+            if out:
+                break
+    if not out:
+        return None
+    first = out.strip().split("\n")[0].strip()
+    try:
+        return float(first) / 1024.0
+    except ValueError:
+        return None
+
+
 def classify_amd_gfx(gfx):
     """Map an AMD ISA target (e.g. "gfx1200") to (gfx, family).
 
