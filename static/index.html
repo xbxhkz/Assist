@@ -970,6 +970,16 @@
           </label>
         </div>
 
+        <div class="list-item">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.5;"><path d="M4 17l6-6-6-6M12 19h8"/></svg>
+          <span class="grow">Shell commands</span>
+          <span id="shell-exec-indicator" class="sidebar-notif-dot" style="display:none;background:var(--green,#50fa7b);margin-right:6px;" title="Shell execution is ON"></span>
+          <label class="admin-switch" style="flex-shrink:0;" title="Let the AI run PowerShell/cmd commands (with approval)">
+            <input type="checkbox" id="shell-exec-toggle">
+            <span class="admin-slider"></span>
+          </label>
+        </div>
+
         <div class="list-item" id="tool-help-btn">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -1058,6 +1068,11 @@
     })();
     </script>
     <div id="chat-history" class="chat-history" role="log" aria-live="polite"></div>
+
+    <!-- Shell-execution approval cards render here (static/js/shellApproval.js).
+         Kept as a sibling of #chat-history (not a child) so it isn't wiped out
+         when chat-history's innerHTML is rewritten on session switch/history load. -->
+    <div id="shell-approval-host"></div>
 
     <!-- Attachments strip -->
     <div id="attach-strip" class="attach-strip"></div>
@@ -2762,6 +2777,8 @@
 <script src="/static/js/help.js"></script>
 <script src="/static/js/plugins.js"></script>
 <script src="/static/js/operator.js"></script>
+<script src="/static/js/shellApproval.js"></script>
+<script src="/static/js/shellExec.js"></script>
 <script src="/static/js/screenAccess.js"></script>
 <script src="/static/js/inputControl.js"></script>
 <script type="module" src="/static/js/search-chat.js"></script>
