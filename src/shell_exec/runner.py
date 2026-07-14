@@ -4,7 +4,6 @@ import asyncio
 import shutil
 
 from src.constants import MAX_OUTPUT_CHARS
-from src.agent_tools.subprocess_tools import _run_subprocess_streaming, DEFAULT_BASH_TIMEOUT
 
 # Imported at module level so tests can monkeypatch it on this module.
 from src.tool_execution import agent_cwd, _truncate
@@ -24,6 +23,10 @@ _ARGV = {"powershell": powershell_argv, "cmd": cmd_argv}
 
 
 async def run_in_shell(command, shell, ctx, *, spawn=None, stream=None) -> dict:
+    # Lazy: importing src.agent_tools.subprocess_tools runs the agent_tools package
+    # __init__, which imports shell_tools -> this module. Importing here (not at
+    # module top) breaks that cycle so `import src.shell_exec.runner` is order-safe.
+    from src.agent_tools.subprocess_tools import _run_subprocess_streaming, DEFAULT_BASH_TIMEOUT
     argv = _ARGV[shell](command)
     spawn = spawn or asyncio.create_subprocess_exec
     stream = stream or _run_subprocess_streaming
