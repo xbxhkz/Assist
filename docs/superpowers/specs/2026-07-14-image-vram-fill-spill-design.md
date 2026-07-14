@@ -40,14 +40,14 @@ state machine:
 ```
 route (device=gpu) ──▶ manager.start(files, device)
                           │  detect budget: vram_probe() → free_gb − MARGIN
-                          │  Tier 1: build_serve_argv(..., max_vram_gb=budget)
-                          │          → --max-vram N --stream-layers
-                          │  spawn + await_ready
-                          │    └─ not ready? Tier 2 retry:
-                          │        build_serve_argv(..., max_vram_gb=None)
-                          │        → --offload-to-cpu   (today's recipe)
+                          │  build an ordered attempt ladder, spawn+await_ready
+                          │  each; first ready wins, rest are tried on failure:
+                          │
+                          │   Tier 1  gpu  --max-vram N --stream-layers   (fill+spill)
+                          │   Tier 2  gpu  --offload-to-cpu               (all-RAM)
+                          │   Tier 3  cpu  CPU binary, CPU argv           (no GPU)
                           ▼
-                       sd-server
+                       sd-server (Vulkan binary for gpu tiers, CPU binary for Tier 3)
 ```
 
 ### 1. VRAM detection — `services/hwfit/hardware.py`
@@ -88,33 +88,55 @@ elif threads:
   on the Vulkan build) and `True` otherwise.
 - CPU device (`device != "gpu"`) is unaffected — `max_vram_gb` is ignored there.
 
-### 3. Budget + fallback — `src/imagemodels/manager.py:start`
+### 3. Budget + fallback ladder — `src/imagemodels/manager.py:start`
 
 - New injectable dependency `vram_probe=None` on `ImageModelManager.__init__`,
   defaulting to `hardware.free_vram_gb`. Injectable so tests supply a fake.
 - Add module constant `VRAM_MARGIN_GB = 1.0` (headroom for compute buffers).
-- In `start(files, device, steps)`:
-  1. `budget = None`
-     `if device == "gpu": free = self._vram_probe(); budget = max(1.0, free - VRAM_MARGIN_GB) if free else None`
-  2. **Tier 1:** spawn `build_serve_argv(..., max_vram_gb=budget)`, `await_ready`.
-  3. On not-ready **and** `budget is not None`: terminate the dead proc, log the
-     tail, and **Tier 2 retry** — spawn `build_serve_argv(..., max_vram_gb=None)`
-     (the `--offload-to-cpu` recipe), `await_ready`.
-  4. If the surviving attempt is ready → register + record state as today. If the
-     final attempt fails → raise the existing `RuntimeError` (with sd-server tail).
+- `start(files, device, steps)` builds an **ordered list of attempts**, each a
+  `(attempt_device, max_vram_gb)` pair, and tries them in order — the first that
+  becomes ready wins; every failure terminates its dead proc, captures the
+  sd-server log tail, and advances to the next attempt:
+
+  ```python
+  if device == "gpu":
+      free = self._vram_probe()
+      budget = max(1.0, free - VRAM_MARGIN_GB) if free else None
+      attempts = ([("gpu", budget)] if budget else []) \
+               + [("gpu", None), ("cpu", None)]
+  else:
+      attempts = [("cpu", None)]          # explicit CPU serve: no GPU tiers
+  ```
+
+  So a GPU request degrades **Tier 1** (`gpu`, `--max-vram N --stream-layers`) →
+  **Tier 2** (`gpu`, `--offload-to-cpu`) → **Tier 3** (`cpu`, CPU binary + CPU
+  argv). If VRAM detection returns `None`, Tier 1 is skipped (start at all-RAM).
+
+- Each attempt: `binary = self._resolve_binary(attempt_device)`;
+  `port = self._port_chooser()`;
+  `argv = build_serve_argv(binary, files, port, device=attempt_device,
+  threads=threads, steps=steps, max_vram_gb=max_vram_gb)`; spawn; `await_ready`.
+  `resolve_sd_binary(device="cpu")` returns the bundled CPU sd-server
+  (`_internal/sd/cpu/sd-server.exe`), so Tier 3 is a plain CPU serve — identical
+  to the UI's "CPU" device.
+- On the first ready attempt: register + record state, with `state["device"]` set
+  to the **actual** `attempt_device` used (so a fallback to CPU is reflected in
+  status). If **all** attempts fail → raise the existing `RuntimeError` with the
+  last sd-server tail.
 - The model-path resolution fix (`files.get("diffusion_model") or
   files.get("checkpoint")`) and single-active-server locking are retained.
 
 ### Data flow / error handling
 
-- Only GPU serves get a budget; CPU serves pass `max_vram_gb=None` and are
-  identical to today.
-- Tier-2 fallback triggers **only** when Tier 1 was a real `--max-vram` attempt
-  (`budget is not None`) — a detection-failure serve is already the `--offload-to-cpu`
-  recipe and is not retried against itself.
-- No CPU-backend tier in this iteration: CPU device already works from the UI, and
-  Tier 2 (all-RAM offload on GPU) is the proven safety net. (Noted as a possible
-  future tier; deliberately out of scope — YAGNI.)
+- Only GPU requests get a budget + fallback ladder; an explicit CPU request is the
+  single-attempt `[("cpu", None)]` — identical to today.
+- Tier 1 is included only when a real budget was detected (`budget is not None`);
+  a detection-failure GPU request starts at Tier 2 (`--offload-to-cpu`).
+- Each attempt picks a fresh port and re-resolves its binary, so GPU→CPU fallback
+  cleanly switches from the Vulkan build to the CPU build.
+- `_spawn` already rotates `sd-server.log` → `.prev` per launch; failure tails are
+  captured in memory before advancing, so the raised error still reports why the
+  last attempt failed.
 
 ## Testing
 
@@ -132,25 +154,36 @@ granular `test_hwfit_*` convention; monkeypatch `hardware._run`):**
 - Mock multi-GPU output → returns the first row.
 - Mock `_run` → `None` / `"[N/A]"` / `""` ⇒ returns `None`.
 
-**Unit — `manager.start` fallback (`tests/test_imagemodels_manager.py`):**
-- `vram_probe` → 6.0, spawn ready ⇒ single spawn whose argv has `--max-vram`
-  (`≈5` after margin) `--stream-layers`; registered once.
-- `vram_probe` → 6.0, **first** spawn never ready, second ready ⇒ two spawns;
-  first argv has `--max-vram`, second has `--offload-to-cpu`; ends running.
-- `vram_probe` → `None` ⇒ single spawn with `--offload-to-cpu` (no retry).
-- Both attempts fail ⇒ `RuntimeError`, nothing registered (existing behavior).
+**Unit — `manager.start` fallback (`tests/test_imagemodels_manager.py`).** The
+fake `resolve_binary` returns a device-tagged path (e.g. `f"/bin/sd-{device}"`)
+so tests can assert which binary each attempt used:
+- `vram_probe` → 6.0, first spawn ready ⇒ single spawn; argv has `--max-vram`
+  (`≈5` after the 1 GB margin) + `--stream-layers`; registered once; state
+  `device == "gpu"`.
+- `vram_probe` → 6.0, Tier 1 never ready, Tier 2 ready ⇒ two spawns; first argv
+  has `--max-vram`, second has `--offload-to-cpu`, both the `sd-gpu` binary;
+  running, state `device == "gpu"`.
+- `vram_probe` → 6.0, Tiers 1 & 2 never ready, Tier 3 ready ⇒ three spawns; third
+  uses the `sd-cpu` binary and its argv has neither `--max-vram` nor
+  `--offload-to-cpu`; running, state `device == "cpu"`.
+- `vram_probe` → `None` ⇒ first attempt is `--offload-to-cpu` (Tier 1 skipped);
+  on failure, falls through to the CPU attempt.
+- Explicit `device="cpu"` ⇒ single CPU attempt; `vram_probe` not consulted.
+- **All** attempts fail ⇒ `RuntimeError`, nothing registered (existing behavior).
 
 **Live-verify (6 GB RTX 4050, manual, at packaging):**
 - Small model (klein-4b): serves Tier 1, `sd-server.log` shows non-zero resident
   VRAM; generates.
 - Large model (klein-9b, historically OOM): serves via Tier 1 streaming *or*
-  cleanly falls back to Tier 2 and generates — no unhandled 500.
+  cleanly falls back to Tier 2, and if the GPU still can't, lands on the Tier 3
+  CPU serve — no unhandled 500.
 - Confirm `--max-vram`/`--stream-layers` are accepted by the bundled binary (guard
   against the older `--auto-fit` VAE-OOM regression).
+- Confirm the Tier 3 CPU binary (`sd/cpu/sd-server.exe`) is present in the frozen
+  bundle and serves when forced.
 
 ## Non-goals
 
 - LLM serving (already spills GPU→CPU).
 - Any settings/UI or per-serve manual budget.
-- CPU-backend fallback tier.
 - Changing quantization, resolution, or step defaults.
