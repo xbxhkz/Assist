@@ -234,3 +234,41 @@ def test_list_image_arch_ggufs_includes_arch_less_full_checkpoint(tmp_path):
     (tmp_path / "chat.gguf").write_bytes(_gguf_with_arch("llama"))
     got = rt.list_image_arch_ggufs(str(tmp_path))
     assert [m["name"] for m in got] == ["juggernaut-xl.gguf"]
+
+
+def test_fmt_gb_integer_and_fractional():
+    assert rt._fmt_gb(5) == "5"
+    assert rt._fmt_gb(5.0) == "5"
+    assert rt._fmt_gb(4.5) == "4.5"
+
+
+def test_build_argv_gpu_max_vram_fills_and_streams():
+    files = {"diffusion_model": "/m/flux.gguf", "t5xxl": "/m/t5.gguf",
+             "clip_l": "/m/c.safetensors", "vae": "/m/v.safetensors"}
+    argv = rt.build_serve_argv("/x/sd", files, 8200, device="gpu", max_vram_gb=5)
+    assert argv[argv.index("--max-vram") + 1] == "5"
+    assert "--stream-layers" in argv
+    assert "--offload-to-cpu" not in argv
+    assert "--diffusion-fa" in argv  # FLUX.1 keeps flash attention
+
+
+def test_build_argv_gpu_no_budget_keeps_offload():
+    files = {"diffusion_model": "/m/flux.gguf", "t5xxl": "/m/t5.gguf",
+             "clip_l": "/m/c.safetensors", "vae": "/m/v.safetensors"}
+    argv = rt.build_serve_argv("/x/sd", files, 8200, device="gpu", max_vram_gb=None)
+    assert "--offload-to-cpu" in argv and "--max-vram" not in argv
+
+
+def test_build_argv_checkpoint_max_vram_no_flash_attn():
+    files = {"checkpoint": "/m/juggernaut-xl-v9-Q8_0.gguf"}
+    argv = rt.build_serve_argv("/x/sd", files, 8200, device="gpu", max_vram_gb=5)
+    assert "--max-vram" in argv and "--stream-layers" in argv
+    assert "--diffusion-fa" not in argv
+
+
+def test_build_argv_cpu_ignores_max_vram():
+    files = {"diffusion_model": "/m/flux.gguf", "t5xxl": "/m/t5.gguf",
+             "clip_l": "/m/c.safetensors", "vae": "/m/v.safetensors"}
+    argv = rt.build_serve_argv("/x/sd", files, 8200, device="cpu", threads=8, max_vram_gb=5)
+    assert "--max-vram" not in argv and "--offload-to-cpu" not in argv
+    assert argv[argv.index("-t") + 1] == "8"

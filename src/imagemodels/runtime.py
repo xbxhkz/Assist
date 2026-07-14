@@ -17,8 +17,14 @@ def local_image_endpoint_url(port: int) -> str:
     return f"http://127.0.0.1:{port}/v1"
 
 
+def _fmt_gb(gb) -> str:
+    """Render a VRAM budget for sd-server's --max-vram (integer when whole)."""
+    gb = float(gb)
+    return str(int(gb)) if gb == int(gb) else f"{gb:.1f}"
+
+
 def build_serve_argv(binary, files, port, device="cpu", host="127.0.0.1",
-                     threads=0, steps=None):
+                     threads=0, steps=None, max_vram_gb=None):
     """sd-server argv for an image GGUF. `files` selects the layout:
     - "checkpoint": an all-in-one SD/SDXL checkpoint (embedded encoders+VAE),
       served via -m at real cfg. Flash attention is OMITTED — --diffusion-fa
@@ -75,13 +81,15 @@ def build_serve_argv(binary, files, port, device="cpu", host="127.0.0.1",
     # peak inside 6GB VRAM / small-RAM machines on every device.
     argv += ["--vae-tiling", "--listen-ip", host, "--listen-port", str(port)]
     if device == "gpu":
-        # sd.cpp's documented low-VRAM recipe: weights live in RAM and stream
-        # into VRAM per use, so models larger than the card still run at GPU
-        # speed (klein Q8 on a 6GB RTX 4050: 1024px in ~80s, verified live).
-        # NOT --auto-fit (its VAE-OOM fallback failed live) and NOT a hard
-        # --backend pin (spills to host-visible memory at ~10x slowdown when
-        # weights exceed VRAM).
-        argv += ["--offload-to-cpu"]
+        if max_vram_gb:
+            # Fill VRAM up to the budget and stream the overflow from RAM
+            # (graph-cut segmented execution): small models stay resident, big
+            # ones fit instead of the blanket all-RAM offload.
+            argv += ["--max-vram", _fmt_gb(max_vram_gb), "--stream-layers"]
+        else:
+            # No budget (VRAM undetectable): the proven all-RAM recipe — weights
+            # live in RAM and stream into VRAM per use.
+            argv += ["--offload-to-cpu"]
         if use_fa:
             argv += ["--diffusion-fa"]
     elif threads:
