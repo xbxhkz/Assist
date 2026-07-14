@@ -151,8 +151,8 @@ elif threads:
 ## Testing
 
 **Unit — `build_serve_argv` (`tests/test_imagemodels_runtime.py`):**
-- `max_vram_gb=5, device="gpu"` → contains `--max-vram 5 --stream-layers`, and
-  **not** `--offload-to-cpu`.
+- `max_vram_gb=5, device="gpu"` → contains `--offload-to-cpu` **and**
+  `--max-vram 5 --stream-layers` (offload is required alongside the budget flags).
 - `max_vram_gb=None, device="gpu"` → contains `--offload-to-cpu`, not `--max-vram`
   (regression guard for today's behavior).
 - SDXL checkpoint + `max_vram_gb=5` → `--max-vram` present, `--diffusion-fa` absent.

@@ -131,7 +131,7 @@ def test_build_argv_gpu_max_vram_fills_and_streams():
     argv = rt.build_serve_argv("/x/sd", files, 8200, device="gpu", max_vram_gb=5)
     assert argv[argv.index("--max-vram") + 1] == "5"
     assert "--stream-layers" in argv
-    assert "--offload-to-cpu" not in argv
+    assert "--offload-to-cpu" in argv  # required alongside --max-vram (residency streaming)
     assert "--diffusion-fa" in argv  # FLUX.1 keeps flash attention
 
 
