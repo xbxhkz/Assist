@@ -20,6 +20,7 @@ from src.tool_utils import _truncate, get_mcp_manager, set_mcp_manager
 logger = logging.getLogger(__name__)
 
 from .subprocess_tools import BashTool, PythonTool
+from .shell_tools import PowerShellTool, CmdTool
 from .web_tools import WebSearchTool, WebFetchTool
 from .filesystem_tools import ReadFileTool, WriteFileTool, EditFileTool, LsTool, GlobTool, GrepTool, GetWorkspaceTool, OpenInVscodeTool
 from .desktop_tools import (LaunchAppTool, FindFilesTool, ListWindowsTool,
@@ -42,6 +43,8 @@ from .admin_tools import (
 TOOL_HANDLERS = {
     "bash": BashTool().execute,
     "python": PythonTool().execute,
+    "powershell": PowerShellTool().execute,
+    "cmd": CmdTool().execute,
     "web_search": WebSearchTool().execute,
     "web_fetch": WebFetchTool().execute,
     "read_file": ReadFileTool().execute,

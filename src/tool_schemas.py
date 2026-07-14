@@ -39,6 +39,34 @@ FUNCTION_TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "powershell",
+            "description": "Run a PowerShell command on this Windows machine. Requires the user's 'Allow shell commands' toggle. Read-only commands (Get-*, Test-Path, ...) run automatically; state-changing commands wait for the user to approve. Prefer dedicated file tools over shell for reading/writing/editing files.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {"type": "string", "description": "The PowerShell command to execute"}
+                },
+                "required": ["command"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "cmd",
+            "description": "Run a Windows command-prompt (cmd.exe) command. Requires the user's 'Allow shell commands' toggle. Read-only commands (dir, type, ...) run automatically; state-changing commands wait for approval. Prefer dedicated file tools over shell for file work.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {"type": "string", "description": "The cmd command to execute"}
+                },
+                "required": ["command"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "python",
             "description": "Execute Python code to compute a result or test something. Prefer a dedicated tool whenever one fits the job (reading, writing, or searching files); use python only for computation, data processing, or scripting no dedicated tool covers.",
             "parameters": {
