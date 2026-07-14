@@ -186,15 +186,15 @@ Replace the current `if device == "gpu":` block (lines 77-88) with:
 
 ```python
     if device == "gpu":
+        # --offload-to-cpu (weights in the CPU params backend) is ALWAYS present:
+        # it is what lets a model exceed VRAM. --max-vram then keeps up to <budget>
+        # GB resident in VRAM and --stream-layers prefetch-streams the overflow.
+        # (Live-verify correction: --max-vram alone only graph-cuts the compute —
+        # it loads every weight to VRAM and OOMs on a 6GB card; --stream-layers is
+        # ignored without a cpu params backend. So offload is REQUIRED alongside.)
+        argv += ["--offload-to-cpu"]
         if max_vram_gb:
-            # Fill VRAM up to the budget and stream the overflow from RAM
-            # (graph-cut segmented execution): small models stay resident, big
-            # ones fit instead of the blanket all-RAM offload.
             argv += ["--max-vram", _fmt_gb(max_vram_gb), "--stream-layers"]
-        else:
-            # No budget (VRAM undetectable): the proven all-RAM recipe — weights
-            # live in RAM and stream into VRAM per use.
-            argv += ["--offload-to-cpu"]
         if use_fa:
             argv += ["--diffusion-fa"]
     elif threads:

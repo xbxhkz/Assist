@@ -81,15 +81,17 @@ def build_serve_argv(binary, files, port, device="cpu", host="127.0.0.1",
     # peak inside 6GB VRAM / small-RAM machines on every device.
     argv += ["--vae-tiling", "--listen-ip", host, "--listen-port", str(port)]
     if device == "gpu":
+        # Weights always live in the CPU params backend (--offload-to-cpu), which
+        # is what lets sd.cpp fit models larger than the card. --max-vram then
+        # keeps up to <budget> GB of them RESIDENT in VRAM and --stream-layers
+        # prefetch-streams the overflow (residency streaming has "no effect
+        # unless diffusion params backend is cpu" — so --offload-to-cpu is
+        # REQUIRED alongside --max-vram, not replaced by it; verified live: the
+        # bare --max-vram recipe loaded every weight to VRAM and OOMed on the
+        # 6GB card mid-generation).
+        argv += ["--offload-to-cpu"]
         if max_vram_gb:
-            # Fill VRAM up to the budget and stream the overflow from RAM
-            # (graph-cut segmented execution): small models stay resident, big
-            # ones fit instead of the blanket all-RAM offload.
             argv += ["--max-vram", _fmt_gb(max_vram_gb), "--stream-layers"]
-        else:
-            # No budget (VRAM undetectable): the proven all-RAM recipe — weights
-            # live in RAM and stream into VRAM per use.
-            argv += ["--offload-to-cpu"]
         if use_fa:
             argv += ["--diffusion-fa"]
     elif threads:

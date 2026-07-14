@@ -107,7 +107,8 @@ def test_start_gpu_tier1_fills_vram():
     assert st["running"] is True and st["device"] == "gpu"
     argv = spawned[0][0]
     assert argv[argv.index("--max-vram") + 1] == "5"  # 6.0 - 1.0 margin
-    assert "--stream-layers" in argv and "--offload-to-cpu" not in argv
+    # offload-to-cpu is required alongside --max-vram for residency streaming
+    assert "--stream-layers" in argv and "--offload-to-cpu" in argv
     assert len(spawned) == 1
 
 

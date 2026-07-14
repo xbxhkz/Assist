@@ -248,7 +248,10 @@ def test_build_argv_gpu_max_vram_fills_and_streams():
     argv = rt.build_serve_argv("/x/sd", files, 8200, device="gpu", max_vram_gb=5)
     assert argv[argv.index("--max-vram") + 1] == "5"
     assert "--stream-layers" in argv
-    assert "--offload-to-cpu" not in argv
+    # --offload-to-cpu (weights in the CPU params backend) is REQUIRED alongside
+    # --max-vram: residency streaming only works when params live in RAM. Without
+    # it, sd.cpp loads every weight to VRAM and OOMs (verified live).
+    assert "--offload-to-cpu" in argv
     assert "--diffusion-fa" in argv  # FLUX.1 keeps flash attention
 
 

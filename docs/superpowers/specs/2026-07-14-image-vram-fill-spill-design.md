@@ -43,9 +43,9 @@ route (device=gpu) ──▶ manager.start(files, device)
                           │  build an ordered attempt ladder, spawn+await_ready
                           │  each; first ready wins, rest are tried on failure:
                           │
-                          │   Tier 1  gpu  --max-vram N --stream-layers   (fill+spill)
-                          │   Tier 2  gpu  --offload-to-cpu               (all-RAM)
-                          │   Tier 3  cpu  CPU binary, CPU argv           (no GPU)
+                          │   Tier 1  gpu  --offload-to-cpu --max-vram N --stream-layers  (fill+spill)
+                          │   Tier 2  gpu  --offload-to-cpu                              (all-RAM)
+                          │   Tier 3  cpu  CPU binary, CPU argv                          (no GPU)
                           ▼
                        sd-server (Vulkan binary for gpu tiers, CPU binary for Tier 3)
 ```
@@ -72,15 +72,25 @@ New keyword param `max_vram_gb=None`. Only the GPU device block changes:
 
 ```python
 if device == "gpu":
-    if max_vram_gb:                      # fill VRAM, stream the overflow
+    # --offload-to-cpu (weights in the CPU params backend) is ALWAYS present on
+    # GPU: it is what lets a model exceed VRAM. --max-vram then keeps up to
+    # <budget> GB resident in VRAM and --stream-layers prefetch-streams the rest.
+    argv += ["--offload-to-cpu"]
+    if max_vram_gb:                      # fill VRAM to budget, stream the overflow
         argv += ["--max-vram", _fmt_gb(max_vram_gb), "--stream-layers"]
-    else:                                # detection failed → proven all-RAM path
-        argv += ["--offload-to-cpu"]
     if use_fa:                           # unchanged: SDXL checkpoints omit FA
         argv += ["--diffusion-fa"]
 elif threads:
     argv += ["-t", str(threads)]
 ```
+
+> **Live-verify correction (2026-07-14):** an earlier draft *replaced*
+> `--offload-to-cpu` with `--max-vram --stream-layers`. That is wrong — `--max-vram`
+> only graph-cuts the *compute*; it does not move weights to RAM, so sd.cpp loaded
+> every weight to VRAM and OOMed mid-generation on the 6 GB card, and
+> `--stream-layers` was ignored ("no effect unless diffusion params backend is
+> cpu"). `--offload-to-cpu` is REQUIRED alongside the budget flags. Verified: both
+> klein-4b and the 12 GB klein-9b generate on the 6 GB card with this recipe.
 
 - `_fmt_gb` renders the budget as sd.cpp expects (e.g. `"5"` / `"4.5"`).
 - `--vae-tiling` and every non-GPU branch are unchanged.
