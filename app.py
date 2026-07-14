@@ -781,6 +781,10 @@ logger.info("MCP routes initialized")
 from routes.operator_routes import setup_operator_routes
 app.include_router(setup_operator_routes())
 
+# Shell-command approval bridge (powershell/cmd human-in-the-loop decisions)
+from routes.shell_approval_routes import setup_shell_approval_routes
+app.include_router(setup_shell_approval_routes())
+
 # AI Interaction tools (debates, pipelines, self-managing AI, UI control)
 from src.ai_interaction import set_session_manager as set_ai_session_manager, set_memory_manager as set_ai_memory_manager, set_rag_manager as set_ai_rag_manager
 set_ai_session_manager(session_manager)
