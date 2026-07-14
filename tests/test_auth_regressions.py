@@ -169,6 +169,71 @@ def test_set_signup_enabled_requires_admin():
     assert auth.signup_enabled is False
 
 # ---------------------------------------------------------------------------
+# Auth routes -- settings setter drops live shell-exec auto-approve on off
+# ---------------------------------------------------------------------------
+
+def test_set_settings_shell_exec_off_triggers_server_side_reset(monkeypatch):
+    """Fix 2 (final shell-exec review): flipping shell_exec_enabled off via
+    POST /api/auth/settings must call src.shell_exec.approval.reset_all()
+    server-side, regardless of which client (UI or a direct API caller) sent
+    the request. The front-end's own /api/shell/reset call is only
+    belt-and-suspenders and must not be the sole place this happens."""
+    import routes.auth_routes as auth_routes_mod
+    import src.shell_exec.approval as approval_mod
+
+    auth, target = _auth_route_endpoint("/api/auth/settings", "POST")
+    auth.get_username_for_token.return_value = "admin"
+    auth.is_admin.return_value = True
+
+    monkeypatch.setattr(auth_routes_mod, "_load_settings",
+                         lambda: dict(auth_routes_mod.DEFAULT_SETTINGS))
+    monkeypatch.setattr(auth_routes_mod, "_save_settings", MagicMock())
+
+    reset_mock = MagicMock()
+    monkeypatch.setattr(approval_mod, "reset_all", reset_mock)
+
+    request = _fake_auth_request()
+
+    async def _json():
+        return {"shell_exec_enabled": False}
+    request.json = _json
+
+    out = asyncio.run(target(request=request))
+
+    assert out["shell_exec_enabled"] is False
+    reset_mock.assert_called_once()
+
+
+def test_set_settings_shell_exec_on_does_not_reset(monkeypatch):
+    """Turning shell exec ON must not call reset_all — only the off
+    transition should drop live per-session auto-approve elevation."""
+    import routes.auth_routes as auth_routes_mod
+    import src.shell_exec.approval as approval_mod
+
+    auth, target = _auth_route_endpoint("/api/auth/settings", "POST")
+    auth.get_username_for_token.return_value = "admin"
+    auth.is_admin.return_value = True
+
+    monkeypatch.setattr(auth_routes_mod, "_load_settings",
+                         lambda: dict(auth_routes_mod.DEFAULT_SETTINGS))
+    monkeypatch.setattr(auth_routes_mod, "_save_settings", MagicMock())
+
+    reset_mock = MagicMock()
+    monkeypatch.setattr(approval_mod, "reset_all", reset_mock)
+
+    request = _fake_auth_request()
+
+    async def _json():
+        return {"shell_exec_enabled": True}
+    request.json = _json
+
+    out = asyncio.run(target(request=request))
+
+    assert out["shell_exec_enabled"] is True
+    reset_mock.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # Research endpoints — `_require_user` rejects anonymous
 # ---------------------------------------------------------------------------
 

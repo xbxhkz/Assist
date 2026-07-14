@@ -40,3 +40,13 @@ def test_newline_and_control_whitespace_force_write():
 def test_empty_is_write():
     assert c("", "powershell") == "write"
     assert c("   ", "cmd") == "write"
+
+
+def test_format_verb_prefix_is_not_blanket_read():
+    # Format-Volume/Format-SecureBootUEFI are destructive — must NOT auto-run.
+    assert c("Format-Volume -DriveLetter D -Confirm:$false", "powershell") == "write"
+    assert c("Format-SecureBootUEFI -Name PK", "powershell") == "write"
+    # ...but the display formatters stay read-only:
+    assert c("Format-Table", "powershell") == "read"
+    assert c("Format-List Name", "powershell") == "read"
+    assert c("Format-Wide", "powershell") == "read"

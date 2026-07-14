@@ -7,11 +7,16 @@ anything else — any compose character or unrecognized leading token — is "wr
 # mutation (e.g. `Get-Content x | Remove-Item`). Presence → always "write".
 _COMPOSE = ("|", ">", "<", ";", "&", "`", "$(", "\n", "\r")
 
-# PowerShell reads: the Get-/Format- verbs plus a few explicit safe cmdlets.
+# PowerShell reads: the Get- verb prefix plus a few explicit safe cmdlets.
+# NOTE: "format-" is deliberately NOT a blanket prefix — Format-Volume and
+# Format-SecureBootUEFI are destructive despite the Format- verb, so only the
+# specific display formatters below are allowlisted as reads.
 _PS_READ = frozenset({"test-path", "select-object", "select-string",
                       "measure-object", "where-object", "resolve-path",
-                      "write-output"})
-_PS_READ_PREFIX = ("get-", "format-")
+                      "write-output",
+                      "format-table", "format-list", "format-wide",
+                      "format-custom", "format-hex"})
+_PS_READ_PREFIX = ("get-",)
 
 # cmd reads. `set` is deliberately excluded: `set X=Y` mutates and we only
 # inspect the leading token, so it cannot be distinguished safely.

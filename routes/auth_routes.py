@@ -669,6 +669,14 @@ def setup_auth_routes(auth_manager: AuthManager) -> APIRouter:
                 val = max(lo, min(val, hi))
             current[key] = val
         _save_settings(current)
+        # Turning shell execution off must also drop any live auto-approve-all
+        # elevation, regardless of which client flipped it (UI or direct API).
+        if "shell_exec_enabled" in body and not current.get("shell_exec_enabled"):
+            try:
+                from src.shell_exec.approval import reset_all
+                reset_all()
+            except Exception:
+                pass
         return current
 
     # ---- Integrations CRUD ----
