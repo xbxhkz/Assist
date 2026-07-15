@@ -1458,6 +1458,25 @@
       </div>
       <div style="font-size:11px;opacity:0.55;margin-bottom:8px;">Steps: blank = the model's default (klein 4, others 20). Fast decode: near-instant decode via tiny autoencoder, slightly softer detail (FLUX.1 only).</div>
       <div id="imagemodels-msg" style="font-size:12px;opacity:0.85;"></div>
+
+      <div id="loras-section" style="margin-top:10px;border-top:1px solid var(--border,#333);padding-top:8px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">LoRAs</div>
+        <div style="display:flex;gap:4px;margin-bottom:6px;">
+          <input id="lora-civitai-q" type="text" placeholder="Search Civitai LoRAs…" style="flex:1;min-width:0;">
+          <button id="lora-civitai-search-btn" type="button">Search</button>
+        </div>
+        <div id="lora-search-results" style="max-height:180px;overflow:auto;margin-bottom:6px;"></div>
+        <details style="margin-bottom:6px;">
+          <summary style="cursor:pointer;font-size:12px;opacity:0.8;">Add from HF / URL / file</summary>
+          <div style="display:flex;flex-direction:column;gap:4px;margin-top:4px;">
+            <div style="display:flex;gap:4px;"><input id="lora-hf-repo" placeholder="hf repo (owner/name)" style="flex:1;min-width:0;"><input id="lora-hf-file" placeholder="file.safetensors" style="flex:1;min-width:0;"><button id="lora-hf-btn" type="button">Get</button></div>
+            <div style="display:flex;gap:4px;"><input id="lora-url" placeholder="direct .safetensors URL" style="flex:1;min-width:0;"><input id="lora-url-name" placeholder="name" style="width:90px;"><button id="lora-url-btn" type="button">Get</button></div>
+            <div style="display:flex;gap:4px;align-items:center;"><input id="lora-file" type="file" accept=".safetensors" style="flex:1;min-width:0;"><button id="lora-file-btn" type="button">Import</button></div>
+          </div>
+        </details>
+        <div id="lora-installed"></div>
+        <div id="lora-msg" style="font-size:12px;opacity:0.8;margin-top:4px;"></div>
+      </div>
     </div>
   </div>
 
@@ -2778,6 +2797,7 @@
 <script src="/static/js/plugins.js"></script>
 <script src="/static/js/operator.js"></script>
 <script src="/static/js/shellApproval.js"></script>
+<script src="/static/js/loras.js"></script>
 <script src="/static/js/shellExec.js"></script>
 <script src="/static/js/screenAccess.js"></script>
 <script src="/static/js/inputControl.js"></script>
