@@ -79,7 +79,9 @@ def build_serve_argv(binary, files, port, device="cpu", host="127.0.0.1",
         argv += ["--taesd", files["taesd"]]
     # 1024x1024 VAE decode wants a ~8.5GB compute buffer; tiling keeps the
     # peak inside 6GB VRAM / small-RAM machines on every device.
-    argv += ["--vae-tiling", "--listen-ip", host, "--listen-port", str(port)]
+    from src.imagemodels.loras import loras_dir  # lazy: avoids import-order cycles
+    argv += ["--lora-model-dir", loras_dir(),
+             "--vae-tiling", "--listen-ip", host, "--listen-port", str(port)]
     if device == "gpu":
         # Weights always live in the CPU params backend (--offload-to-cpu), which
         # is what lets sd.cpp fit models larger than the card. --max-vram then

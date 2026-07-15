@@ -275,3 +275,14 @@ def test_build_argv_cpu_ignores_max_vram():
     argv = rt.build_serve_argv("/x/sd", files, 8200, device="cpu", threads=8, max_vram_gb=5)
     assert "--max-vram" not in argv and "--offload-to-cpu" not in argv
     assert argv[argv.index("-t") + 1] == "8"
+
+
+def test_build_argv_sets_lora_model_dir(monkeypatch, tmp_path):
+    import src.imagemodels.loras as loras
+    monkeypatch.setattr(loras, "IMAGE_MODELS_DIR", str(tmp_path))
+    files = {"diffusion_model": "/m/flux.gguf", "t5xxl": "/m/t5.gguf",
+             "clip_l": "/m/c.safetensors", "vae": "/m/v.safetensors"}
+    for dev in ("cpu", "gpu"):
+        argv = rt.build_serve_argv("/x/sd", files, 8200, device=dev)
+        assert argv[argv.index("--lora-model-dir") + 1] == loras.loras_dir()
+        assert "--vae-tiling" in argv     # existing flag still present
