@@ -51,6 +51,7 @@ DEFAULT_SETTINGS = {
     # Default WxH for generation; 512x512 is ~4x cheaper than 1024x1024 on
     # small GPUs, so this is a user-facing speed/quality dial.
     "image_size": "1024x1024",
+    "civitai_api_token": "",
     "vision_model": "",
     "vision_enabled": True,
     # Ordered fallback chain for the Vision model (image analysis, OCR, tagging).
