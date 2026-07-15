@@ -980,6 +980,15 @@
           </label>
         </div>
 
+        <details id="hwmon" style="display:block;padding:3px 8px;border-radius:4px;">
+          <summary style="display:flex;align-items:center;gap:6px;cursor:pointer;list-style:none;font-size:13px;color:var(--fg);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.5;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <span class="grow">Hardware monitor</span>
+          </summary>
+          <div id="hwmon-body" style="margin-top:6px;padding-left:20px;"></div>
+        </details>
+        <style>#hwmon > summary::-webkit-details-marker { display: none; }</style>
+
         <div class="list-item" id="tool-help-btn">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -2801,6 +2810,7 @@
 <script src="/static/js/shellExec.js"></script>
 <script src="/static/js/screenAccess.js"></script>
 <script src="/static/js/inputControl.js"></script>
+<script src="/static/js/hardwareMonitor.js"></script>
 <script type="module" src="/static/js/search-chat.js"></script>
 <script type="module" src="/static/js/compare/index.js"></script>
 <script type="module" src="/static/js/theme.js"></script>
