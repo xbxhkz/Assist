@@ -190,6 +190,11 @@ def setup_hwfit_routes():
         host, ssh_port = _validate_detection_target(host, ssh_port)
         return detect_system(host=host, ssh_port=ssh_port, platform=platform, fresh=fresh)
 
+    @router.get("/usage")
+    def get_usage():
+        from services.hwfit.hardware import usage
+        return usage()
+
     @router.get("/models")
     def get_models(use_case: str = "", sort: str = "newest", limit: int = 50, search: str = "", host: str = "", quant: str = "", ctx: str = "", gpu_count: str = "", gpu_group: str = "", ssh_port: str = "", platform: str = "", fresh: bool = False, manual_mode: str = "", manual_gpu_count: str = "", manual_vram_gb: str = "", manual_ram_gb: str = "", manual_backend: str = "", ignore_detected_gpu: bool = False, ignore_detected_ram: bool = False, fit_only: bool = False):
         """Rank LLM models against detected hardware and return scored results.

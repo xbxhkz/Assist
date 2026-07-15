@@ -7,6 +7,11 @@ import subprocess
 import time
 import shlex
 
+try:
+    import psutil
+except Exception:  # pragma: no cover - psutil is a normal dep, guard is defensive
+    psutil = None
+
 from core.platform_compat import (
     NVIDIA_PATH_CANDIDATES,
     SSH_PATH_OVERRIDE,
@@ -197,6 +202,57 @@ def free_vram_gb():
         return float(first) / 1024.0
     except ValueError:
         return None
+
+
+def _gpu_usage() -> list:
+    """Per-NVIDIA-GPU live VRAM + util via nvidia-smi. [] if unavailable."""
+    q = ["--query-gpu=index,name,memory.used,memory.total,utilization.gpu",
+         "--format=csv,noheader,nounits"]
+    out = _run(["nvidia-smi", *q])
+    if not out:
+        for _p in NVIDIA_PATH_CANDIDATES:
+            out = _run([_p, *q])
+            if out:
+                break
+    if not out:
+        return []
+    gpus = []
+    for line in out.strip().split("\n"):
+        parts = [p.strip() for p in line.split(",")]
+        if len(parts) < 5:
+            continue
+        try:
+            idx = int(parts[0])
+            used = float(parts[2])
+            total = float(parts[3])
+            util = float(parts[4])
+        except ValueError:
+            continue  # [N/A] unified-memory rows, non-numeric fields
+        gpus.append({
+            "index": idx, "name": parts[1],
+            "vram_used_gb": round(used / 1024.0, 2),
+            "vram_total_gb": round(total / 1024.0, 2),
+            "vram_percent": round(used / total * 100.0, 1) if total else 0.0,
+            "util_percent": util,
+        })
+    return gpus
+
+
+def usage() -> dict:
+    """Live resource usage: CPU%, RAM, and per-NVIDIA-GPU VRAM+util. Never raises;
+    degrades to zeros / empty gpus when a source is unavailable."""
+    cpu = ram_used = ram_total = ram_pct = 0.0
+    if psutil is not None:
+        try:
+            cpu = float(psutil.cpu_percent())
+            vm = psutil.virtual_memory()
+            ram_used = round(vm.used / 1e9, 2)
+            ram_total = round(vm.total / 1e9, 2)
+            ram_pct = float(vm.percent)
+        except Exception:
+            pass
+    return {"cpu_percent": cpu, "ram_used_gb": ram_used, "ram_total_gb": ram_total,
+            "ram_percent": ram_pct, "gpus": _gpu_usage()}
 
 
 def classify_amd_gfx(gfx):
