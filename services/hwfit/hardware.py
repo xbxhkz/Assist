@@ -246,8 +246,10 @@ def usage() -> dict:
         try:
             cpu = float(psutil.cpu_percent())
             vm = psutil.virtual_memory()
-            ram_used = round(vm.used / 1e9, 2)
-            ram_total = round(vm.total / 1e9, 2)
+            # Binary GiB (/1024**3) to match detect_system()'s total_ram_gb —
+            # both numbers render in the same sidebar, so they must agree.
+            ram_used = round(vm.used / 1024 ** 3, 2)
+            ram_total = round(vm.total / 1024 ** 3, 2)
             ram_pct = float(vm.percent)
         except Exception:
             pass

@@ -2,8 +2,8 @@ import services.hwfit.hardware as hw
 
 
 class _FakeVM:
-    used = 12e9
-    total = 64e9
+    used = 12 * 1024 ** 3
+    total = 64 * 1024 ** 3
     percent = 23.9
 
 

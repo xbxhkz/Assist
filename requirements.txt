@@ -45,6 +45,10 @@ qrcode[pil]
 croniter
 mss
 comtypes
+# Live CPU/RAM usage for the hardware monitor (services/hwfit/hardware.py
+# usage()). Guarded import — the app degrades to zeros if it's ever missing —
+# but declare it so a clean install and the frozen build bundle it.
+psutil
 pytest
 pytest-asyncio
 # starlette.testclient prefers httpx2 since Starlette 1.2.0 and warns on every
