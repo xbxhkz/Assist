@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/odysseus-browser.jpg" alt="Assist interface">
+  <img src="docs/assist-browser.jpg" alt="Assist interface">
 </p>
 
 ---
