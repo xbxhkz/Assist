@@ -1635,6 +1635,29 @@ function initEndpointForm() {
     });
   }
 
+  // EXL2 (TabbyAPI) and MLX (mlx_lm) endpoint presets — fill the default local
+  // URL for that server; the user starts the server then clicks Add. See the
+  // Help > Manual "EXL2 & MLX models" section for setup.
+  const EXTERNAL_PRESETS = [
+    { id: 'adm-epTabbyBtn', url: 'http://127.0.0.1:5000/v1', label: 'TabbyAPI (EXL2)' },
+    { id: 'adm-epMlxBtn', url: 'http://127.0.0.1:8080/v1', label: 'MLX (mlx_lm)' },
+  ];
+  EXTERNAL_PRESETS.forEach((preset) => {
+    const btn = el(preset.id);
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      const input = el('adm-epLocalUrl');
+      if (input) { input.value = preset.url; input.focus(); }
+      const lt = el('adm-epLocalType');
+      if (lt) lt.value = 'llm';
+      const msg = _endpointMsg('local');
+      if (msg) {
+        msg.textContent = preset.label + ' URL filled — start the server, then click Add. See Help ▸ Manual for setup.';
+        msg.className = 'adm-ep-inline-msg';
+      }
+    });
+  });
+
   // Discover local models button
   const discoverBtn = el('adm-epDiscoverBtn');
   if (discoverBtn) {
