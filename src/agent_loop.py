@@ -304,6 +304,7 @@ _DOMAIN_TOOL_MAP = {
     "contacts": {"resolve_contact", "manage_contact"},
     "integrations": {"api_call"},
     "desktop": {"launch_app", "find_files", "list_windows", "control_window", "capture_screen",
+                "webcam_look",
                 "list_ui_elements", "click_element", "set_element_text", "mouse", "keyboard"},
     "network": {"net_info", "discover_hosts", "scan_ports"},
 }
@@ -419,6 +420,12 @@ Focus or change a window. Confirm with the user before close (unsaved work).""",
 {"target": "full|monitor:1|window:<id>"}
 ```
 Capture the screen so you can see it. Requires the user to enable screen access. Use to read on-screen content, forms, errors.""",
+
+    "webcam_look": """\
+```webcam_look
+{"describe": false}
+```
+Look through the webcam and detect objects (YOLO). Requires the user to enable Camera access. Optional describe=true also adds a vision-model scene description.""",
 
     "list_ui_elements": """\
 ```list_ui_elements

@@ -1,4 +1,4 @@
-DESKTOP = ["launch_app", "find_files", "list_windows", "control_window", "capture_screen"]
+DESKTOP = ["launch_app", "find_files", "list_windows", "control_window", "capture_screen", "webcam_look"]
 
 
 def test_all_registered_everywhere():
