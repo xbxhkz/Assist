@@ -55,6 +55,11 @@ psutil
 # audio. Now shipped by default so voice mode works offline; the frozen build
 # bundles it via collect_all in Assist.spec (faster_whisper/ctranslate2/av).
 faster-whisper
+# Webcam object detection (the admin-only webcam_look tool): YOLO via ultralytics.
+# Ships by default so detection works offline; the yolov8n weight is bundled under
+# build_assets/yolo and ultralytics is collected in Assist.spec. Pulls torch (already
+# bundled) + cv2 (already bundled).
+ultralytics
 pytest
 pytest-asyncio
 # starlette.testclient prefers httpx2 since Starlette 1.2.0 and warns on every

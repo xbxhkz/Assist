@@ -12,7 +12,10 @@ for _pkg in ("chromadb", "onnxruntime", "fastembed", "tokenizers",
              # CTranslate2 backend and decodes mic audio (webm/opus) via PyAV.
              # All three ship native DLLs that PyInstaller's static analysis
              # misses, so collect_all pulls their binaries + data.
-             "faster_whisper", "ctranslate2", "av"):
+             "faster_whisper", "ctranslate2", "av",
+             # Webcam object detection (webcam_look tool): YOLO via ultralytics.
+             # collect_all pulls its submodules/data (torch + cv2 already handled).
+             "ultralytics"):
     _d, _b, _h = collect_all(_pkg)
     _collected_datas += _d
     _collected_binaries += _b
@@ -32,6 +35,8 @@ datas = [
     # Bundled sd-server (stable-diffusion.cpp) for native image generation:
     # CPU (avx2) + Vulkan GPU builds, populated by scripts/fetch_sd_server.py.
     ('build_assets/sd', 'sd'),
+    # Bundled YOLO weight (yolov8n.pt) so webcam object detection works offline.
+    ('build_assets/yolo', 'yolo'),
 ] + _collected_datas
 
 hiddenimports = [
