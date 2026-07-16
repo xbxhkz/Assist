@@ -49,6 +49,12 @@ comtypes
 # usage()). Guarded import — the app degrades to zeros if it's ever missing —
 # but declare it so a clean install and the frozen build bundle it.
 psutil
+# Local Speech-to-Text (voice input for the mic button + hands-free voice
+# mode), services/stt/stt_service.py "local" provider. CTranslate2 backend
+# (CPU out of the box; auto-uses CUDA torch if present) + PyAV to decode mic
+# audio. Now shipped by default so voice mode works offline; the frozen build
+# bundles it via collect_all in Assist.spec (faster_whisper/ctranslate2/av).
+faster-whisper
 pytest
 pytest-asyncio
 # starlette.testclient prefers httpx2 since Starlette 1.2.0 and warns on every

@@ -7,7 +7,12 @@ from PyInstaller.utils.hooks import collect_all
 _collected_datas = []
 _collected_binaries = []
 _collected_hidden = []
-for _pkg in ("chromadb", "onnxruntime", "fastembed", "tokenizers"):
+for _pkg in ("chromadb", "onnxruntime", "fastembed", "tokenizers",
+             # Local Speech-to-Text (voice input): faster-whisper runs on the
+             # CTranslate2 backend and decodes mic audio (webm/opus) via PyAV.
+             # All three ship native DLLs that PyInstaller's static analysis
+             # misses, so collect_all pulls their binaries + data.
+             "faster_whisper", "ctranslate2", "av"):
     _d, _b, _h = collect_all(_pkg)
     _collected_datas += _d
     _collected_binaries += _b
