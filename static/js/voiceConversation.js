@@ -7,6 +7,7 @@ import { STATES, nextState, createTurnDetector } from './voiceConversationCore.j
 
 (function () {
   const SILENCE_TIMEOUT_MS = 25000; // no speech at all → exit voice mode
+  const TRANSCRIBE_TIMEOUT_MS = 20000; // abort a stalled STT request → EMPTY → re-listen
   const VAD = { threshold: 0.015, hangoverMs: 1200, minSpeechMs: 300 };
   const LABELS = {
     listening: 'Listening…', transcribing: 'Thinking…',
@@ -181,9 +182,17 @@ import { STATES, nextState, createTurnDetector } from './voiceConversationCore.j
     try {
       const fd = new FormData();
       fd.append('file', blob, 'audio.webm');
-      const r = await fetch('/api/stt/transcribe', { method: 'POST', credentials: 'same-origin', body: fd });
-      if (r.ok) { const d = await r.json(); text = (d.text || '').trim(); }
-    } catch (_) { /* fall through to EMPTY */ }
+      // Bound the request so a stalled STT can't wedge the loop in 'transcribing':
+      // on timeout the fetch aborts → caught here → EMPTY → back to listening.
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), TRANSCRIBE_TIMEOUT_MS);
+      try {
+        const r = await fetch('/api/stt/transcribe', { method: 'POST', credentials: 'same-origin', body: fd, signal: ctrl.signal });
+        if (r.ok) { const d = await r.json(); text = (d.text || '').trim(); }
+      } finally {
+        clearTimeout(to);
+      }
+    } catch (_) { /* fall through to EMPTY (incl. AbortError on timeout) */ }
 
     if (!text) { dispatch('EMPTY'); return; } // → LISTENING → beginListening()
 
