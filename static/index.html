@@ -1554,10 +1554,11 @@
             <p>Open <b>Local Models</b> to search Hugging Face for GGUF models, download them, or link a .gguf already on disk (Browse). Serve on <b>CPU</b> or <b>GPU</b> — GPU uses a Vulkan build that automatically fits as many layers as your video memory holds; the rest run on CPU. The served model appears in the model picker automatically, and the last model re-serves on the next launch. The hardware line shows what your machine can handle; download suggestions are ranked to fit it.</p>
           </details>
           <details>
-            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Image generation (FLUX)</summary>
-            <p>The <b>Image models</b> card (inside Local Models) serves FLUX diffusion models locally. Downloaded image GGUFs are listed automatically; required text encoders and VAE are resolved from the shared <code>image-models/encoders</code> folder. <b>FLUX.1</b> uses ~20 steps; <b>FLUX.2 klein</b> is distilled to 4 steps and is much faster. <b>Steps</b> overrides the default; <b>Fast decode</b> uses a tiny autoencoder for near-instant decoding (FLUX.1 only, slightly softer detail).</p>
-            <p><b>Z-Image turbo</b> (6B, 8 steps) is also supported — it uses a Qwen3 text encoder and the FLUX.1 VAE, both set up automatically.</p>
-            <p>Sizing guidance for small GPUs (≈6&nbsp;GB): klein handles 1024×1024; FLUX.1 (12B) and Z-Image (6B) fit up to ~512×512 on GPU — set Settings → Image generation → Size, or serve on CPU for larger sizes. If a too-large size fails, Assist retries once at 512×512 automatically. Once served, ask for images in chat or use the Gallery.</p>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Image generation</summary>
+            <p>The <b>Image models</b> card (inside Local Models) serves diffusion models locally. Downloaded image GGUFs are listed automatically; required text encoders and VAE are resolved from the shared <code>image-models/encoders</code> folder. <b>FLUX.1</b> uses ~20 steps; <b>FLUX.2 klein</b> is distilled to 4 steps and is much faster. <b>Steps</b> overrides the default; <b>Fast decode</b> uses a tiny autoencoder for near-instant decoding (FLUX.1 only, slightly softer detail).</p>
+            <p>Other families are auto-detected and served with the right recipe: <b>Z-Image turbo</b> (6B, 8 steps; Qwen3 encoder + FLUX.1 VAE); <b>SDXL</b> all-in-one checkpoints (e.g. Juggernaut XL, RealVisXL — including Lightning/Turbo distilled variants); and <b>Chroma</b>, an uncensored, de-distilled FLUX finetune that uses real CFG.</p>
+            <p><b>LoRAs</b> — open the LoRA section in the Image models card to search and download LoRAs from <b>Civitai</b> or <b>Hugging Face</b> (or upload your own). Apply one by adding a <code>&lt;lora:name:weight&gt;</code> tag to your prompt, where <code>name</code> is the file's stem (a "copy tag" button fills it in). The agent can list and use them too.</p>
+            <p>Sizing guidance for small GPUs (≈6&nbsp;GB): klein handles 1024×1024; FLUX.1 (12B) and Z-Image (6B) fit up to ~512×512 on GPU — set Settings → Image generation → Size, or serve on CPU for larger sizes. <b>VRAM fill-and-spill</b> keeps as much of the model on the GPU as fits and streams the rest from RAM, so heavier models still run (just slower). If a too-large size fails, Assist retries once at 512×512 automatically. Once served, ask for images in chat or use the Gallery.</p>
           </details>
           <details>
             <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Gallery</summary>
@@ -1590,6 +1591,28 @@
             <p><b>Capture screen</b> additionally requires the <b>Screen access</b> toggle in the sidebar to be switched on; the other four tools work without it. Screen access defaults to <b>off</b> and automatically resets to off every time Assist restarts, so a previous session can never leave your screen capturable in the background — turn it back on from the sidebar (a small green dot next to the toggle confirms it's active) whenever you want the agent to be able to see your screen.</p>
           </details>
           <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Voice conversations</summary>
+            <p>Click the <b>voice button</b> (microphone icon) in the composer to start a hands-free conversation. Assist opens the mic, and when you pause it transcribes what you said with a local <b>Whisper</b> model, sends it, speaks the reply aloud, then re-opens the mic for your next turn — no clicking between turns. Press <b>Stop</b> or <code>Esc</code> to leave; ~25&nbsp;s of silence exits on its own. The mic stays closed while the AI is speaking, so it won't hear itself.</p>
+            <p><b>Setup:</b> Settings → Services → <b>Speech to Text</b> (default <i>Local (Whisper)</i>, offline) and <b>Text to Speech</b> (default <i>Browser</i>) — make sure both are enabled. The first turn downloads the Whisper model (~140&nbsp;MB) once, then runs fully offline. Voice mode is unavailable while Compare or Group chat is active.</p>
+          </details>
+          <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Shell commands (PowerShell &amp; cmd)</summary>
+            <p>Turn on the <b>Shell commands</b> switch in the sidebar to let the agent run <b>PowerShell</b> and <b>cmd</b> commands. Read-only commands run automatically; any command that changes state asks for your <b>approval</b> first via a card in the chat, and the output is returned to the agent so it can continue. The switch is <b>admin-only</b> and resets off when Assist restarts.</p>
+          </details>
+          <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Automation, vision &amp; the AI Operator</summary>
+            <p>Beyond the five desktop tools, admins get more advanced automation. <b>Vision</b> — pair <i>Screen access</i> with a local vision model so the agent can read what's on screen. <b>Input automation</b> — the agent can move the mouse, click, and type, to drive apps that have no API. <b>Network scanner</b> — discover hosts and open ports on your <i>private</i> network (restricted to private IP ranges for safety).</p>
+            <p><b>AI Operator</b> — give it a goal and it drives the desktop in a perceive-then-act loop, pausing for your <b>confirmation before each action</b>. Everything here is admin-only.</p>
+          </details>
+          <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Hardware monitor</summary>
+            <p>Open the <b>Hardware monitor</b> panel in the sidebar for live sparklines of <b>CPU&nbsp;%</b>, <b>RAM&nbsp;%</b>, and each GPU's <b>VRAM&nbsp;%</b> and utilization, updated about once a second. It only polls while the panel is open — handy for watching VRAM while a model loads or an image generates.</p>
+          </details>
+          <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Connectors (Gmail, Calendar, Drive…)</summary>
+            <p>Settings → <b>Integrations</b> links external services over the <b>Model Context Protocol (MCP)</b> — Gmail, Google Calendar, Google Drive, Hugging Face, and other MCP servers — so the agent can use them as tools. Connect or remove them and manage their sign-in there.</p>
+          </details>
+          <details>
             <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Troubleshooting</summary>
             <p>Logs live in the data folder: <code>data/logs/app.log</code> (application), <code>llama-server.log</code> (local LLM), <code>sd-server.log</code> (image models — the previous run is kept as <code>.prev</code>), <code>mcp-servers.log</code> (built-in tools). Serving an LLM and an image model together on a small-RAM machine pages heavily — the app offers to stop one before starting the other. If a local image generation fails with "no results", the size likely exceeds GPU memory: lower Settings → Image generation → Size.</p>
           </details>
@@ -1607,7 +1630,7 @@
         <div class="admin-card" style="font-size:13px;line-height:1.6;">
           <h2 style="margin-top:0;">Assist</h2>
           <p>Version <span id="help-about-version">…</span></p>
-          <p style="opacity:0.75;">A local-first AI workspace: chat, agents, local LLM &amp; image-model serving, email, calendar, tasks, notes, documents, and skills — your data stays on your machine.</p>
+          <p style="opacity:0.75;">A local-first AI workspace: chat, agents, local LLM &amp; image-model serving, hands-free voice, desktop control &amp; automation, email, calendar, tasks, notes, documents, and skills — your data and your models stay on your machine.</p>
           <p style="font-size:12px;opacity:0.6;">Data folder: <code>~/.assist/data</code> · Logs: <code>~/.assist/data/logs</code></p>
         </div>
       </div>
