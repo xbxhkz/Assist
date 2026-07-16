@@ -244,6 +244,8 @@ class AITTSManager {
             this.currentAudio = null;
             this.isPlaying = false;
         }
+        // Voice mode: TTS was force-stopped — treat as idle.
+        try { window.dispatchEvent(new CustomEvent('assist:tts-idle')); } catch (_) {}
     }
 
     /**
@@ -275,6 +277,8 @@ class AITTSManager {
         }
 
         this._processing = false;
+        // Voice mode: the play queue has fully drained.
+        try { window.dispatchEvent(new CustomEvent('assist:tts-idle')); } catch (_) {}
     }
 
     async _playQueueItem(item) {

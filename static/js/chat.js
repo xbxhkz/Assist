@@ -3187,6 +3187,9 @@ import { wireArrowUpRecall, getLastUserMessageFromChatHistory } from './composer
       // Streaming done — let screen readers announce the settled response.
       const _chatLogDone = document.getElementById('chat-history');
       if (_chatLogDone) _chatLogDone.setAttribute('aria-busy', 'false');
+      // Voice mode: signal the hands-free loop that this turn's response is done
+      // (fires on success, error, and background paths). No-op if nobody listens.
+      try { window.dispatchEvent(new CustomEvent('assist:reply-complete')); } catch (_) {}
       // Always clean up research tracking regardless of background state
       _researchingStreamIds.delete(streamSessionId);
       if (_researchingStreamIds.size === 0) {
