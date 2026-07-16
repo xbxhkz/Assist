@@ -12,6 +12,8 @@ from src.desktop.apps import resolve_app, launch
 from src.desktop.filesearch import search
 from src.desktop.windows import list_windows, control_window
 from src.desktop.capture import capture_png
+from src.desktop.webcam import capture_frame_jpeg
+from src.vision.yolo import detect, annotate, summarize
 from src.document_processor import analyze_image_with_vl_result
 
 logger = logging.getLogger(__name__)
@@ -123,3 +125,42 @@ class CaptureScreenTool:
                 os.remove(temp_path)
         return {"output": desc or "(vision model returned no description)",
                 "image_url": uri, "exit_code": 0}
+
+
+class WebcamLookTool:
+    async def execute(self, content, ctx):
+        if not get_setting("camera_access_enabled", False):
+            return {"error": "Camera access is off. Ask the user to enable 'Camera "
+                             "access' in the sidebar before using the webcam.",
+                    "exit_code": 1}
+        describe = _args(content).get("describe")
+        if describe is None:
+            describe = bool(get_setting("webcam_describe_default", False))
+        try:
+            jpeg = capture_frame_jpeg()
+        except Exception as e:
+            return {"error": f"webcam_look: no camera or capture failed ({e}).",
+                    "exit_code": 1}
+        dets = detect(jpeg)
+        out = summarize(dets)
+        annotated = annotate(jpeg, dets)
+        if describe:
+            if _vision_ready():
+                temp_path = None
+                try:
+                    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tf:
+                        tf.write(jpeg)
+                        temp_path = tf.name
+                    result = await asyncio.to_thread(
+                        analyze_image_with_vl_result, temp_path, ctx.get("owner"))
+                    desc = (result or {}).get("text", "")
+                    if desc:
+                        out = out + "\n\nScene: " + desc
+                finally:
+                    if temp_path:
+                        os.remove(temp_path)
+            else:
+                out = out + "\n\n(no vision model served for a scene description)"
+        uri = "data:image/jpeg;base64," + base64.b64encode(annotated).decode("ascii")
+        logger.info("webcam_look: %d objects, describe=%s", len(dets), describe)
+        return {"output": out, "image_url": uri, "exit_code": 0}

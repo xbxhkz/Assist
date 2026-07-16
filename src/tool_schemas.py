@@ -264,6 +264,20 @@ FUNCTION_TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "webcam_look",
+            "description": "Look through the webcam and detect objects (YOLO). Requires the user to enable camera access. Set describe=true to also get a vision-model scene description.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "describe": {"type": "boolean", "description": "also add a vision-model scene description (default from settings)"}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "list_ui_elements",
             "description": "List interactable UI controls of a window via UI Automation.",
             "parameters": {
@@ -1582,7 +1596,7 @@ def function_call_to_tool_block(name: str, arguments: str) -> Optional[ToolBlock
             content = args.get("path", "")
     elif tool_type in ("grep", "glob", "ls", "open_in_vscode",
                        "launch_app", "find_files", "list_windows",
-                       "control_window", "capture_screen",
+                       "control_window", "capture_screen", "webcam_look",
                        "list_ui_elements", "click_element", "set_element_text",
                        "mouse", "keyboard",
                        "net_info", "discover_hosts", "scan_ports"):

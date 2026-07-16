@@ -84,6 +84,7 @@ BUILTIN_TOOL_DESCRIPTIONS: Dict[str, str] = {
     "list_windows": "List open windows: id, title, process, state. Use before control_window.",
     "control_window": "Focus or change a window (focus/minimize/maximize/restore/close). Confirm with the user before close (unsaved work).",
     "capture_screen": "Capture the screen so you can see it. Requires the user to enable screen access. Use to read on-screen content, forms, errors.",
+    "webcam_look": "Look through the webcam and detect objects (YOLO). Requires the user to enable camera access. Optional describe=true adds a vision-model scene description.",
     "list_ui_elements": "List interactable UI controls of a window (name, type, id, bounds). Requires screen access. Use before click_element to find targets.",
     "click_element": "Click a UI control by name/automation_id/control_type via UI Automation. Requires input control.",
     "set_element_text": "Set the text of a UI control (e.g. a text field) via UI Automation. Requires input control.",
