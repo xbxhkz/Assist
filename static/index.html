@@ -961,6 +961,16 @@
         </div>
 
         <div class="list-item">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.5;"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          <span class="grow">Camera access</span>
+          <span id="camera-access-indicator" class="sidebar-notif-dot" style="display:none;background:var(--green,#50fa7b);margin-right:6px;" title="Camera access is ON"></span>
+          <label class="admin-switch" style="flex-shrink:0;" title="Let the AI look through the webcam (object detection)">
+            <input type="checkbox" id="camera-access-toggle">
+            <span class="admin-slider"></span>
+          </label>
+        </div>
+
+        <div class="list-item">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.5;"><path d="M9 11V6a3 3 0 0 1 6 0v5M5 11h14l-1 10H6z"/></svg>
           <span class="grow">Input control</span>
           <span id="input-control-indicator" class="sidebar-notif-dot" style="display:none;background:var(--green,#50fa7b);margin-right:6px;" title="Input control is ON"></span>
@@ -2868,6 +2878,7 @@
 <script src="/static/js/loras.js"></script>
 <script src="/static/js/shellExec.js"></script>
 <script src="/static/js/screenAccess.js"></script>
+<script type="module" src="/static/js/cameraAccess.js"></script>
 <script src="/static/js/inputControl.js"></script>
 <script src="/static/js/hardwareMonitor.js"></script>
 <script type="module" src="/static/js/search-chat.js"></script>

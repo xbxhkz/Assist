@@ -39,6 +39,8 @@ DEFAULT_SETTINGS = {
     "agent_email_confirm": True,
     "image_gen_enabled": False,
     "screen_access_enabled": False,
+    "camera_access_enabled": False,
+    "webcam_describe_default": False,
     "input_control_enabled": False,
     "shell_exec_enabled": False,
     "operator_max_rounds": 30,
@@ -367,6 +369,18 @@ def reset_input_control():
         s = load_settings()
         if s.get("input_control_enabled"):
             s["input_control_enabled"] = False
+            save_settings(s)
+    except Exception:
+        pass
+
+
+def reset_camera_access():
+    """Force camera access off. Called at startup so the webcam is never
+    silently available across restarts (mirrors reset_screen_access)."""
+    try:
+        s = load_settings()
+        if s.get("camera_access_enabled"):
+            s["camera_access_enabled"] = False
             save_settings(s)
     except Exception:
         pass
