@@ -27,6 +27,7 @@ import { STATES, nextState, createTurnDetector } from './voiceConversationCore.j
   let replyComplete = false;
   let prevAutoPlay = null;  // to restore aiTTSManager.autoPlay on exit
   let pill = null, pillLabel = null, pillMeter = null;
+  let starting = false;     // guards re-entry during the async start() setup
 
   function mgr() { return window.aiTTSManager; }
   function toast(msg, ms) {
@@ -85,33 +86,57 @@ import { STATES, nextState, createTurnDetector } from './voiceConversationCore.j
   }
 
   // ── Start / capture ──
+  function setBtnPreparing(on) {
+    const btn = document.getElementById('voice-mode-btn');
+    if (btn) btn.style.opacity = on ? '0.55' : '';
+  }
+  // Undo the "preparing" UI on a soft failure before the loop actually starts.
+  function endPreparing() {
+    starting = false;
+    setBtnPreparing(false);
+    if (pill) pill.style.display = 'none';
+  }
+
   async function start() {
-    if (state !== STATES.IDLE) return;
+    if (state !== STATES.IDLE || starting) return;
+    starting = true;
 
     // Guard: block voice mode entry in Compare or Group modes
     const compareActive = !!(window.compareModule && window.compareModule.isActive && window.compareModule.isActive());
     const groupActive = !!(window.groupModule && window.groupModule.isActive && window.groupModule.isActive());
     if (compareActive || groupActive) {
+      endPreparing();
       toast('Voice mode is not available in Compare or Group chat');
       return;
     }
+
+    // Show a "Preparing…" indicator up front: on first use the /api/stt/stats
+    // call blocks while the local Whisper model downloads/loads (~30-60s), so
+    // the button would otherwise look unresponsive with no feedback.
+    ensurePill();
+    if (pill) pill.style.display = 'flex';
+    if (pillMeter) pillMeter.style.width = '0%';
+    if (pillLabel) pillLabel.textContent = 'Preparing voice…';
+    setBtnPreparing(true);
 
     try {
       const r = await fetch('/api/stt/stats', { credentials: 'same-origin' });
       const s = r.ok ? await r.json() : {};
       if (!s.provider || s.provider === 'disabled') {
+        endPreparing();
         toast('Enable Speech-to-Text in settings to use voice mode');
         return;
       }
-    } catch (_) { toast('Speech-to-Text unavailable'); return; }
+    } catch (_) { endPreparing(); toast('Speech-to-Text unavailable'); return; }
 
     if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      endPreparing();
       toast('Microphone unavailable (needs HTTPS or localhost)');
       return;
     }
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch (_) { toast('Microphone access denied'); return; }
+    } catch (_) { endPreparing(); toast('Microphone access denied'); return; }
 
     const m = mgr();
     if (m) { prevAutoPlay = m.autoPlay; m.autoPlay = true; }
@@ -122,14 +147,15 @@ import { STATES, nextState, createTurnDetector } from './voiceConversationCore.j
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = 2048;
       srcNode.connect(analyser);
-    } catch (_) { toast('Audio init failed'); teardown(); return; }
+    } catch (_) { setBtnPreparing(false); starting = false; toast('Audio init failed'); teardown(); return; }
 
     window.addEventListener('assist:reply-complete', onReplyComplete);
     window.addEventListener('assist:tts-idle', onTtsIdle);
     document.addEventListener('keydown', onKeydown);
 
-    ensurePill();
-    dispatch('TOGGLE_ON'); // → LISTENING → beginListening()
+    setBtnPreparing(false);
+    starting = false;
+    dispatch('TOGGLE_ON'); // → LISTENING → beginListening() (pill relabels to Listening…)
   }
 
   function beginListening() {
@@ -236,7 +262,8 @@ import { STATES, nextState, createTurnDetector } from './voiceConversationCore.j
     analyser = null; detector = null; chunks = [];
     const m = mgr();
     if (m) { try { m.stop(); } catch (_) {} if (prevAutoPlay !== null) m.autoPlay = prevAutoPlay; }
-    prevAutoPlay = null; replyComplete = false; sawSpeech = false;
+    prevAutoPlay = null; replyComplete = false; sawSpeech = false; starting = false;
+    setBtnPreparing(false);
     window.removeEventListener('assist:reply-complete', onReplyComplete);
     window.removeEventListener('assist:tts-idle', onTtsIdle);
     document.removeEventListener('keydown', onKeydown);
