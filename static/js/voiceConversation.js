@@ -86,6 +86,15 @@ import { STATES, nextState, createTurnDetector } from './voiceConversationCore.j
   // ── Start / capture ──
   async function start() {
     if (state !== STATES.IDLE) return;
+
+    // Guard: block voice mode entry in Compare or Group modes
+    const compareActive = !!(window.compareModule && window.compareModule.isActive && window.compareModule.isActive());
+    const groupActive = !!(window.groupModule && window.groupModule.isActive && window.groupModule.isActive());
+    if (compareActive || groupActive) {
+      toast('Voice mode is not available in Compare or Group chat');
+      return;
+    }
+
     try {
       const r = await fetch('/api/stt/stats', { credentials: 'same-origin' });
       const s = r.ok ? await r.json() : {};
