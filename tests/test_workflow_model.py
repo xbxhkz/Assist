@@ -91,3 +91,13 @@ def test_topo_sort_orders_and_raises_on_cycle():
     )
     with pytest.raises(m.WorkflowError):
         m.topo_sort(wf)
+
+
+def test_validate_reports_malformed_shape_without_raising():
+    # `wf` is untrusted JSON off an HTTP request: a malformed graph must come
+    # back as an error list (-> 400), never an unhandled exception (-> 500).
+    assert any("node must be an object" in e for e in m.validate(_wf([1], [])))
+    assert any("edge must be an object" in e
+               for e in m.validate(_wf([{"id": "i", "type": "input", "config": {"name": "q"}}], ["x"])))
+    assert any("nodes must be a list" in e for e in m.validate({"nodes": "abc", "edges": []}))
+    assert any("edges must be a list" in e for e in m.validate({"nodes": [], "edges": "abc"}))

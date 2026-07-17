@@ -49,12 +49,25 @@ def output_ports(node):
 
 
 def validate(wf):
-    """Return a list of human-readable errors ([] means valid)."""
+    """Return a list of human-readable errors ([] means valid).
+
+    `wf` is untrusted JSON straight off an HTTP request, so shape is never
+    assumed: a malformed graph is reported as an error string like its
+    neighbouring checks, never raised as an exception."""
     errors = []
     nodes = wf.get("nodes") or []
     edges = wf.get("edges") or []
+    if not isinstance(nodes, list):
+        errors.append(f"nodes must be a list, got {type(nodes).__name__}")
+        nodes = []
+    if not isinstance(edges, list):
+        errors.append(f"edges must be a list, got {type(edges).__name__}")
+        edges = []
     by_id = {}
     for n in nodes:
+        if not isinstance(n, dict):
+            errors.append(f"node must be an object: {n!r}")
+            continue
         nid = n.get("id")
         if not nid:
             errors.append(f"missing node id: {n!r}")
@@ -64,6 +77,9 @@ def validate(wf):
         if n.get("type") not in NODE_TYPES:
             errors.append(f"unknown node type: {n.get('type')} (node {nid})")
     for e in edges:
+        if not isinstance(e, dict):
+            errors.append(f"edge must be an object: {e!r}")
+            continue
         src, dst = e.get("from_node"), e.get("to_node")
         if src not in by_id:
             errors.append(f"edge references unknown node: {src}")
@@ -74,8 +90,10 @@ def validate(wf):
         if dst in by_id and e.get("to_port") not in input_ports(by_id[dst]):
             errors.append(f"invalid input port '{e.get('to_port')}' on node {dst}")
     # every declared input port must be wired
-    wired = {(e.get("to_node"), e.get("to_port")) for e in edges}
+    wired = {(e.get("to_node"), e.get("to_port")) for e in edges if isinstance(e, dict)}
     for n in nodes:
+        if not isinstance(n, dict):
+            continue
         for port in input_ports(n):
             if (n.get("id"), port) not in wired:
                 errors.append(f"unwired input port '{port}' on node {n.get('id')}")
