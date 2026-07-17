@@ -768,6 +768,10 @@ app.include_router(setup_imagemodels_routes())
 from routes.loras_routes import setup_loras_routes
 app.include_router(setup_loras_routes())
 
+# Workflows (headless node-graph automation: input/template/llm/tool/output)
+from routes.workflow_routes import setup_workflow_routes
+app.include_router(setup_workflow_routes())
+
 
 # MCP (Model Context Protocol)
 from src.mcp_manager import McpManager
