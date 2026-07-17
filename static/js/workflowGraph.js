@@ -156,3 +156,56 @@ export function toJSON(graph) {
     })),
   };
 }
+
+// ── edges: cycle-guarded wiring ──
+
+// Can `to` already reach `from` by following edges? Used to reject an edge
+// from->to that would close a cycle.
+function _reaches(graph, start, target) {
+  const seen = new Set();
+  const stack = [start];
+  while (stack.length) {
+    const cur = stack.pop();
+    if (cur === target) return true;
+    if (seen.has(cur)) continue;
+    seen.add(cur);
+    graph.edges.forEach((e) => { if (e.from_node === cur) stack.push(e.to_node); });
+  }
+  return false;
+}
+
+export function canConnect(graph, fromNode, fromPort, toNode, toPort) {
+  if (fromNode === toNode) return false;
+  const from = nodeById(graph, fromNode);
+  const to = nodeById(graph, toNode);
+  if (!from || !to) return false;
+  if (!outputPortsOf(from).includes(fromPort)) return false;
+  if (!inputPortsOf(to).includes(toPort)) return false;
+  if (_reaches(graph, toNode, fromNode)) return false;   // would create a cycle
+  return true;
+}
+
+export function addEdge(graph, fromNode, fromPort, toNode, toPort) {
+  if (!canConnect(graph, fromNode, fromPort, toNode, toPort)) return false;
+  // one edge per input port: drop any existing wire into (toNode,toPort)
+  graph.edges = graph.edges.filter((e) => !(e.to_node === toNode && e.to_port === toPort));
+  graph.edges.push({ from_node: fromNode, from_port: fromPort, to_node: toNode, to_port: toPort });
+  return true;
+}
+
+export function removeEdge(graph, fromNode, fromPort, toNode, toPort) {
+  graph.edges = graph.edges.filter((e) => !(
+    e.from_node === fromNode && e.from_port === fromPort
+    && e.to_node === toNode && e.to_port === toPort));
+}
+
+export function unwiredPorts(graph) {
+  const wired = new Set(graph.edges.map((e) => `${e.to_node} ${e.to_port}`));
+  const out = [];
+  graph.nodes.forEach((n) => {
+    inputPortsOf(n).forEach((port) => {
+      if (!wired.has(`${n.id} ${port}`)) out.push({ node: n.id, port });
+    });
+  });
+  return out;
+}
