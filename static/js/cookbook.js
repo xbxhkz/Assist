@@ -409,7 +409,14 @@ export function _detectBackend(model) {
   const isAppleSilicon = ['metal', 'mps', 'apple'].includes(sysBackend);
   const _nm = `${model.repo_id || ''} ${model.path || ''} ${model.name || ''}`.toLowerCase();
   if (/\bmlx\b|mlx-|_mlx/i.test(_nm) || q.startsWith('MLX')) {
-    return { backend: 'unsupported', label: 'Unsupported' };
+    // MLX (mlx_lm, Apple Silicon) isn't served locally — connect it as an
+    // external OpenAI-compatible endpoint (see Help > Manual).
+    return { backend: 'unsupported', label: 'External endpoint' };
+  }
+  if (q.startsWith('EXL2') || /\bexl2\b|_exl2|exl2-/i.test(_nm)) {
+    // EXL2 (exllamav2/TabbyAPI, CUDA) isn't served locally — connect it as an
+    // external OpenAI-compatible endpoint (see Help > Manual).
+    return { backend: 'unsupported', label: 'External endpoint' };
   }
   const isAwqLike = /^AWQ|^GPTQ|^NVFP4/.test(q) || ['FP8', 'FP4', 'MXFP4', 'NF4', 'INT4', 'INT8', 'W4A16', 'W8A8', 'W8A16'].includes(q) || /\b(awq|gptq|fp8|fp4|nvfp4|mxfp4|nf4|int4|int8|w4a16|w8a8|w8a16)\b/i.test(_nm);
   const hasGgufFile = Array.isArray(model.gguf_files)
