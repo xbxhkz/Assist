@@ -1623,6 +1623,12 @@
             <p>Settings → <b>Integrations</b> links external services over the <b>Model Context Protocol (MCP)</b> — Gmail, Google Calendar, Google Drive, Hugging Face, and other MCP servers — so the agent can use them as tools. Connect or remove them and manage their sign-in there.</p>
           </details>
           <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">EXL2 &amp; MLX models (external servers)</summary>
+            <p>Assist serves <b>GGUF</b> models itself (Local Models). <b>EXL2</b> and <b>MLX</b> use GPU-vendor-specific runtimes, so you run a small OpenAI-compatible server for them and connect it as an endpoint (Settings → the model picker's <b>Add model endpoints</b>). Once added, the server's models show up in the model picker like any other.</p>
+            <p><b>EXL2 — NVIDIA GPU + CUDA (Windows/Linux):</b> install <b>TabbyAPI</b> (<code>github.com/theroyallab/tabbyAPI</code>), run its <code>start.bat</code> (Windows) or <code>start.sh</code>, and put an <code>.exl2</code> model in its <code>models/</code> folder. It serves at <code>http://127.0.0.1:5000/v1</code>. Then use the <b>Add TabbyAPI (EXL2)</b> preset in the endpoints "…" menu and click <b>Add</b>.</p>
+            <p><b>MLX — macOS / Apple Silicon only:</b> <code>pip install mlx-lm</code>, then <code>mlx_lm.server --model &lt;hf-repo-or-path&gt; --port 8080</code>. It serves at <code>http://127.0.0.1:8080/v1</code>. Then use the <b>Add MLX (mlx_lm)</b> preset → <b>Add</b>. (MLX does not run on Windows/NVIDIA.)</p>
+          </details>
+          <details>
             <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Troubleshooting</summary>
             <p>Logs live in the data folder: <code>data/logs/app.log</code> (application), <code>llama-server.log</code> (local LLM), <code>sd-server.log</code> (image models — the previous run is kept as <code>.prev</code>), <code>mcp-servers.log</code> (built-in tools). Serving an LLM and an image model together on a small-RAM machine pages heavily — the app offers to stop one before starting the other. If a local image generation fails with "no results", the size likely exceeds GPU memory: lower Settings → Image generation → Size.</p>
           </details>
