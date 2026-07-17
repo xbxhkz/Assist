@@ -257,7 +257,129 @@ function renderInspector() {
     host.appendChild(label); host.appendChild(field);
   });
 }
-async function refreshList() {}
+async function refreshList() {
+  const host = $('wf-list');
+  if (!host) return;
+  host.innerHTML = '';
+  const newBtn = document.createElement('button');
+  newBtn.textContent = '+ New';
+  newBtn.style.cssText = 'width:100%;margin-bottom:6px;';
+  newBtn.addEventListener('click', newWorkflow);
+  host.appendChild(newBtn);
+  let list = [];
+  try { list = (await api('/api/workflows')).workflows || []; }
+  catch (e) { msg(e.message, true); return; }
+  list.forEach((w) => {
+    const row = document.createElement('div');
+    row.textContent = w.name || w.id;
+    row.title = `${w.id} · ${w.nodes} nodes`;
+    row.style.cssText = 'padding:4px 6px;cursor:pointer;border-radius:4px;font-size:12px;overflow:hidden;'
+      + 'text-overflow:ellipsis;white-space:nowrap;' + (w.id === currentId ? 'background:var(--panel);' : '');
+    row.addEventListener('click', () => loadWorkflow(w.id));
+    host.appendChild(row);
+  });
+  if (!list.length) {
+    const e = document.createElement('div');
+    e.style.cssText = 'font-size:12px;opacity:0.6;padding:4px;';
+    e.textContent = 'No workflows yet.';
+    host.appendChild(e);
+  }
+}
+
+function newWorkflow() {
+  graph = G.createGraph();
+  currentId = null;
+  selected = null;
+  const nameEl = $('wf-name'); if (nameEl) nameEl.value = '';
+  const results = $('wf-results'); if (results) { results.style.display = 'none'; results.innerHTML = ''; }
+  msg('');
+  render();
+}
+
+async function loadWorkflow(id) {
+  let wf;
+  try { wf = await api(`/api/workflows/${encodeURIComponent(id)}`); }
+  catch (e) { msg(e.message, true); return; }
+  graph = G.createGraph(wf);
+  currentId = wf.id;
+  if (graph.nodes.some((n) => !n.x && !n.y)) { try { G.autoLayout(graph); } catch (e) { /* cyclic legacy */ } }
+  const nameEl = $('wf-name'); if (nameEl) nameEl.value = graph.name || '';
+  selected = null;
+  const results = $('wf-results'); if (results) { results.style.display = 'none'; results.innerHTML = ''; }
+  msg('');
+  render();
+  refreshList();
+}
+
+async function save() {
+  const nameEl = $('wf-name');
+  if (nameEl) G.setName(graph, nameEl.value);
+  const body = G.toJSON(graph);
+  if (currentId) body.id = currentId;
+  const saved = await api('/api/workflows', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  currentId = saved.id;
+  graph.id = saved.id;
+  await refreshList();
+  return saved;
+}
+
+async function run() {
+  try { await save(); }
+  catch (e) { msg(e.message, true); return; }
+  const inputs = {};
+  for (const { name, default: def } of G.runInputNames(graph)) {
+    if (!name) continue;
+    const v = window.prompt(`Input "${name}":`, def || '');
+    if (v === null) { msg('Run cancelled'); return; }
+    inputs[name] = v;
+  }
+  let result;
+  try {
+    result = await api(`/api/workflows/${encodeURIComponent(currentId)}/run`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ inputs }),
+    });
+  } catch (e) { msg(e.message, true); return; }
+  msg('Ran');
+  renderResults(result);
+}
+
+const _PILL = { ok: '#3ba55d', error: '#ff5555', skipped: '#888' };
+
+function renderResults(result) {
+  const host = $('wf-results');
+  if (!host) return;
+  host.style.display = '';
+  host.innerHTML = '';
+  const outs = document.createElement('div');
+  outs.style.cssText = 'font-size:12px;margin-bottom:8px;';
+  const outEntries = Object.entries(result.outputs || {});
+  outs.innerHTML = '<b>Outputs:</b> ' + (outEntries.length
+    ? outEntries.map(([k, v]) => `${escapeHtml(k)} = ${escapeHtml(String(v))}`).join(' · ')
+    : '<span style="opacity:0.6">(none)</span>');
+  host.appendChild(outs);
+  (result.log || []).forEach((entry) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;align-items:center;font-size:11px;padding:2px 0;cursor:pointer;';
+    const pill = document.createElement('span');
+    pill.textContent = entry.status;
+    pill.style.cssText = `background:${_PILL[entry.status] || '#888'};color:#fff;border-radius:8px;`
+      + 'padding:0 6px;font-size:9px;text-transform:uppercase;';
+    const label = document.createElement('span');
+    label.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    label.textContent = `${entry.node} (${entry.type}) ${entry.error || entry.output || ''}`;
+    const ms = document.createElement('span');
+    ms.style.cssText = 'opacity:0.6;'; ms.textContent = `${entry.ms}ms`;
+    row.appendChild(pill); row.appendChild(label); row.appendChild(ms);
+    row.addEventListener('click', () => selectNode(entry.node));
+    host.appendChild(row);
+  });
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
 
 function openWorkflows() {
   $('workflows-modal').classList.remove('hidden');
@@ -289,6 +411,12 @@ function init() {
       40 + (canvas ? canvas.scrollLeft : 0), 40 + (canvas ? canvas.scrollTop : 0));
     selectNode(node.id);
   });
+  const saveBtn = $('wf-save');
+  if (saveBtn) saveBtn.addEventListener('click', () => {
+    save().then((s) => msg(`Saved (${s.id})`)).catch((e) => msg(e.message, true));
+  });
+  const runBtn = $('wf-run');
+  if (runBtn) runBtn.addEventListener('click', run);
   Modals.register('workflows-modal', {
     railBtnId: 'rail-workflows', sidebarBtnId: 'tool-workflows-btn', closeFn: closeWorkflows,
   });
