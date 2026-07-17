@@ -1606,7 +1606,7 @@ function initEndpointForm() {
           await _selectAddedModelInChat(d);
           const count = (d.models || []).length;
           const baseText = d.status === 'empty'
-            ? 'Added — Ollama is running, no models pulled yet'
+            ? 'Added — the server is reachable but has no models loaded yet'
             : d.online
             ? `Added — found ${count} model${count !== 1 ? 's' : ''}`
             : 'Added (offline — will retry on next load)';
