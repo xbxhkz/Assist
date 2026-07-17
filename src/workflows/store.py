@@ -14,9 +14,12 @@ def workflows_dir():
 
 
 def _safe_id(wid):
-    if not wid or "/" in wid or "\\" in wid or ".." in wid:
+    if not wid or "/" in wid or "\\" in wid or ".." in wid or ":" in wid:
         raise ValueError("unsafe workflow id")
-    return os.path.basename(wid)
+    base = os.path.basename(wid)
+    if not base:
+        raise ValueError("unsafe workflow id")
+    return base
 
 
 def _slugify(name):
@@ -36,6 +39,8 @@ def list_workflows():
         try:
             with open(os.path.join(workflows_dir(), fn), "r", encoding="utf-8") as f:
                 wf = json.load(f)
+            if not isinstance(wf, dict):
+                continue
             out.append({"id": wf.get("id", fn[:-5]), "name": wf.get("name", fn[:-5]),
                         "nodes": len(wf.get("nodes") or [])})
         except (OSError, json.JSONDecodeError):
@@ -46,14 +51,28 @@ def list_workflows():
 def get_workflow(wid):
     try:
         with open(_path(wid), "r", encoding="utf-8") as f:
-            return json.load(f)
+            wf = json.load(f)
     except (OSError, json.JSONDecodeError):
         return None
+    return wf if isinstance(wf, dict) else None
+
+
+def _unique_id(slug):
+    if not os.path.isfile(_path(slug)):
+        return slug
+    n = 2
+    while os.path.isfile(_path(f"{slug}-{n}")):
+        n += 1
+    return f"{slug}-{n}"
 
 
 def save_workflow(wf):
-    wid = wf.get("id") or _slugify(wf.get("name"))
-    wf = dict(wf, id=_safe_id(wid))
+    explicit_id = wf.get("id")
+    if explicit_id:
+        wid = _safe_id(explicit_id)
+    else:
+        wid = _unique_id(_safe_id(_slugify(wf.get("name"))))
+    wf = dict(wf, id=wid)
     with open(_path(wf["id"]), "w", encoding="utf-8") as f:
         json.dump(wf, f, indent=2)
     return wf
