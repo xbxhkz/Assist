@@ -462,6 +462,33 @@
     </div>
   </div>
 
+  <!-- Visual Workflow Editor -->
+  <div id="workflows-modal" class="modal hidden">
+    <div class="modal-content" role="dialog" aria-label="Workflows" style="background:var(--bg);width:92vw;height:88vh;max-width:1400px;display:flex;flex-direction:column;">
+      <div class="modal-header">
+        <h4><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><path d="M10 6.5h4a2 2 0 0 1 2 2v5.5"/></svg>Workflows</h4>
+        <button class="close-btn" id="wf-close" aria-label="Close workflows">✖</button>
+      </div>
+      <div class="modal-body" style="flex:1;display:flex;min-height:0;padding:0;">
+        <aside id="wf-list" style="width:190px;border-right:1px solid var(--border);overflow:auto;padding:6px;"></aside>
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+          <div id="wf-toolbar" style="display:flex;gap:8px;align-items:center;padding:6px;border-bottom:1px solid var(--border);flex-wrap:wrap;">
+            <input id="wf-name" placeholder="Workflow name" style="flex:1;min-width:120px;background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px 6px;">
+            <button id="wf-add">+ Node ▾</button>
+            <button id="wf-save">Save</button>
+            <button id="wf-run">Run ▶</button>
+            <span id="wf-msg" style="font-size:12px;opacity:0.85;"></span>
+          </div>
+          <div id="wf-canvas" style="flex:1;position:relative;overflow:auto;background:var(--panel);min-height:0;">
+            <svg id="wf-wires" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;"></svg>
+          </div>
+          <div id="wf-results" style="height:180px;border-top:1px solid var(--border);overflow:auto;padding:6px;display:none;"></div>
+        </div>
+        <aside id="wf-inspector" style="width:250px;border-left:1px solid var(--border);overflow:auto;padding:8px;display:none;"></aside>
+      </div>
+    </div>
+  </div>
+
   <!-- Theme Popup (floating panel) -->
   <div id="theme-modal" class="modal hidden">
   <div id="theme-popup" class="modal-content admin-modal-content" role="dialog" aria-label="Theme" style="background:var(--bg)">
@@ -704,6 +731,7 @@
     <button class="icon-rail-btn" id="rail-notes" title="Notes"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h10l4 4v14H5z"/><path d="M15 3v5h5"/><path d="M8 17.5 15.5 10l2.5 2.5L10.5 20H8z"/></svg></button>
     <button class="icon-rail-btn" id="rail-tasks" title="Tasks"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M9 16l2 2 4-4"/></svg></button>
     <button class="icon-rail-btn" id="rail-theme" title="Theme"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 0 0 20 5 5 0 0 0 5-5 3 3 0 0 0-3-3h-2a3 3 0 0 1-3-3 5 5 0 0 1 5-5"/></svg></button>
+    <button class="icon-rail-btn" id="rail-workflows" title="Workflows" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><path d="M10 6.5h4a2 2 0 0 1 2 2v5.5"/></svg></button>
     <div style="flex:1"></div>
     <!-- Static: bottom -->
     <button class="icon-rail-btn" id="rail-settings" title="Settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
@@ -2876,6 +2904,7 @@
 <script type="module" src="/static/js/chatStream.js"></script>
 <script type="module" src="/static/js/chat.js?v=20260630toolmetrics"></script>
 <script type="module" src="/static/js/cookbook.js"></script>
+<script type="module" src="/static/js/workflows.js"></script>
 <script src="/static/js/cookbookSchedule.js"></script>
 <script src="/static/js/localModels.js"></script>
 <script src="/static/js/imageModels.js"></script>
