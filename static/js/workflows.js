@@ -46,14 +46,14 @@ function nodeHeight(node) {
 
 let pending = null;   // active wire drag: {fromNode, fromPort}
 
-function render() {
+function render(opts) {
   const canvas = $('wf-canvas');
   if (!canvas) return;
   // wipe node divs (keep the <svg> overlay)
   Array.from(canvas.querySelectorAll('.wf-node')).forEach((el) => el.remove());
   graph.nodes.forEach((n) => canvas.appendChild(renderNode(n)));
   renderWires();
-  renderInspector();
+  if (!opts || !opts.keepInspector) renderInspector();
   const unwired = G.unwiredPorts(graph).length;
   const runBtn = $('wf-run');
   if (runBtn) runBtn.textContent = unwired ? `Run ▶ (${unwired} unwired)` : 'Run ▶';
@@ -252,7 +252,7 @@ function renderInspector() {
     field.addEventListener('input', () => {
       cfg[key] = field.value;
       G.setConfig(graph, node.id, cfg);
-      render();                 // re-derive ports live (e.g. new {slot})
+      render({ keepInspector: true });   // re-derive ports live (e.g. new {slot}) w/o losing focus
     });
     host.appendChild(label); host.appendChild(field);
   });
@@ -300,9 +300,10 @@ async function loadWorkflow(id) {
   let wf;
   try { wf = await api(`/api/workflows/${encodeURIComponent(id)}`); }
   catch (e) { msg(e.message, true); return; }
+  const needsLayout = (wf.nodes || []).some((n) => typeof n.x !== 'number' || typeof n.y !== 'number');
   graph = G.createGraph(wf);
   currentId = wf.id;
-  if (graph.nodes.some((n) => !n.x && !n.y)) { try { G.autoLayout(graph); } catch (e) { /* cyclic legacy */ } }
+  if (needsLayout) { try { G.autoLayout(graph); } catch (e) { /* cyclic legacy graph */ } }
   const nameEl = $('wf-name'); if (nameEl) nameEl.value = graph.name || '';
   selected = null;
   const results = $('wf-results'); if (results) { results.style.display = 'none'; results.innerHTML = ''; }
@@ -417,6 +418,19 @@ function init() {
   });
   const runBtn = $('wf-run');
   if (runBtn) runBtn.addEventListener('click', run);
+  document.addEventListener('keydown', (e) => {
+    const modal = $('workflows-modal');
+    if (!modal || modal.classList.contains('hidden')) return;   // only when the editor is open
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;  // don't hijack typing
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selected && selected.kind === 'edge') {
+      const ed = selected.edge;
+      G.removeEdge(graph, ed.from_node, ed.from_port, ed.to_node, ed.to_port);
+      selected = null;
+      render();
+      e.preventDefault();
+    }
+  });
   Modals.register('workflows-modal', {
     railBtnId: 'rail-workflows', sidebarBtnId: 'tool-workflows-btn', closeFn: closeWorkflows,
   });
