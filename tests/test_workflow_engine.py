@@ -51,6 +51,79 @@ def test_node_failure_skips_dependents_and_returns_partial():
     assert res["outputs"] == {}          # partial: the output never resolved
 
 
+def test_transitive_skip_propagates_through_chain():
+    # a -> b -> c -> d ; b fails. c's only upstream is b (failed), d's only
+    # upstream is c (skipped, not failed) -- this only skips if the skip path
+    # itself marks c as failed too.
+    wf = {"id": "w", "name": "W", "nodes": [
+        {"id": "a", "type": "input", "config": {"name": "q"}},
+        {"id": "b", "type": "llm", "config": {"prompt": "{q}"}},
+        {"id": "c", "type": "template", "config": {"template": "got {x}"}},
+        {"id": "d", "type": "template", "config": {"template": "final {y}"}},
+    ], "edges": [
+        {"from_node": "a", "from_port": "value", "to_node": "b", "to_port": "q"},
+        {"from_node": "b", "from_port": "text", "to_node": "c", "to_port": "x"},
+        {"from_node": "c", "from_port": "text", "to_node": "d", "to_port": "y"},
+    ]}
+
+    async def boom(prompt, model=None, system=None):
+        raise RuntimeError("model down")
+
+    res = _run(eng.run_workflow(wf, {"q": "why"}, model_call=boom))
+    status = {e["node"]: e["status"] for e in res["log"]}
+    assert status["a"] == "ok"
+    assert status["b"] == "error"
+    assert status["c"] == "skipped"
+    assert status["d"] == "skipped"
+
+
+def test_diamond_fanin_skips_only_via_failed_branch():
+    # a -> b, a -> c, b -> d, c -> d ; only b fails. c succeeds but d must
+    # still be skipped because one of its two upstreams (b) failed.
+    wf = {"id": "w", "name": "W", "nodes": [
+        {"id": "a", "type": "input", "config": {"name": "q"}},
+        {"id": "b", "type": "llm", "config": {"prompt": "{q}"}},
+        {"id": "c", "type": "template", "config": {"template": "c:{q}"}},
+        {"id": "d", "type": "template", "config": {"template": "{bv}-{cv}"}},
+    ], "edges": [
+        {"from_node": "a", "from_port": "value", "to_node": "b", "to_port": "q"},
+        {"from_node": "a", "from_port": "value", "to_node": "c", "to_port": "q"},
+        {"from_node": "b", "from_port": "text", "to_node": "d", "to_port": "bv"},
+        {"from_node": "c", "from_port": "text", "to_node": "d", "to_port": "cv"},
+    ]}
+
+    async def boom(prompt, model=None, system=None):
+        raise RuntimeError("model down")
+
+    res = _run(eng.run_workflow(wf, {"q": "why"}, model_call=boom))
+    status = {e["node"]: e["status"] for e in res["log"]}
+    assert status["a"] == "ok"
+    assert status["b"] == "error"
+    assert status["c"] == "ok"
+    assert status["d"] == "skipped"
+
+
+def test_log_output_field_for_template_and_output_nodes():
+    res = _run(eng.run_workflow(_wf(), {"q": "why"}, model_call=_fake_model))
+    by_node = {e["node"]: e for e in res["log"]}
+    assert by_node["t"]["output"] == "Q: why"
+    # output node has no produced value of its own; its logged "output" falls
+    # back to the recorded input value rather than being blank.
+    assert by_node["o"]["output"] == "ECHO[Q: why]"
+
+
+def test_log_output_is_truncated_to_LOG_MAX():
+    long_value = "x" * (eng._LOG_MAX + 250)
+
+    async def fake_model(prompt, model=None, system=None):
+        return long_value
+
+    res = _run(eng.run_workflow(_wf(), {"q": "why"}, model_call=fake_model))
+    by_node = {e["node"]: e for e in res["log"]}
+    assert len(by_node["l"]["output"]) == eng._LOG_MAX
+    assert len(by_node["o"]["output"]) == eng._LOG_MAX
+
+
 def test_tool_node_uses_injected_dispatch():
     wf = {"id": "w", "name": "W", "nodes": [
         {"id": "i", "type": "input", "config": {"name": "p"}},

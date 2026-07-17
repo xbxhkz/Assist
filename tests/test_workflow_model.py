@@ -46,6 +46,16 @@ def test_validate_flags_unknown_type_and_dup_ids():
     assert any("duplicate node id" in e for e in errs)
 
 
+def test_validate_flags_missing_and_empty_node_id():
+    wf = _wf([{"type": "input", "config": {"name": "q"}}], [])
+    errs = m.validate(wf)
+    assert any("missing node id" in e for e in errs)
+
+    wf2 = _wf([{"id": "", "type": "input", "config": {"name": "q"}}], [])
+    errs2 = m.validate(wf2)
+    assert any("missing node id" in e for e in errs2)
+
+
 def test_validate_flags_dangling_edge_and_bad_port():
     wf = _linear()
     wf["edges"].append({"from_node": "nope", "from_port": "value", "to_node": "o", "to_port": "value"})

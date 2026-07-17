@@ -56,7 +56,9 @@ def validate(wf):
     by_id = {}
     for n in nodes:
         nid = n.get("id")
-        if nid in by_id:
+        if not nid:
+            errors.append(f"missing node id: {n!r}")
+        elif nid in by_id:
             errors.append(f"duplicate node id: {nid}")
         by_id[nid] = n
         if n.get("type") not in NODE_TYPES:
