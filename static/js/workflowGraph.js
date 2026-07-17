@@ -3,7 +3,7 @@
 // derivation MUST match Python's model.slots_of (re \{(\w+)\}, ordered-unique).
 export const NODE_TYPES = ['input', 'template', 'llm', 'tool', 'output'];
 
-const _SLOT_RE = /\{(\w+)\}/g;
+const _SLOT_RE = /\{([\p{L}\p{N}_]+)\}/gu;
 const _SLOT_SOURCE = { template: 'template', llm: 'prompt', tool: 'args' };
 const _OUTPUT_PORT = { input: 'value', template: 'text', llm: 'text', tool: 'result' };
 
@@ -148,7 +148,9 @@ export function runInputNames(graph) {
 export function toJSON(graph) {
   return {
     id: graph.id, name: graph.name,
-    nodes: graph.nodes.map((n) => ({ id: n.id, type: n.type, config: n.config, x: n.x, y: n.y })),
+    nodes: graph.nodes.map((n) => ({
+      id: n.id, type: n.type, config: Object.assign({}, n.config), x: n.x, y: n.y,
+    })),
     edges: graph.edges.map((e) => ({
       from_node: e.from_node, from_port: e.from_port, to_node: e.to_node, to_port: e.to_port,
     })),

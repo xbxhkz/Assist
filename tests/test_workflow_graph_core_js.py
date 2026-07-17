@@ -1,18 +1,24 @@
 import json
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.workflows.model import slots_of  # noqa: E402
+
 pytestmark = pytest.mark.skipif(not shutil.which("node"), reason="node binary not on PATH")
 
 
 def _node_eval(source: str):
     result = subprocess.run(
         ["node", "--input-type=module", "-e", source],
-        cwd=ROOT, check=True, capture_output=True, text=True,
+        cwd=ROOT, check=True, capture_output=True, text=True, encoding="utf-8",
     )
     return json.loads(result.stdout)
 
@@ -102,3 +108,39 @@ def test_topo_order_and_autolayout_and_run_inputs():
     assert out["order"] == ["i", "t", "o"]
     assert out["layers"][0] < out["layers"][1] < out["layers"][2]  # left-to-right by depth
     assert out["inputs"] == [{"name": "q", "default": "d"}]
+
+
+def test_slots_of_matches_python_cross_language_unicode():
+    # Cross-language contract: JS slotsOf (Node subprocess) must agree with
+    # Python's src.workflows.model.slots_of for every input, ASCII and non-ASCII
+    # alike. This is what guarantees the editor's derived ports match what the
+    # Python engine will derive when it executes the same JSON.
+    inputs = [
+        "Hi {name}, {age}",
+        "{a}{a}{b}",
+        "{café} and {名前}",
+        "no slots",
+        "{a_b}",
+    ]
+    js_out = _node_eval(
+        "import { slotsOf } from './static/js/workflowGraph.js';"
+        f"const inputs = {json.dumps(inputs)};"
+        "console.log(JSON.stringify(inputs.map((s) => slotsOf(s))));"
+    )
+    py_out = [slots_of(s) for s in inputs]
+    assert js_out == py_out
+
+
+def test_to_json_clones_config_defensively():
+    out = _node_eval(
+        "import { createGraph, addNode, setConfig, toJSON } from './static/js/workflowGraph.js';"
+        "const g = createGraph({id:'w', name:'W'});"
+        "const a = addNode(g,'template',0,0);"
+        "setConfig(g, a.id, {template:'Q: {q}'});"
+        "const wf = toJSON(g);"
+        "wf.nodes[0].config.template = 'MUTATED';"
+        "const wf2 = toJSON(g);"
+        "console.log(JSON.stringify({first: wf.nodes[0].config, again: wf2.nodes[0].config}));"
+    )
+    assert out["first"] == {"template": "MUTATED"}
+    assert out["again"] == {"template": "Q: {q}"}
