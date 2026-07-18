@@ -49,3 +49,20 @@ def test_validate_flags_edge_from_unknown_case_port():
              extra_nodes=[{"id": "o", "type": "output", "config": {"name": "r"}}],
              edges=[{"from_node": "b", "from_port": "maybe", "to_node": "o", "to_port": "value"}])
     assert any("invalid output port" in e for e in m.validate(wf))
+
+
+def test_validate_does_not_raise_on_unhashable_case():
+    for bad_case in ([[]], [{}]):
+        wf = _wf({"mode": "match", "cases": bad_case})
+        errors = m.validate(wf)
+        assert any("empty/non-string case" in e for e in errors)
+
+
+def test_validate_does_not_raise_on_non_dict_branch_config():
+    wf = _wf("junk")
+    errors = m.validate(wf)
+    assert any("non-empty 'cases' list" in e for e in errors)
+
+
+def test_output_ports_does_not_raise_on_non_dict_config():
+    assert m.output_ports({"type": "branch", "config": "junk"}) == ["else"]

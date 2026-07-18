@@ -45,7 +45,9 @@ def input_ports(node):
 
 def output_ports(node):
     if node.get("type") == "branch":
-        cases = (node.get("config") or {}).get("cases")
+        cfg = node.get("config")
+        cfg = cfg if isinstance(cfg, dict) else {}
+        cases = cfg.get("cases")
         cases = cases if isinstance(cases, list) else []
         return [c for c in cases if isinstance(c, str) and c.strip()] + ["else"]
     port = _OUTPUT_PORT.get(node.get("type"))
@@ -81,7 +83,8 @@ def validate(wf):
         if n.get("type") not in NODE_TYPES:
             errors.append(f"unknown node type: {n.get('type')} (node {nid})")
         if n.get("type") == "branch":
-            cfg = n.get("config") or {}
+            cfg = n.get("config")
+            cfg = cfg if isinstance(cfg, dict) else {}
             cases = cfg.get("cases")
             if not isinstance(cases, list) or not cases:
                 errors.append(f"branch node {nid} must have a non-empty 'cases' list")
@@ -90,7 +93,8 @@ def validate(wf):
                 for c in cases:
                     if not isinstance(c, str) or not c.strip():
                         errors.append(f"branch node {nid} has an empty/non-string case")
-                    elif c.strip().lower() == "else":
+                        continue
+                    if c.strip().lower() == "else":
                         errors.append(f"branch node {nid}: case 'else' is reserved (auto fallback)")
                     elif c in seen:
                         errors.append(f"branch node {nid} has duplicate case '{c}'")
