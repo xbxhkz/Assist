@@ -240,6 +240,7 @@ function renderInspector() {
   title.style.cssText = 'font-weight:600;margin-bottom:8px;font-size:12px;';
   host.appendChild(title);
   const cfg = Object.assign({}, node.config);
+  if (node.type === 'branch') { renderBranchInspector(host, node, cfg); return; }
   (_FIELDS[node.type] || []).forEach(([key, kind]) => {
     const label = document.createElement('label');
     label.textContent = key;
@@ -256,6 +257,65 @@ function renderInspector() {
     });
     host.appendChild(label); host.appendChild(field);
   });
+}
+function renderBranchInspector(host, node, cfg) {
+  const FCSS = 'width:100%;background:var(--panel);color:var(--text);border:1px solid var(--border);'
+    + 'border-radius:4px;padding:4px 6px;font-size:12px;box-sizing:border-box;';
+  function lbl(t) {
+    const l = document.createElement('label');
+    l.textContent = t; l.style.cssText = 'display:block;font-size:10px;opacity:0.7;margin-top:6px;';
+    return l;
+  }
+  // mode dropdown (changing it shows/hides the prompt -> full render)
+  host.appendChild(lbl('mode'));
+  const modeSel = document.createElement('select');
+  modeSel.style.cssText = FCSS;
+  ['match', 'llm'].forEach((mo) => {
+    const o = document.createElement('option'); o.value = mo; o.textContent = mo;
+    if ((cfg.mode || 'match') === mo) o.selected = true;
+    modeSel.appendChild(o);
+  });
+  modeSel.addEventListener('change', () => {
+    cfg.mode = modeSel.value; G.setConfig(graph, node.id, cfg); render();
+  });
+  host.appendChild(modeSel);
+  // cases list editor
+  host.appendChild(lbl('cases'));
+  const cases = Array.isArray(cfg.cases) ? cfg.cases.slice() : [];
+  cases.forEach((c, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:4px;margin-top:2px;';
+    const inp = document.createElement('input');
+    inp.value = c; inp.style.cssText = FCSS + 'flex:1;';
+    inp.addEventListener('input', () => { cases[i] = inp.value; });
+    inp.addEventListener('change', () => {   // relabel port on blur -> prune orphaned wires + redraw
+      cfg.cases = cases.filter((x) => x && x.trim()); G.setConfig(graph, node.id, cfg);
+      render({ keepInspector: true });
+    });
+    const del = document.createElement('button');
+    del.textContent = '×'; del.style.cssText = 'font-size:12px;';
+    del.addEventListener('click', () => {
+      cases.splice(i, 1); cfg.cases = cases; G.setConfig(graph, node.id, cfg); render();
+    });
+    row.appendChild(inp); row.appendChild(del); host.appendChild(row);
+  });
+  const addBtn = document.createElement('button');
+  addBtn.textContent = '+ case'; addBtn.style.cssText = 'margin-top:4px;font-size:11px;';
+  addBtn.addEventListener('click', () => {
+    cases.push(`case${cases.length + 1}`); cfg.cases = cases;
+    G.setConfig(graph, node.id, cfg); render();
+  });
+  host.appendChild(addBtn);
+  // prompt (llm mode only)
+  if ((cfg.mode || 'match') === 'llm') {
+    host.appendChild(lbl('prompt'));
+    const pf = document.createElement('textarea');
+    pf.value = cfg.prompt || ''; pf.style.cssText = FCSS + 'min-height:56px;resize:vertical;';
+    pf.addEventListener('input', () => {
+      cfg.prompt = pf.value; G.setConfig(graph, node.id, cfg); render({ keepInspector: true });
+    });
+    host.appendChild(pf);
+  }
 }
 async function refreshList() {
   const host = $('wf-list');
