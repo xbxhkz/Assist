@@ -722,7 +722,8 @@ class TaskScheduler:
         finally:
             db.close()
 
-    async def _execute_task(self, task_id: str, *, bypass_model_slot: bool = False, release_executing: bool = True):
+    async def _execute_task(self, task_id: str, *, bypass_model_slot: bool = False,
+                            release_executing: bool = True, context=None):
         # Create the run record with status="queued" BEFORE waiting on the
         # semaphore so the UI can show that a manually-triggered task is in
         # line behind another. Once we acquire the slot, flip to "running"
@@ -755,6 +756,7 @@ class TaskScheduler:
                     run_id,
                     release_executing=release_executing,
                     gate_foreground=not bypass_model_slot,
+                    context=context,
                 )
                 return
 
@@ -764,6 +766,7 @@ class TaskScheduler:
                     run_id,
                     release_executing=release_executing,
                     gate_foreground=True,
+                    context=context,
                 )
         except asyncio.CancelledError:
             # If cancellation happens while queued behind the semaphore,
@@ -808,6 +811,7 @@ class TaskScheduler:
         *,
         release_executing: bool = True,
         gate_foreground: bool = True,
+        context=None,
     ):
         from core.database import SessionLocal, ScheduledTask, TaskRun
 
@@ -917,6 +921,12 @@ class TaskScheduler:
                     result = await self._execute_research_task(task, db)
                     run.status = "success"
                     run.result = result
+                elif task_type == "workflow":
+                    result, success = await self._execute_workflow_task(task, context=context)
+                    run.status = "success" if success else "error"
+                    run.result = result
+                    if not success:
+                        run.error = result
                 else:
                     # LLM task — use agent loop for tool access
                     result = await self._execute_llm_task(task, db)
@@ -1258,6 +1268,35 @@ class TaskScheduler:
         except Exception as e:
             logger.error(f"Action '{task.action}' failed: {e}")
             return str(e), False
+
+    async def _execute_workflow_task(self, task, *, context=None):
+        """Run a task_type='workflow' trigger: load the workflow, resolve its
+        inputs (fixed + firing context), run it, and summarize. Returns
+        (result_summary, success). A failing node is captured in the summary and
+        marks the run failed; a missing workflow returns an error, never raises."""
+        from src.workflows.store import get_workflow
+        from src.workflows.engine import run_workflow
+        from src.workflows.triggers import resolve_trigger_inputs
+
+        wid = task.action
+        wf = get_workflow(wid) if wid else None
+        if not wf:
+            return f"workflow '{wid}' not found", False
+        try:
+            fixed = json.loads(task.prompt) if task.prompt else {}
+            if not isinstance(fixed, dict):
+                fixed = {}
+        except (ValueError, TypeError):
+            fixed = {}
+        inputs = resolve_trigger_inputs(wf, fixed, context)
+        result = await run_workflow(wf, inputs, {"owner": task.owner})
+        outputs = result.get("outputs") or {}
+        log = result.get("log") or []
+        errors = sum(1 for e in log if e.get("status") == "error")
+        oks = sum(1 for e in log if e.get("status") == "ok")
+        out_str = "; ".join(f"{k}={v}" for k, v in outputs.items()) or "(no outputs)"
+        summary = f"{out_str} · {oks} ok, {errors} error"
+        return summary, errors == 0
 
     # ── Check-in source discovery ──
     # Pattern-based: if an MCP server has a tool matching a pattern, it becomes
@@ -2212,16 +2251,17 @@ class TaskScheduler:
         except Exception as e:
             logger.error(f"Task {task.id} MCP delivery failed: {e}")
 
-    async def run_task_now(self, task_id: str, *, force: bool = False):
-        """Manually trigger a task execution."""
+    async def run_task_now(self, task_id: str, *, force: bool = False, context=None):
+        """Manually or event/webhook trigger a task execution."""
         if force:
-            asyncio.create_task(self._execute_task(task_id, bypass_model_slot=True, release_executing=False))
+            asyncio.create_task(self._execute_task(
+                task_id, bypass_model_slot=True, release_executing=False, context=context))
             return True
         async with self._executing_lock:
             if task_id in self._executing:
                 return False
             self._executing.add(task_id)
-        asyncio.create_task(self._execute_task(task_id))
+        asyncio.create_task(self._execute_task(task_id, context=context))
         return True
 
     async def stop_task(self, task_id: str) -> bool:
