@@ -36,9 +36,10 @@ def validate_workflow_task_create(action, prompt, is_admin: bool) -> None:
     if prompt:
         try:
             parsed = json.loads(prompt)
+            valid = isinstance(parsed, dict)
         except (ValueError, TypeError):
-            raise HTTPException(400, "Workflow fixed inputs must be a JSON object")
-        if not isinstance(parsed, dict):
+            valid = False
+        if not valid:
             raise HTTPException(400, "Workflow fixed inputs must be a JSON object")
 
 
@@ -698,6 +699,9 @@ def setup_task_routes(task_scheduler) -> APIRouter:
             next_task_type = req.task_type if req.task_type is not None else task.task_type
             next_action = req.action if req.action is not None else task.action
             _require_admin_for_task_action(user, next_task_type, next_action)
+            if next_task_type == "workflow":
+                next_prompt = req.prompt if req.prompt is not None else task.prompt
+                validate_workflow_task_create(next_action, next_prompt, _is_admin(user))
 
             if req.name is not None:
                 task.name = req.name
