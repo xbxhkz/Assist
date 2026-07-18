@@ -282,28 +282,35 @@ function renderBranchInspector(host, node, cfg) {
   // cases list editor
   host.appendChild(lbl('cases'));
   const cases = Array.isArray(cfg.cases) ? cfg.cases.slice() : [];
+  function commitCases(list) {   // single funnel for structural edits -> full render regenerates `cases` fresh
+    cfg.cases = list.filter((x) => x && x.trim());
+    G.setConfig(graph, node.id, cfg);
+    render();
+  }
+  function nextCaseLabel(list) {
+    let n = list.length + 1;
+    while (list.includes(`case${n}`)) n += 1;
+    return `case${n}`;
+  }
   cases.forEach((c, i) => {
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;gap:4px;margin-top:2px;';
     const inp = document.createElement('input');
     inp.value = c; inp.style.cssText = FCSS + 'flex:1;';
     inp.addEventListener('input', () => { cases[i] = inp.value; });
-    inp.addEventListener('change', () => {   // relabel port on blur -> prune orphaned wires + redraw
-      cfg.cases = cases.filter((x) => x && x.trim()); G.setConfig(graph, node.id, cfg);
-      render({ keepInspector: true });
-    });
+    inp.addEventListener('change', () => { commitCases(cases); });   // relabel port on blur -> prune orphaned wires + redraw
     const del = document.createElement('button');
     del.textContent = '×'; del.style.cssText = 'font-size:12px;';
     del.addEventListener('click', () => {
-      cases.splice(i, 1); cfg.cases = cases; G.setConfig(graph, node.id, cfg); render();
+      cases.splice(i, 1); commitCases(cases);
     });
     row.appendChild(inp); row.appendChild(del); host.appendChild(row);
   });
   const addBtn = document.createElement('button');
   addBtn.textContent = '+ case'; addBtn.style.cssText = 'margin-top:4px;font-size:11px;';
   addBtn.addEventListener('click', () => {
-    cases.push(`case${cases.length + 1}`); cfg.cases = cases;
-    G.setConfig(graph, node.id, cfg); render();
+    cases.push(nextCaseLabel(cases));
+    commitCases(cases);
   });
   host.appendChild(addBtn);
   // prompt (llm mode only)
