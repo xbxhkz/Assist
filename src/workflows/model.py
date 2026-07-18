@@ -7,7 +7,7 @@ text config, so the editor never hand-declares them."""
 import re
 from collections import deque
 
-NODE_TYPES = ("input", "template", "llm", "tool", "output")
+NODE_TYPES = ("input", "template", "llm", "tool", "output", "branch")
 
 _SLOT_RE = re.compile(r"\{(\w+)\}")
 
@@ -35,7 +35,7 @@ def slots_of(text):
 
 def input_ports(node):
     t = node.get("type")
-    if t == "output":
+    if t in ("output", "branch"):
         return ["value"]
     key = _SLOT_SOURCE.get(t)
     if not key:
@@ -44,6 +44,10 @@ def input_ports(node):
 
 
 def output_ports(node):
+    if node.get("type") == "branch":
+        cases = (node.get("config") or {}).get("cases")
+        cases = cases if isinstance(cases, list) else []
+        return [c for c in cases if isinstance(c, str) and c.strip()] + ["else"]
     port = _OUTPUT_PORT.get(node.get("type"))
     return [port] if port else []
 
@@ -76,6 +80,23 @@ def validate(wf):
         by_id[nid] = n
         if n.get("type") not in NODE_TYPES:
             errors.append(f"unknown node type: {n.get('type')} (node {nid})")
+        if n.get("type") == "branch":
+            cfg = n.get("config") or {}
+            cases = cfg.get("cases")
+            if not isinstance(cases, list) or not cases:
+                errors.append(f"branch node {nid} must have a non-empty 'cases' list")
+            else:
+                seen = set()
+                for c in cases:
+                    if not isinstance(c, str) or not c.strip():
+                        errors.append(f"branch node {nid} has an empty/non-string case")
+                    elif c.strip().lower() == "else":
+                        errors.append(f"branch node {nid}: case 'else' is reserved (auto fallback)")
+                    elif c in seen:
+                        errors.append(f"branch node {nid} has duplicate case '{c}'")
+                    seen.add(c)
+            if cfg.get("mode", "match") not in ("match", "llm"):
+                errors.append(f"branch node {nid} mode must be 'match' or 'llm'")
     for e in edges:
         if not isinstance(e, dict):
             errors.append(f"edge must be an object: {e!r}")
