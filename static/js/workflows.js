@@ -294,6 +294,7 @@ function newWorkflow() {
   const results = $('wf-results'); if (results) { results.style.display = 'none'; results.innerHTML = ''; }
   msg('');
   render();
+  const trHost = $('wf-triggers'); if (trHost && trHost.style.display !== 'none') renderTriggers();
 }
 
 async function loadWorkflow(id) {
@@ -310,6 +311,7 @@ async function loadWorkflow(id) {
   msg('');
   render();
   refreshList();
+  const trHost = $('wf-triggers'); if (trHost && trHost.style.display !== 'none') renderTriggers();
 }
 
 async function save() {
