@@ -15,6 +15,8 @@ def test_index_html_wires_the_editor():
     assert 'id="workflows-modal"' in html
     assert 'src="/static/js/workflows.js"' in html
     assert 'id="wf-canvas"' in html and 'id="wf-wires"' in html
+    assert 'id="wf-triggers"' in html
+    assert 'id="wf-triggers-btn"' in html
 
 
 @pytest.mark.skipif(not shutil.which("node"), reason="node binary not on PATH")

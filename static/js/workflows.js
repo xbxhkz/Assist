@@ -382,6 +382,122 @@ function escapeHtml(s) {
   return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
+// ── triggers panel: schedule/event/webhook a saved workflow via /api/tasks ──
+const _EVENTS = ['message_sent', 'session_created'];
+
+async function renderTriggers() {
+  const host = $('wf-triggers');
+  if (!host) return;
+  host.style.display = '';
+  host.innerHTML = '';
+  if (!currentId) {
+    host.textContent = 'Save the workflow first to add triggers.';
+    host.style.opacity = '0.6';
+    return;
+  }
+  host.style.opacity = '';
+  let all = [];
+  try { all = (await api('/api/tasks')).tasks || []; }   // list_tasks -> {"tasks": [...]}
+  catch (e) { host.textContent = 'Could not load triggers: ' + e.message; return; }
+  const mine = all.filter((t) => t.task_type === 'workflow' && t.action === currentId);
+  const list = document.createElement('div');
+  mine.forEach((t) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:6px;align-items:center;font-size:12px;padding:2px 0;';
+    const label = document.createElement('span');
+    label.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    const when = t.trigger_type === 'schedule' ? (t.schedule || 'schedule')
+      : t.trigger_type === 'event' ? ('on ' + (t.trigger_event || 'event'))
+      : 'webhook';
+    label.textContent = `${t.name || t.id} · ${when}`;
+    row.appendChild(label);
+    if (t.trigger_type === 'webhook' && t.webhook_token) {
+      row.appendChild(_btn('Copy URL', () => {
+        const url = `${location.origin}/api/tasks/${t.id}/webhook/${t.webhook_token}`;
+        if (navigator.clipboard) navigator.clipboard.writeText(url);
+        msg('Webhook URL copied');
+      }));
+    }
+    row.appendChild(_btn('Delete', async () => {
+      try { await api('/api/tasks/' + encodeURIComponent(t.id), { method: 'DELETE' }); renderTriggers(); }
+      catch (e) { msg('Delete failed: ' + e.message, true); }
+    }));
+    list.appendChild(row);
+  });
+  if (!mine.length) {
+    const e = document.createElement('div');
+    e.style.cssText = 'font-size:12px;opacity:0.6;'; e.textContent = 'No triggers yet.';
+    list.appendChild(e);
+  }
+  host.appendChild(list);
+  host.appendChild(_triggerForm());
+}
+
+function _btn(label, fn) {
+  const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
+  b.style.cssText = 'font-size:11px;'; b.addEventListener('click', fn); return b;
+}
+
+function _triggerForm() {
+  const form = document.createElement('div');
+  form.style.cssText = 'margin-top:8px;border-top:1px dashed var(--border);padding-top:6px;font-size:12px;';
+  const typeSel = document.createElement('select');
+  ['schedule', 'event', 'webhook'].forEach((v) => { const o = document.createElement('option'); o.value = v; o.textContent = v; typeSel.appendChild(o); });
+  const cfg = document.createElement('span');
+  function renderCfg() {
+    cfg.innerHTML = '';
+    if (typeSel.value === 'schedule') {
+      const s = document.createElement('select'); s.id = 'wf-tr-sched';
+      ['once', 'daily', 'weekly'].forEach((v) => { const o = document.createElement('option'); o.value = v; o.textContent = v; s.appendChild(o); });
+      const time = document.createElement('input'); time.id = 'wf-tr-time'; time.value = '09:00'; time.style.width = '60px';
+      cfg.appendChild(s); cfg.appendChild(time);
+    } else if (typeSel.value === 'event') {
+      const s = document.createElement('select'); s.id = 'wf-tr-event';
+      _EVENTS.forEach((v) => { const o = document.createElement('option'); o.value = v; o.textContent = v; s.appendChild(o); });
+      const n = document.createElement('input'); n.id = 'wf-tr-count'; n.type = 'number'; n.value = '1'; n.style.width = '48px';
+      cfg.appendChild(s); cfg.appendChild(n);
+    }
+  }
+  typeSel.addEventListener('change', renderCfg); renderCfg();
+  // fixed-inputs mini-editor: one row per input node
+  const inputsWrap = document.createElement('div');
+  inputsWrap.style.cssText = 'margin:4px 0;';
+  const inputNodes = graph.nodes.filter((n) => n.type === 'input');
+  inputNodes.forEach((n) => {
+    const nm = (n.config || {}).name || n.id;
+    const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:4px;align-items:center;';
+    const lab = document.createElement('span'); lab.textContent = nm; lab.style.cssText = 'width:80px;opacity:0.7;';
+    const val = document.createElement('input'); val.dataset.input = nm; val.value = (n.config || {}).default || ''; val.style.flex = '1';
+    row.appendChild(lab); row.appendChild(val); inputsWrap.appendChild(row);
+  });
+  form.appendChild(typeSel); form.appendChild(cfg);
+  form.appendChild(inputsWrap);
+  form.appendChild(_btn('Add trigger', () => _addTrigger(typeSel.value, inputsWrap)));
+  return form;
+}
+
+async function _addTrigger(triggerType, inputsWrap) {
+  const fixed = {};
+  inputsWrap.querySelectorAll('input[data-input]').forEach((el) => {
+    if (el.value !== '') fixed[el.dataset.input] = el.value;
+  });
+  const body = {
+    task_type: 'workflow', action: currentId, trigger_type: triggerType,
+    prompt: JSON.stringify(fixed),
+  };
+  if (triggerType === 'schedule') {
+    body.schedule = ($('wf-tr-sched') || {}).value || 'daily';
+    body.scheduled_time = ($('wf-tr-time') || {}).value || '09:00';
+  } else if (triggerType === 'event') {
+    body.trigger_event = ($('wf-tr-event') || {}).value || 'message_sent';
+    body.trigger_count = parseInt(($('wf-tr-count') || {}).value || '1', 10);
+  }
+  try {
+    await api('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    msg('Trigger added'); renderTriggers();
+  } catch (e) { msg('Add trigger failed: ' + e.message, true); }
+}
+
 function openWorkflows() {
   $('workflows-modal').classList.remove('hidden');
   refreshList();
@@ -418,6 +534,12 @@ function init() {
   });
   const runBtn = $('wf-run');
   if (runBtn) runBtn.addEventListener('click', run);
+  const trBtn = $('wf-triggers-btn');
+  if (trBtn) trBtn.addEventListener('click', () => {
+    const host = $('wf-triggers');
+    if (host && host.style.display === 'none') renderTriggers();
+    else if (host) host.style.display = 'none';
+  });
   document.addEventListener('keydown', (e) => {
     const modal = $('workflows-modal');
     if (!modal || modal.classList.contains('hidden')) return;   // only when the editor is open
