@@ -25,6 +25,23 @@ from routes.prefs_routes import _load_for_user, _save_for_user
 logger = logging.getLogger(__name__)
 
 
+def validate_workflow_task_create(action, prompt, is_admin: bool) -> None:
+    """Validate a task_type='workflow' create request. Raises HTTPException on:
+    missing workflow id (400), non-admin (403), or a `prompt` that is not a JSON
+    object (400). A workflow runs the LLM + arbitrary tools, so it is admin-only."""
+    if not action:
+        raise HTTPException(400, "Workflow id (action) is required for workflow tasks")
+    if not is_admin:
+        raise HTTPException(403, "Workflow triggers require admin privileges")
+    if prompt:
+        try:
+            parsed = json.loads(prompt)
+        except (ValueError, TypeError):
+            raise HTTPException(400, "Workflow fixed inputs must be a JSON object")
+        if not isinstance(parsed, dict):
+            raise HTTPException(400, "Workflow fixed inputs must be a JSON object")
+
+
 def _maybe_cascade_calendar_event(task) -> None:
     """Delete the linked calendar event when a cookbook_serve task is
     removed. Two lookup strategies:
@@ -457,6 +474,8 @@ def setup_task_routes(task_scheduler) -> APIRouter:
             raise HTTPException(400, "Prompt is required for LLM/research tasks")
         if req.task_type == "action" and not req.action:
             raise HTTPException(400, "Action name is required for action tasks")
+        if req.task_type == "workflow":
+            validate_workflow_task_create(req.action, req.prompt, _is_admin(user))
         # Block shell-executing action types for non-admins. action_run_local
         # uses subprocess.run(shell=True) and ssh_command / run_script run
         # arbitrary commands.
@@ -482,6 +501,8 @@ def setup_task_routes(task_scheduler) -> APIRouter:
             if req.task_type == "action":
                 from src.builtin_actions import BUILTIN_ACTION_INFO
                 name = BUILTIN_ACTION_INFO.get(req.action, req.action or "Action Task")
+            elif req.task_type == "workflow":
+                name = f"Workflow: {req.action}"
             elif req.prompt:
                 name = await _generate_task_name(req.prompt, owner=user)
             else:
@@ -1043,7 +1064,7 @@ def setup_task_routes(task_scheduler) -> APIRouter:
         ]}
 
     @router.post("/{task_id}/webhook/{token}")
-    async def webhook_trigger(task_id: str, token: str):
+    async def webhook_trigger(task_id: str, token: str, request: Request):
         """Unauthenticated endpoint — the token IS the auth."""
         db = SessionLocal()
         try:
@@ -1064,7 +1085,11 @@ def setup_task_routes(task_scheduler) -> APIRouter:
                 raise HTTPException(403, f"Action '{task.action}' requires admin privileges")
         finally:
             db.close()
-        started = await task_scheduler.run_task_now(task_id)
+        try:
+            body = await request.json()
+        except Exception:
+            body = None
+        started = await task_scheduler.run_task_now(task_id, context=body)
         if not started:
             raise HTTPException(409, "Task is already running")
         return {"ok": True, "message": "Task triggered via webhook"}
