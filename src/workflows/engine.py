@@ -5,7 +5,7 @@ import logging
 import time
 
 from src.workflows import nodes as N
-from src.workflows.model import WorkflowError, topo_sort, validate
+from src.workflows.model import WorkflowError, output_ports, topo_sort, validate
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,8 @@ async def _run_node(node, node_inputs, run_inputs, ctx, model_call, tool_dispatc
         return await N.run_tool(cfg, node_inputs, ctx, tool_dispatch=tool_dispatch)
     if t == "output":
         return await N.run_output(cfg, node_inputs)
+    if t == "branch":
+        return await N.run_branch(cfg, node_inputs, model_call=model_call)
     raise RuntimeError(f"unknown node type: {t}")
 
 
@@ -43,13 +45,16 @@ async def run_workflow(wf, inputs=None, ctx=None, *, model_call=None, tool_dispa
 
     produced = {}      # node id -> {port: value}
     failed = set()     # nodes that errored or were skipped
+    inactive_ports = set()  # (node_id, port) a branch chose NOT to take
     outputs = {}
     log = []
 
     for nid in topo_sort(wf):
         node = by_id[nid]
         incoming = [e for e in edges if e.get("to_node") == nid]
-        upstream_bad = any(e.get("from_node") in failed for e in incoming)
+        upstream_bad = (any(e.get("from_node") in failed for e in incoming)
+                        or any((e.get("from_node"), e.get("from_port")) in inactive_ports
+                               for e in incoming))
         if upstream_bad:
             failed.add(nid)
             log.append({"node": nid, "type": node.get("type"), "status": "skipped",
@@ -60,10 +65,18 @@ async def run_workflow(wf, inputs=None, ctx=None, *, model_call=None, tool_dispa
         started = time.monotonic()
         try:
             out = await _run_node(node, node_inputs, run_inputs, ctx, model_call, tool_dispatch)
-            produced[nid] = out
-            if node.get("type") == "output":
-                outputs[(node.get("config") or {}).get("name", nid)] = node_inputs.get("value", "")
-            shown = str(next(iter(out.values()), "")) if out else str(node_inputs.get("value", ""))
+            if node.get("type") == "branch":
+                chosen = out.get("active")
+                produced[nid] = {chosen: out.get("value", "")}
+                for p in output_ports(node):
+                    if p != chosen:
+                        inactive_ports.add((nid, p))
+                shown = str(chosen)
+            else:
+                produced[nid] = out
+                if node.get("type") == "output":
+                    outputs[(node.get("config") or {}).get("name", nid)] = node_inputs.get("value", "")
+                shown = str(next(iter(out.values()), "")) if out else str(node_inputs.get("value", ""))
             log.append({"node": nid, "type": node.get("type"), "status": "ok",
                         "output": shown[:_LOG_MAX], "error": None,
                         "ms": int((time.monotonic() - started) * 1000)})
