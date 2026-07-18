@@ -76,3 +76,33 @@ async def default_tool_dispatch(tool, args, ctx):
             raise RuntimeError(str(res["error"]))
         return str(res.get("output", ""))
     return str(res)
+
+
+def _match_case(resp, cases):
+    """Map an llm response to a case: exact (trimmed, case-insensitive) first, then
+    the first case whose label appears as a substring; else 'else'."""
+    r = (resp or "").strip().lower()
+    for c in cases:
+        if c.strip().lower() == r:
+            return c
+    for c in cases:
+        if c.strip().lower() in r:
+            return c
+    return "else"
+
+
+async def run_branch(config, inputs, *, model_call):
+    """Route `value` to one case output. match: equal-label (else 'else'). llm: the
+    model classifies value into a case. Returns {"active": chosen, "value": value}."""
+    value = str((inputs or {}).get("value", ""))
+    cases = [c for c in (config.get("cases") or []) if isinstance(c, str) and c.strip()]
+    if config.get("mode", "match") == "llm":
+        guidance = config.get("prompt") or ""
+        prompt = ((guidance + "\n\n") if guidance else "") + (
+            f"Input:\n{value}\n\nChoose exactly one of these labels: "
+            f"{', '.join(cases)}.\nAnswer with only the label.")
+        resp = str(await model_call(prompt, model=config.get("model"), system=config.get("system")))
+        chosen = _match_case(resp, cases)
+    else:
+        chosen = next((c for c in cases if c.strip().lower() == value.strip().lower()), "else")
+    return {"active": chosen, "value": value}
