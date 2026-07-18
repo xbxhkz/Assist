@@ -30,17 +30,16 @@ def get_task_scheduler():
     return _task_scheduler
 
 
-def fire_event(event_name: str, owner: Optional[str] = None):
+def fire_event(event_name: str, owner: Optional[str] = None, payload: Optional[dict] = None):
     """Fire an event — increments counters and triggers tasks that hit threshold.
-
-    Safe to call from both sync and async contexts.
-    """
+    `payload` (optional) is passed to a triggered task as its run context (e.g.
+    {"message": "..."} for message_sent). Safe from sync and async contexts."""
     try:
         loop = asyncio.get_running_loop()
-        loop.create_task(_handle_event(event_name, owner))
+        loop.create_task(_handle_event(event_name, owner, payload))
     except RuntimeError:
         # No running loop — run in a new one (shouldn't happen in FastAPI)
-        asyncio.run(_handle_event(event_name, owner))
+        asyncio.run(_handle_event(event_name, owner, payload))
 
 
 def _resolve_event_owner(owner: Optional[str]) -> Optional[str]:
@@ -69,7 +68,7 @@ def _resolve_event_owner(owner: Optional[str]) -> Optional[str]:
     return None
 
 
-async def _handle_event(event_name: str, owner: Optional[str] = None):
+async def _handle_event(event_name: str, owner: Optional[str] = None, payload: Optional[dict] = None):
     """Process an event: increment counters, fire tasks that hit their threshold."""
     from core.database import SessionLocal, ScheduledTask
 
@@ -106,7 +105,7 @@ async def _handle_event(event_name: str, owner: Optional[str] = None):
                 # Fire the task
                 if _task_scheduler:
                     logger.info(f"Event '{event_name}' triggered task '{task.name}' (every {threshold})")
-                    await _task_scheduler.run_task_now(task.id)
+                    await _task_scheduler.run_task_now(task.id, context=payload)
                 else:
                     logger.warning(f"Event triggered task '{task.name}' but no scheduler available")
             else:

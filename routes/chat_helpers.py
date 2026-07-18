@@ -440,7 +440,7 @@ def fire_message_event(request, webhook_manager, session_id: str, sess, message:
         })
     from src.event_bus import fire_event
     user = effective_user(request)
-    fire_event("message_sent", user)
+    fire_event("message_sent", user, payload={"message": message})
 
 
 def _session_url_matches_endpoint(session_url: str, endpoint_base: str) -> bool:
