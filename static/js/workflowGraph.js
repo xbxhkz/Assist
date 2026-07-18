@@ -1,7 +1,7 @@
 // Pure, DOM-free workflow graph core: node/port model, cycle-guarded wiring,
 // auto-layout, and engine-JSON round-trip. Unit-tested in Node. The {slot}
 // derivation MUST match Python's model.slots_of (re \{(\w+)\}, ordered-unique).
-export const NODE_TYPES = ['input', 'template', 'llm', 'tool', 'output'];
+export const NODE_TYPES = ['input', 'template', 'llm', 'tool', 'output', 'branch'];
 
 const _SLOT_RE = /\{([\p{L}\p{N}_]+)\}/gu;
 const _SLOT_SOURCE = { template: 'template', llm: 'prompt', tool: 'args' };
@@ -20,13 +20,18 @@ export function slotsOf(text) {
 
 export function inputPortsOf(node) {
   const t = node && node.type;
-  if (t === 'output') return ['value'];
+  if (t === 'output' || t === 'branch') return ['value'];
   const key = _SLOT_SOURCE[t];
   if (!key) return [];                 // input (and unknown) take no wires
   return slotsOf((node.config || {})[key]);
 }
 
 export function outputPortsOf(node) {
+  if (node && node.type === 'branch') {
+    const cases = (node.config || {}).cases;
+    const list = Array.isArray(cases) ? cases.filter((c) => typeof c === 'string' && c.trim()) : [];
+    return list.concat(['else']);
+  }
   const p = _OUTPUT_PORT[node && node.type];
   return p ? [p] : [];
 }
@@ -60,8 +65,10 @@ function _pruneEdges(graph, id) {
   const node = nodeById(graph, id);
   if (!node) return;
   const ins = inputPortsOf(node);
+  const outs = outputPortsOf(node);
   graph.edges = graph.edges.filter(
-    (e) => e.to_node !== id || ins.includes(e.to_port),
+    (e) => (e.to_node !== id || ins.includes(e.to_port))
+        && (e.from_node !== id || outs.includes(e.from_port)),
   );
 }
 
