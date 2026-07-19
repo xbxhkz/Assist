@@ -99,8 +99,7 @@ With a model served, in a normal **agent** chat as an **admin**:
 ## Known deferred (not bugs — future work)
 
 - **Loops** and **typed ports** (not built; loops would break the engine's no-cycle invariant).
-- A **pre-existing** app-wide hardening: a truthy **non-dict `config`** on a non-branch node
-  (`template`/`llm`/`tool`) still makes `validate` raise → HTTP 500 instead of 400. Only the
-  `branch` instance was closed. A dedicated pass could coerce `config`→`{}` in `input_ports`/
-  `output_ports`/`validate` for all node types. Editor-authored workflows never hit this (the
-  editor always writes a dict config); only a hand-crafted malformed POST triggers it.
+
+*(Closed 2a01911: the non-dict-`config` hardening — a malformed non-dict `config` on any node
+type now returns a 400 "config must be an object" error instead of a 500. `validate` no longer
+raises on any untrusted-JSON shape.)*
