@@ -105,3 +105,44 @@ def test_never_raises_on_vision_exception(tmp_path):
 def test_bad_json_content_is_error(tmp_path):
     out = _exec("not json", {"owner": "admin"}, vision_call=_capture_call()[0])
     assert "error" in out
+
+
+def test_non_string_image_is_error_not_raise(tmp_path):
+    out = _exec(json.dumps({"image": [1, 2, 3]}), {"owner": "admin"}, vision_call=_capture_call()[0])
+    assert "error" in out and "image" in out["error"].lower()
+
+
+def test_non_string_task_falls_back_to_auto_without_raising(tmp_path):
+    vc, seen = _capture_call()
+    out = _exec(json.dumps({"image": _img(tmp_path), "task": 123}), {"owner": "admin"}, vision_call=vc)
+    assert isinstance(out, dict)
+    assert out == {"output": "DIAGNOSIS"}
+    assert it.TASK_MODES["auto"] in seen["prompt"]
+
+
+def test_non_string_context_is_ignored_without_raising(tmp_path):
+    vc, seen = _capture_call()
+    out = _exec(json.dumps({"image": _img(tmp_path), "context": 456}), {"owner": "admin"}, vision_call=vc)
+    assert isinstance(out, dict)
+    assert out == {"output": "DIAGNOSIS"}
+    assert "456" not in seen["prompt"]
+
+
+def test_non_dict_vision_result_is_error(tmp_path):
+    def vc_str(image_path, owner=None, *, prompt=None):
+        return "junk"
+    out = _exec(json.dumps({"image": _img(tmp_path)}), {"owner": "admin"}, vision_call=vc_str)
+    assert "error" in out
+
+    def vc_list(image_path, owner=None, *, prompt=None):
+        return [1]
+    out2 = _exec(json.dumps({"image": _img(tmp_path)}), {"owner": "admin"}, vision_call=vc_list)
+    assert "error" in out2
+
+
+def test_bracketed_unavailability_text_is_error_even_with_nonempty_model(tmp_path):
+    def vc(image_path, owner=None, *, prompt=None):
+        return {"text": "[No vision model configured — set one in Settings → Vision]", "model": "vl-model"}
+    out = _exec(json.dumps({"image": _img(tmp_path)}), {"owner": "admin"}, vision_call=vc)
+    assert "error" in out
+    assert "output" not in out

@@ -61,7 +61,7 @@ def _compose_prompt(task, context):
 
 def _validate_image(path):
     """Return an error string, or None if the image is usable."""
-    if not path:
+    if not isinstance(path, str) or not path:
         return "diagnose_equipment: an 'image' path is required"
     if not os.path.isfile(path):
         return f"diagnose_equipment: image not found: {path}"
@@ -90,22 +90,30 @@ async def diagnose_equipment(content, ctx, *, vision_call=None):
     err = _validate_image(image)
     if err:
         return {"error": err}
-    task = (args.get("task") or "auto").strip().lower()
+    task_raw = args.get("task")
+    task = task_raw.strip().lower() if isinstance(task_raw, str) else "auto"
     if task not in TASK_MODES:
         task = "auto"
-    prompt = _compose_prompt(task, (args.get("context") or "").strip())
+    ctx_raw = args.get("context")
+    context = ctx_raw.strip() if isinstance(ctx_raw, str) else ""
+    prompt = _compose_prompt(task, context)
 
     try:
         result = vision_call(image, ctx.get("owner"), prompt=prompt)
     except Exception as e:  # never raise into the agent loop
         return {"error": f"diagnose_equipment: vision call failed: {e}"}
 
-    text = (result or {}).get("text", "")
-    model = (result or {}).get("model", "")
-    # analyze_image_with_vl_result signals unavailability with an empty model + a
-    # bracketed marker in the text (e.g. "[No vision model configured …]").
-    if not model and text.strip().startswith("["):
-        return {"error": text.strip()}
+    if not isinstance(result, dict):
+        return {"error": "diagnose_equipment: vision call returned an unexpected result"}
+
+    text = result.get("text", "")
+    model = result.get("model", "")
+    # analyze_image_with_vl_result signals unavailability with a bracketed marker
+    # in the text (e.g. "[No vision model configured …]"), regardless of whether
+    # a model name is also present. A real diagnosis follows the structured-
+    # output prompt and never starts with "[".
+    if not model or text.strip().startswith("["):
+        return {"error": text.strip() or "diagnose_equipment: no vision model available"}
     if not text.strip():
         return {"error": "diagnose_equipment: vision model returned no result"}
     return {"output": text}
