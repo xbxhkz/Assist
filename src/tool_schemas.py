@@ -681,6 +681,23 @@ FUNCTION_TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "diagnose_equipment",
+            "description": "Diagnose an industrial image with a maintenance-expert vision model: read a fault code / HMI / drive display, interpret an electrical schematic or wiring diagram, troubleshoot a VFD/drive fault, or identify a component / interpret a thermal image. Returns a safety-first structured diagnosis. Provide an image file path (an attachment, a capture_screen screenshot, or a file).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "image": {"type": "string", "description": "Path to the image file to diagnose."},
+                    "task": {"type": "string", "enum": ["schematic", "fault_code", "vfd", "component", "auto"],
+                              "description": "Diagnostic mode (default auto: infer the image type)."},
+                    "context": {"type": "string", "description": "Optional: the symptom, equipment model/tag, or what was already checked."}
+                },
+                "required": ["image"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "ui_control",
             "description": "Control the user interface. Actions: toggle (turn tools on/off), open_panel (open a modal: documents/library, gallery, email, sessions, notes, memories/brain, skills, settings, cookbook), open_email_reply (open an email reply draft document; DOES NOT send. For 'write/draft a reply saying X', include body with the drafted reply), set_mode, switch_model, set_theme (built-in presets: dark, light, midnight, paper, cyberpunk, retrowave, forest, ocean, ume, copper, terminal, organs, lavender, gpt, claude, cute), create_theme (CREATE any custom theme with a name + colors object — pick distinctive, evocative hex colors that match the requested aesthetic, NOT generic defaults. The theme auto-applies after creation). When a user asks for ANY theme not in the built-in preset list, ALWAYS use create_theme.",
             "parameters": {

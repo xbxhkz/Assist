@@ -304,7 +304,7 @@ _DOMAIN_TOOL_MAP = {
     "contacts": {"resolve_contact", "manage_contact"},
     "integrations": {"api_call"},
     "desktop": {"launch_app", "find_files", "list_windows", "control_window", "capture_screen",
-                "webcam_look",
+                "webcam_look", "diagnose_equipment",
                 "list_ui_elements", "click_element", "set_element_text", "mouse", "keyboard"},
     "network": {"net_info", "discover_hosts", "scan_ports"},
 }
@@ -528,6 +528,7 @@ Generate an image. Line 1 = description, line 2 = model name, line 3 = WxH (e.g.
     "manage_skills": "- ```manage_skills``` — Skill registry (SKILL.md format). Args (JSON): {\"action\": \"list|view|view_ref|search|add|edit|patch|publish|delete\", ...}. `list` returns the index of available skills (published + teacher-escalation drafts); `view name=foo` fetches the full SKILL.md; `view_ref name=foo path=...` loads a reference file under the skill directory. For `add`, provide an explicit kebab-case `name` and only report the exact returned name, because storage may normalize or dedupe it. Use this BEFORE doing domain work — there may already be a procedure (published or draft) that prescribes the correct steps. Drafts written by the teacher loop are authoritative guidance even though they're not yet published.",
     "manage_tasks": "- ```manage_tasks``` — Create and manage scheduled background tasks (recurring AI jobs). Args (JSON): {\"action\": \"list|create|edit|delete|pause|resume|run\", ...}",
     "run_workflow": "- ```run_workflow``` — Run a saved workflow by id, or list saved workflows. Args (JSON): {\"id\": \"<workflow id>\", \"inputs\": {\"name\": \"value\"}} or {\"action\": \"list\"}. Admin only.",
+    "diagnose_equipment": "- ```diagnose_equipment``` — Diagnose an industrial image with a maintenance-expert vision model. Args (JSON): {\"image\": \"<path>\", \"task\": \"schematic|fault_code|vfd|component|auto\", \"context\": \"<optional symptom>\"}. Use for fault codes, schematics, VFD faults, component ID, thermal images.",
     "manage_endpoints": "- ```manage_endpoints``` — Add, remove, or configure AI model API endpoints. Args (JSON): {\"action\": \"list|add|delete|enable|disable\", ...}. Use when user wants to add a new AI provider.",
     "manage_mcp": "- ```manage_mcp``` — Manage MCP (Model Context Protocol) tool servers — external tools that extend your capabilities. Args (JSON): {\"action\": \"list|add|delete|reconnect|list_tools\", ...}",
     "manage_webhooks": "- ```manage_webhooks``` — Configure outgoing webhooks (HTTP notifications on events like chat completion). Args (JSON): {\"action\": \"list|add|delete|enable|disable\", ...}",
