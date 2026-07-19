@@ -66,3 +66,5 @@ pytest-asyncio
 # TestClient import when only classic httpx is present. Runtime code keeps
 # using `httpx` above; this is test-client only.
 httpx2
+pymodbus>=3.14.0
+asyncua>=2.0.1
