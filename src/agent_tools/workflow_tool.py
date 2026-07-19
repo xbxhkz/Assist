@@ -37,7 +37,10 @@ async def run_workflow_tool(content, ctx):
             items.append({"id": w.get("id"), "name": w.get("name"), "inputs": _input_names(wf)})
         return {"output": json.dumps({"workflows": items}, indent=2)}
 
-    wf = store.get_workflow(wid)
+    try:
+        wf = store.get_workflow(wid)
+    except ValueError:
+        return {"error": f"invalid workflow id: {wid}"}
     if not wf:
         return {"error": f"workflow '{wid}' not found"}
     inputs = args.get("inputs")

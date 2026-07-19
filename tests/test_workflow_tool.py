@@ -74,6 +74,17 @@ def test_recursion_guard_refuses_when_in_workflow(monkeypatch):
     assert "error" in out and called["run"] is False
 
 
+def test_path_unsafe_id_is_error_not_raise():
+    # Exercises the real store._safe_id guard (no monkeypatch of get_workflow) —
+    # a path-unsafe id must be rejected before any file access, so this never
+    # touches the filesystem. store.get_workflow raises ValueError for these;
+    # the handler must convert that into a returned {"error": ...}, not raise.
+    for bad_id in ("../evil", "a:b"):
+        out = _exec(json.dumps({"id": bad_id}))
+        assert isinstance(out, dict)
+        assert "error" in out
+
+
 def test_child_ctx_does_not_mutate_caller(monkeypatch):
     monkeypatch.setattr(wt.store, "get_workflow", lambda wid: {"nodes": [], "edges": []})
 
