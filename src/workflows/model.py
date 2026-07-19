@@ -40,7 +40,8 @@ def input_ports(node):
     key = _SLOT_SOURCE.get(t)
     if not key:
         return []          # input nodes (and unknown types) take no wires
-    return slots_of((node.get("config") or {}).get(key, ""))
+    cfg = node.get("config")
+    return slots_of((cfg if isinstance(cfg, dict) else {}).get(key, ""))
 
 
 def output_ports(node):
@@ -82,6 +83,9 @@ def validate(wf):
         by_id[nid] = n
         if n.get("type") not in NODE_TYPES:
             errors.append(f"unknown node type: {n.get('type')} (node {nid})")
+        cfg_val = n.get("config")
+        if cfg_val is not None and not isinstance(cfg_val, dict):
+            errors.append(f"node {nid} config must be an object")
         if n.get("type") == "branch":
             cfg = n.get("config")
             cfg = cfg if isinstance(cfg, dict) else {}

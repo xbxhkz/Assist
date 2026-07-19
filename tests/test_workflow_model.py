@@ -101,3 +101,20 @@ def test_validate_reports_malformed_shape_without_raising():
                for e in m.validate(_wf([{"id": "i", "type": "input", "config": {"name": "q"}}], ["x"])))
     assert any("nodes must be a list" in e for e in m.validate({"nodes": "abc", "edges": []}))
     assert any("edges must be a list" in e for e in m.validate({"nodes": [], "edges": "abc"}))
+
+
+def test_validate_does_not_raise_on_non_dict_config():
+    # A truthy non-dict `config` on any node type must be an error string (-> 400),
+    # never a raise inside validate (-> 500). Covers the slot-deriving types whose
+    # input_ports reads config.
+    for t in ("template", "llm", "tool"):
+        errs = m.validate({"nodes": [{"id": "n", "type": t, "config": "junk"}], "edges": []})
+        assert any("config must be an object" in e for e in errs)
+    # a valid dict config (or an absent one) is fine
+    assert m.validate({"nodes": [{"id": "n", "type": "template", "config": {"template": "x"}}],
+                       "edges": []}) == []
+
+
+def test_input_ports_tolerates_non_dict_config():
+    assert m.input_ports({"type": "template", "config": "junk"}) == []
+    assert m.input_ports({"type": "llm", "config": ["x"]}) == []
