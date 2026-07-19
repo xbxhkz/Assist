@@ -29,6 +29,22 @@ def test_action_list_also_lists(monkeypatch):
     assert json.loads(out["output"]) == {"workflows": []}
 
 
+def test_list_mode_tolerates_a_path_unsafe_id_without_raising(monkeypatch):
+    # a hand-edited workflow file whose JSON id is path-unsafe must not crash the whole listing
+    monkeypatch.setattr(wt.store, "list_workflows",
+                        lambda: [{"id": "../evil", "name": "Bad"}, {"id": "ok", "name": "OK"}])
+
+    def _get(wid):
+        if wid == "../evil":
+            raise ValueError("unsafe workflow id")
+        return {"nodes": [{"id": "i", "type": "input", "config": {"name": "q"}}]}
+    monkeypatch.setattr(wt.store, "get_workflow", _get)
+    out = _exec("")            # must return, not raise
+    data = json.loads(out["output"])
+    assert data["workflows"] == [{"id": "../evil", "name": "Bad", "inputs": []},
+                                 {"id": "ok", "name": "OK", "inputs": ["q"]}]
+
+
 def test_run_mode_runs_and_summarizes(monkeypatch):
     wf = {"id": "flow1", "name": "F", "nodes": [], "edges": []}
     monkeypatch.setattr(wt.store, "get_workflow", lambda wid: wf if wid == "flow1" else None)

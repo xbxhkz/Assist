@@ -33,7 +33,10 @@ async def run_workflow_tool(content, ctx):
     if not wid or args.get("action") == "list":
         items = []
         for w in store.list_workflows():
-            wf = store.get_workflow(w.get("id")) or {}
+            try:                                   # a hand-edited path-unsafe id must not crash the listing
+                wf = store.get_workflow(w.get("id")) or {}
+            except ValueError:
+                wf = {}
             items.append({"id": w.get("id"), "name": w.get("name"), "inputs": _input_names(wf)})
         return {"output": json.dumps({"workflows": items}, indent=2)}
 
