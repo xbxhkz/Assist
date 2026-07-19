@@ -26,3 +26,20 @@ def test_run_workflow_in_index_and_agent_loop():
     assert "run_workflow" in ti.BUILTIN_TOOL_DESCRIPTIONS
     assert "run_workflow" in al.TOOL_SECTIONS
     assert any("run_workflow" in tools for tools in al._DOMAIN_TOOL_MAP.values())
+
+
+def test_run_workflow_matches_manage_tasks_admin_surfacing():
+    """run_workflow shares its domain (notes_calendar_tasks) and admin-only
+    gating (NON_ADMIN_BLOCKED_TOOLS) with manage_tasks, so it must be
+    surfaced wherever manage_tasks is admin-surfaced in agent_loop.py.
+    """
+    import src.agent_loop as al
+
+    # Sanity: manage_tasks is indeed present in both admin-surfacing lists,
+    # confirming these are the sibling lists the pattern applies to.
+    assert "manage_tasks" in al._ADMIN_SCHEMA_NAMES
+    assert "manage_tasks" in al._ADMIN_TOOLS
+
+    # run_workflow must follow the same pattern in both lists.
+    assert "run_workflow" in al._ADMIN_SCHEMA_NAMES
+    assert "run_workflow" in al._ADMIN_TOOLS

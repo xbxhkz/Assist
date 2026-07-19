@@ -763,7 +763,7 @@ _API_HOSTS = frozenset([
 _MCP_KEYWORDS = frozenset(["mcp", "browse", "browser", "website", "calendar", "event", "email",
                            "gmail", "screenshot", "navigate", "click", "miniflux", "rss", "feed"])
 _ADMIN_SCHEMA_NAMES = frozenset([
-    "manage_session", "manage_skills", "manage_tasks",
+    "manage_session", "manage_skills", "manage_tasks", "run_workflow",
     "manage_endpoints", "manage_mcp", "manage_webhooks", "manage_tokens",
     "create_session", "list_sessions", "send_to_session", "pipeline",
     "ask_teacher", "list_models", "search_chats",
@@ -1945,7 +1945,7 @@ def _build_system_prompt(
 
 
 _ADMIN_TOOLS = {
-    "manage_session", "manage_skills", "manage_tasks",
+    "manage_session", "manage_skills", "manage_tasks", "run_workflow",
     "manage_endpoints", "manage_mcp", "manage_webhooks", "manage_tokens",
     "manage_documents", "manage_settings", "create_session", "list_sessions",
     "send_to_session", "pipeline", "ask_teacher", "list_models",
