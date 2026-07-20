@@ -64,6 +64,7 @@ NON_ADMIN_BLOCKED_TOOLS = BUILTIN_EMAIL_TOOLS | {
     "net_info",
     "discover_hosts",
     "scan_ports",
+    "read_equipment",
     "search_chats",
     "manage_memory",
     "manage_skills",
@@ -145,6 +146,7 @@ PLAN_MODE_READONLY_TOOLS = {
     "net_info",
     "discover_hosts",
     "scan_ports",
+    "read_equipment",
 }
 
 

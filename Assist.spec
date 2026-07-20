@@ -15,7 +15,12 @@ for _pkg in ("chromadb", "onnxruntime", "fastembed", "tokenizers",
              "faster_whisper", "ctranslate2", "av",
              # Webcam object detection (webcam_look tool): YOLO via ultralytics.
              # collect_all pulls its submodules/data (torch + cv2 already handled).
-             "ultralytics"):
+             "ultralytics",
+             # Industrial equipment reads (read_equipment tool): asyncua (OPC UA
+             # client) ships bundled nodeset XML/schema data files that PyInstaller's
+             # static analysis misses, so collect_all pulls them. pymodbus (Modbus
+             # TCP) is pure Python code and needs no data collection.
+             "asyncua"):
     _d, _b, _h = collect_all(_pkg)
     _collected_datas += _d
     _collected_binaries += _b

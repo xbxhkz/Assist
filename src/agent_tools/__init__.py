@@ -41,6 +41,7 @@ from .admin_tools import (
 )
 from .workflow_tool import RunWorkflowTool
 from .industrial_tools import DiagnoseEquipmentTool
+from .industrial_live import ReadEquipmentTool
 
 TOOL_HANDLERS = {
     "bash": BashTool().execute,
@@ -88,6 +89,7 @@ TOOL_HANDLERS = {
     "manage_session": ManageSessionTool().execute,
     "run_workflow": RunWorkflowTool().execute,
     "diagnose_equipment": DiagnoseEquipmentTool().execute,
+    "read_equipment": ReadEquipmentTool().execute,
 }
 # Config/integration admin tools (manage_endpoints/mcp/webhooks/tokens/settings).
 TOOL_HANDLERS.update(ADMIN_TOOL_HANDLERS)
@@ -122,6 +124,7 @@ TOOL_TAGS = {"bash", "python", "web_search", "web_fetch", "read_file", "write_fi
              "resolve_contact", "manage_contact",
              "run_workflow",
              "diagnose_equipment",
+             "read_equipment",
              # Email tool names come from BUILTIN_EMAIL_TOOLS (unioned below)
              # so the fence regex, dispatch, and non-admin blocklist all cover
              # the same set.

@@ -306,7 +306,7 @@ _DOMAIN_TOOL_MAP = {
     "desktop": {"launch_app", "find_files", "list_windows", "control_window", "capture_screen",
                 "webcam_look", "diagnose_equipment",
                 "list_ui_elements", "click_element", "set_element_text", "mouse", "keyboard"},
-    "network": {"net_info", "discover_hosts", "scan_ports"},
+    "network": {"net_info", "discover_hosts", "scan_ports", "read_equipment"},
 }
 
 def _domain_rules_for_tools(tool_names: set) -> list[str]:
@@ -474,6 +474,8 @@ List live devices on a PRIVATE subnet (IP, MAC, hostname, vendor, best-guess OS)
 {"host": "192.168.1.1", "ports": [22,80,443]}  // ports optional; default = common set
 ```
 TCP-connect scan a PRIVATE host's ports; reports open ports + service.""",
+
+    "read_equipment": "- ```read_equipment``` — Read live values from an industrial device (READ-ONLY, private network, admin). Args (JSON): modbus → {\"protocol\":\"modbus\",\"host\":\"192.168.1.50\",\"reg_type\":\"holding\",\"address\":40001,\"count\":1,\"data_type\":\"float32\"}; opcua → {\"protocol\":\"opcua\",\"endpoint\":\"opc.tcp://192.168.1.50:4840\",\"nodes\":[\"ns=2;i=2\"]}.",
 
     "create_document": """\
 ```create_document

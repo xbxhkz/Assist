@@ -404,6 +404,30 @@ FUNCTION_TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "read_equipment",
+            "description": "Read live values from an industrial device on the private network — Modbus TCP registers/coils or OPC UA nodes. READ-ONLY (never writes). Admin-only; private/local addresses only. Use for on-demand equipment readings (a drive's output frequency, a meter value, a PLC tag).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "protocol": {"type": "string", "enum": ["modbus", "opcua"], "description": "modbus (TCP) or opcua"},
+                    "host": {"type": "string", "description": "Modbus: device host/IP (private network)."},
+                    "port": {"type": "integer", "description": "Modbus TCP port (default 502)."},
+                    "unit": {"type": "integer", "description": "Modbus unit/slave id (default 1)."},
+                    "reg_type": {"type": "string", "enum": ["holding", "input", "coil", "discrete"], "description": "Modbus register type (default holding)."},
+                    "address": {"type": "integer", "description": "Modbus start address."},
+                    "count": {"type": "integer", "description": "Modbus number of values (default 1)."},
+                    "data_type": {"type": "string", "enum": ["uint16", "int16", "uint32", "int32", "float32"], "description": "Modbus decode (default uint16; 32-bit types span 2 registers)."},
+                    "endpoint": {"type": "string", "description": "OPC UA endpoint, e.g. opc.tcp://192.168.1.50:4840"},
+                    "nodes": {"type": "array", "items": {"type": "string"}, "description": "OPC UA node ids to read, e.g. [\"ns=2;i=2\"]."},
+                    "timeout": {"type": "number", "description": "Connection timeout seconds (default 5)."}
+                },
+                "required": ["protocol"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "write_file",
             "description": "Write/save a file to disk",
             "parameters": {
