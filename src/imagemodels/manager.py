@@ -285,7 +285,10 @@ def ensure_image_served(owner=None, *, settings=None, manager=None,
     from src.imagemodels.serve_resolve import resolve_image_files
     from src.imagemodels.encoders import MissingEncoderError
 
-    mgr = manager or get_manager()
+    try:
+        mgr = manager or get_manager()
+    except Exception:
+        return {"model": None, "error": None}
     try:
         st = mgr.status()
         if st.get("running"):

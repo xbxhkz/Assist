@@ -70,3 +70,13 @@ def test_missing_encoder_returns_hint():
     out = _call(manager=mgr, settings={"image_model": "flux.gguf"},
                 lister=mgr.list_models, resolver=boom)
     assert out["model"] is None and "t5xxl" in out["error"]
+
+
+def test_get_manager_failure_never_raises(monkeypatch):
+    import src.imagemodels.manager as im2
+    def boom():
+        raise RuntimeError("no manager")
+    monkeypatch.setattr(im2, "get_manager", boom)
+    # manager not injected → the real get_manager() default is hit and raises
+    out = im2.ensure_image_served("admin")
+    assert out == {"model": None, "error": None}
