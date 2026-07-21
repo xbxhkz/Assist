@@ -69,6 +69,8 @@ def make_manager(ready=True, spawned=None, registered=None, unregistered=None,
         sleep=lambda _s: None,
         now=lambda: next(clock),
         ready_timeout=45.0,
+        metadata_reader=lambda p: {},
+        hardware_detect=lambda: {"has_gpu": False, "available_ram_gb": 16},
     )
     return mgr, spawned, registered, unregistered
 
@@ -105,6 +107,8 @@ def test_terminate_escalates_to_force_kill_when_process_survives():
         sleep=lambda _s: None,
         now=lambda: 0.0,
         force_kill=lambda pid: killed.append(pid),
+        metadata_reader=lambda p: {},
+        hardware_detect=lambda: {"has_gpu": False, "available_ram_gb": 16},
     )
     mgr.start("/models/big.gguf")
     mgr.stop()

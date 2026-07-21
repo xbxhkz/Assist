@@ -24,6 +24,15 @@ from src.localmodels.runtime import (
     resolve_llama_binary, build_serve_argv, local_endpoint_url, list_gguf_models,
     find_mmproj,
 )
+from src.gguf_meta import read_gguf_metadata
+from src.localmodels.serve_tuning import recommend_context
+
+
+def _default_hardware_detect():
+    """Detect hardware for context fitting. Lazy import keeps hwfit off the
+    module-load path (it shells out to detect GPUs)."""
+    from services.hwfit.hardware import detect_system
+    return detect_system()
 
 
 def _default_log_path() -> str:
@@ -87,7 +96,8 @@ class LocalModelManager:
                  register_endpoint=None, unregister_endpoint=None,
                  resolve_binary=resolve_llama_binary, log_path=None,
                  sleep=None, now=None, ready_timeout=45.0, probe_interval=0.5,
-                 sec_per_gb=12.0, force_kill=None):
+                 sec_per_gb=12.0, force_kill=None,
+                 metadata_reader=None, hardware_detect=None):
         self._log_path = log_path or _default_log_path()
         self._spawn = spawn or self._default_spawn
         self._port_chooser = port_chooser or (lambda: choose_port(8100))
@@ -105,6 +115,24 @@ class LocalModelManager:
         self._proc = None
         self._logf = None
         self._state = None  # {"model_path", "port", "endpoint_id", "pid"}
+        self._metadata_reader = metadata_reader or read_gguf_metadata
+        self._hardware_detect = hardware_detect or _default_hardware_detect
+        self._served_ctx = None
+
+    def _fit_context(self, model_path: str) -> int:
+        """Recommend a serve --ctx-size from GGUF metadata + detected
+        hardware. Never raises: either source failing degrades to {} rather
+        than aborting the serve."""
+        try:
+            meta = self._metadata_reader(model_path)
+        except Exception:
+            meta = {}
+        try:
+            hardware = self._hardware_detect()
+        except Exception:
+            hardware = {}
+        return recommend_context(meta if isinstance(meta, dict) else {},
+                                 hardware if isinstance(hardware, dict) else {})
 
     def _default_spawn(self, argv):
         """Launch llama-server, capturing stdout+stderr to the log file.
@@ -158,8 +186,11 @@ class LocalModelManager:
             # model (e.g. Qwen2.5-VL) served from the Local Models card gets
             # its vision encoder instead of loading text-only.
             mmproj = find_mmproj(model_path)
+            ctx = self._fit_context(model_path)
+            self._served_ctx = ctx
             proc = self._spawn(build_serve_argv(binary, model_path, port,
-                                                device=device, mmproj=mmproj))
+                                                ctx_size=ctx, device=device,
+                                                mmproj=mmproj))
             url = local_endpoint_url(port)
             timeout = self._ready_timeout_for(model_path)
             if not self._await_ready(url + "/models", proc, timeout):
