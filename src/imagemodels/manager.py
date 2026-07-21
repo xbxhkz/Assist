@@ -256,6 +256,26 @@ class ImageModelManager:
 _manager = None
 
 
+def _served_image_model_id(port):
+    """Probe a served sd-server for the model id it advertises at /v1/models
+    (e.g. "sd-cpp-local") — that, not the GGUF filename, is what _resolve_model
+    matches on. Returns the first id, or None. Never raises."""
+    if not port:
+        return None
+    try:
+        import httpx
+        r = httpx.get(f"http://127.0.0.1:{port}/v1/models", timeout=5)
+        r.raise_for_status()
+        data = r.json()
+        items = data if isinstance(data, list) else (data.get("data") or [])
+        for m in items:
+            if isinstance(m, dict) and m.get("id"):
+                return m["id"]
+    except Exception:
+        return None
+    return None
+
+
 def get_manager() -> "ImageModelManager":
     global _manager
     if _manager is None:
@@ -270,29 +290,33 @@ def get_manager() -> "ImageModelManager":
 
 
 def ensure_image_served(owner=None, *, settings=None, manager=None,
-                        resolver=None, lister=None) -> dict:
+                        resolver=None, lister=None, probe=None) -> dict:
     """Ensure a local image model is serving so do_generate_image can resolve one.
 
-    Mirrors ensure_vision_served. Returns {"model": <served id>|None,
-    "error": <str>|None} and NEVER raises. Behavior:
-      - if the manager is already serving a local image model, reuse it (no swap);
-      - else, if the configured default `image_model` names a LOCAL model, resolve
-        its encoders and serve it on the GPU (falling back to CPU via start());
-      - else (external/unset/unmatched default), return {"model": None} so the
-        existing external/auto-detect path in do_generate_image runs unchanged.
+    Returns {"model": <resolvable id>|None, "error": <str>|None, "local": <bool>}
+    and NEVER raises. `model` is the id the served endpoint ADVERTISES (e.g.
+    "sd-cpp-local"), obtained by probing it — NOT the GGUF filename. `local` is
+    True when the configured default names a local model this call served or is
+    reusing (the caller then knows to resolve via endpoint discovery if `model`
+    couldn't be probed). Behavior:
+      - manager already serving → reuse it (no swap), return its probed id;
+      - else the configured default `image_model` names a LOCAL model → resolve
+        its encoders, serve on GPU, return its probed id;
+      - else (external/unset/unmatched) → {"model": None, "local": False}.
     """
     import os
     from src.imagemodels.serve_resolve import resolve_image_files
     from src.imagemodels.encoders import MissingEncoderError
+    probe = probe or _served_image_model_id
 
     try:
         mgr = manager or get_manager()
     except Exception:
-        return {"model": None, "error": None}
+        return {"model": None, "error": None, "local": False}
     try:
         st = mgr.status()
         if st.get("running"):
-            return {"model": st.get("model"), "error": None}
+            return {"model": probe(st.get("port")), "error": None, "local": True}
     except Exception:
         pass  # fall through and try to serve the default
 
@@ -304,7 +328,7 @@ def ensure_image_served(owner=None, *, settings=None, manager=None,
     except Exception:
         default = ""
     if not default:
-        return {"model": None, "error": None}
+        return {"model": None, "error": None, "local": False}
 
     try:
         models = (lister or mgr.list_models)()
@@ -319,17 +343,17 @@ def ensure_image_served(owner=None, *, settings=None, manager=None,
             match = m
             break
     if not match:
-        return {"model": None, "error": None}  # external / not a local model
+        return {"model": None, "error": None, "local": False}  # external / not a local model
 
     try:
         files = (resolver or resolve_image_files)(match["path"])
     except MissingEncoderError as e:
-        return {"model": None, "error": getattr(e, "hint", str(e))}
+        return {"model": None, "error": getattr(e, "hint", str(e)), "local": True}
     except Exception as e:
-        return {"model": None, "error": f"could not resolve image model files: {e}"}
+        return {"model": None, "error": f"could not resolve image model files: {e}", "local": True}
 
     try:
         status = mgr.start(files, device="gpu")
-        return {"model": status.get("model"), "error": None}
     except Exception as e:
-        return {"model": None, "error": f"could not serve image model: {e}"}
+        return {"model": None, "error": f"could not serve image model: {e}", "local": True}
+    return {"model": probe(status.get("port")), "error": None, "local": True}

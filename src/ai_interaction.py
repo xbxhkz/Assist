@@ -918,7 +918,7 @@ def _local_diffusion_size_hint(is_local_diffusion: bool, status_code: int, size:
 
 async def _apply_image_autoserve(model_spec, explicit, owner, *, ensure=None):
     """When the caller did not name a model explicitly, auto-serve the configured
-    local default image model and return its id to use. Returns
+    local default image model and return the id to use. Returns
     (model_spec_to_use, error_or_None). Never raises (ensure_image_served doesn't)."""
     if explicit:
         return model_spec, None
@@ -929,6 +929,11 @@ async def _apply_image_autoserve(model_spec, explicit, owner, *, ensure=None):
         return model_spec, served["error"]
     if served.get("model"):
         return served["model"], None
+    if served.get("local"):
+        # A local image model is serving but its advertised id wasn't probed here;
+        # clear model_spec so do_generate_image's endpoint-discovery block resolves
+        # the running local endpoint (rather than passing an unresolvable filename).
+        return "", None
     return model_spec, None
 
 
