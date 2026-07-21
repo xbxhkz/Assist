@@ -267,3 +267,66 @@ def get_manager() -> "ImageModelManager":
             unregister_endpoint=unregister_image_endpoint,
         )
     return _manager
+
+
+def ensure_image_served(owner=None, *, settings=None, manager=None,
+                        resolver=None, lister=None) -> dict:
+    """Ensure a local image model is serving so do_generate_image can resolve one.
+
+    Mirrors ensure_vision_served. Returns {"model": <served id>|None,
+    "error": <str>|None} and NEVER raises. Behavior:
+      - if the manager is already serving a local image model, reuse it (no swap);
+      - else, if the configured default `image_model` names a LOCAL model, resolve
+        its encoders and serve it on the GPU (falling back to CPU via start());
+      - else (external/unset/unmatched default), return {"model": None} so the
+        existing external/auto-detect path in do_generate_image runs unchanged.
+    """
+    import os
+    from src.imagemodels.serve_resolve import resolve_image_files
+    from src.imagemodels.encoders import MissingEncoderError
+
+    mgr = manager or get_manager()
+    try:
+        st = mgr.status()
+        if st.get("running"):
+            return {"model": st.get("model"), "error": None}
+    except Exception:
+        pass  # fall through and try to serve the default
+
+    try:
+        if settings is None:
+            from src.settings import load_settings
+            settings = load_settings()
+        default = str(settings.get("image_model") or "").strip()
+    except Exception:
+        default = ""
+    if not default:
+        return {"model": None, "error": None}
+
+    try:
+        models = (lister or mgr.list_models)()
+    except Exception:
+        models = []
+    match = None
+    dl = default.lower()
+    for m in models:
+        name = str(m.get("name") or "").lower()
+        pbase = os.path.basename(str(m.get("path") or "")).lower()
+        if dl in (name, pbase):
+            match = m
+            break
+    if not match:
+        return {"model": None, "error": None}  # external / not a local model
+
+    try:
+        files = (resolver or resolve_image_files)(match["path"])
+    except MissingEncoderError as e:
+        return {"model": None, "error": getattr(e, "hint", str(e))}
+    except Exception as e:
+        return {"model": None, "error": f"could not resolve image model files: {e}"}
+
+    try:
+        status = mgr.start(files, device="gpu")
+        return {"model": status.get("model"), "error": None}
+    except Exception as e:
+        return {"model": None, "error": f"could not serve image model: {e}"}
