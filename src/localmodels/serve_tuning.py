@@ -76,6 +76,10 @@ def recommend_context(meta, hardware, *, requested=None):
     trained = meta.get("context_length")
     if not _is_pos_int(trained):
         trained = DEFAULT_TRAINED
+    # FLOOR is the minimum serve context we ever choose; clamp trained up to it
+    # so the result stays a valid ladder value. (No real GGUF trains below 2048;
+    # this only guards the degenerate metadata case.)
+    trained = max(FLOOR, trained)
     ceiling = min(trained, HARD_CEILING)
 
     kv = estimate_kv_bytes_per_token(meta)

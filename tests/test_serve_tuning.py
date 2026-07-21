@@ -57,3 +57,12 @@ def test_result_invariants_never_raise():
             assert isinstance(ctx, int) and ctx in CTX_LADDER
             assert ctx <= min(_HEAVY["context_length"], HARD_CEILING)
     assert recommend_context({}, {}) in CTX_LADDER  # empty inputs → safe default
+
+
+def test_sub_floor_trained_clamped_to_floor():
+    # A degenerate model claiming a trained context below FLOOR must still yield
+    # a valid ladder value >= FLOOR (never an off-ladder sub-FLOOR number).
+    meta = {**_HEAVY, "context_length": 1000}
+    ctx = recommend_context(meta, {"has_gpu": True, "gpu_vram_gb": 48})
+    assert ctx == FLOOR
+    assert ctx in CTX_LADDER
