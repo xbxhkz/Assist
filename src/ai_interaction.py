@@ -916,6 +916,22 @@ def _local_diffusion_size_hint(is_local_diffusion: bool, status_code: int, size:
             "data/logs/sd-server.log for details.")
 
 
+async def _apply_image_autoserve(model_spec, explicit, owner, *, ensure=None):
+    """When the caller did not name a model explicitly, auto-serve the configured
+    local default image model and return its id to use. Returns
+    (model_spec_to_use, error_or_None). Never raises (ensure_image_served doesn't)."""
+    if explicit:
+        return model_spec, None
+    if ensure is None:
+        from src.imagemodels.manager import ensure_image_served as ensure
+    served = await asyncio.to_thread(ensure, owner)
+    if served.get("error"):
+        return model_spec, served["error"]
+    if served.get("model"):
+        return served["model"], None
+    return model_spec, None
+
+
 async def do_generate_image(content: str, session_id: Optional[str] = None, owner: Optional[str] = None) -> Dict:
     """Generate an image using an image-capable model (e.g. gpt-image-1).
 
@@ -954,6 +970,16 @@ async def do_generate_image(content: str, session_id: Optional[str] = None, owne
         model_spec = _settings.get("image_model", "")
     if quality == "medium" and _settings.get("image_quality"):
         quality = _settings["image_quality"]
+
+    # Auto-serve the configured local default image model on demand (mirrors
+    # ensure_vision_served) so a text-model chat can generate an image without
+    # the user manually serving the model first. Only when no explicit model
+    # was named in the tool call.
+    _explicit_model = bool(lines[1].strip()) if len(lines) > 1 else False
+    model_spec, _autoserve_err = await _apply_image_autoserve(
+        model_spec, _explicit_model, owner)
+    if _autoserve_err:
+        return {"error": _autoserve_err}
 
     # Auto-detect best available image model if still not set
     if not model_spec:
