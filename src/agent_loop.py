@@ -305,6 +305,7 @@ _DOMAIN_TOOL_MAP = {
     "integrations": {"api_call"},
     "desktop": {"launch_app", "find_files", "list_windows", "control_window", "capture_screen",
                 "webcam_look", "diagnose_equipment",
+                "ingest_equipment_manual", "search_equipment_manual",
                 "list_ui_elements", "click_element", "set_element_text", "mouse", "keyboard"},
     "network": {"net_info", "discover_hosts", "scan_ports", "read_equipment"},
 }
@@ -476,6 +477,9 @@ List live devices on a PRIVATE subnet (IP, MAC, hostname, vendor, best-guess OS)
 TCP-connect scan a PRIVATE host's ports; reports open ports + service.""",
 
     "read_equipment": "- ```read_equipment``` — Read live values from an industrial device (READ-ONLY, private network, admin). Args (JSON): modbus → {\"protocol\":\"modbus\",\"host\":\"192.168.1.50\",\"reg_type\":\"holding\",\"address\":40001,\"count\":1,\"data_type\":\"float32\"}; opcua → {\"protocol\":\"opcua\",\"endpoint\":\"opc.tcp://192.168.1.50:4840\",\"nodes\":[\"ns=2;i=2\"]}.",
+
+    "ingest_equipment_manual": "- ```ingest_equipment_manual``` — Admin: add/list/remove a manual in the KB. Args (JSON): add → {\"action\":\"add\",\"path\":\"C:/manuals/vfd.pdf\",\"title\":\"VFD Manual\"}; list → {\"action\":\"list\"}; remove → {\"action\":\"remove\",\"manual_id\":\"man_...\"}.",
+    "search_equipment_manual": "- ```search_equipment_manual``` — Search ingested equipment manuals; returns passages WITH CITATIONS (title + page). Args (JSON): {\"query\":\"F0002 overcurrent\",\"k\":5}. Cite the manual + page in your answer; pair with diagnose_equipment / read_equipment.",
 
     "create_document": """\
 ```create_document

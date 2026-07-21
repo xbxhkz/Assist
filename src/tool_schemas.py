@@ -428,6 +428,39 @@ FUNCTION_TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "ingest_equipment_manual",
+            "description": "Admin: add an equipment manual / datasheet (PDF, txt, md, docx, pptx, xlsx, epub) to the searchable manuals knowledge base, or list/remove entries. PDFs are indexed per page for page-cited retrieval. READ-ONLY of the source file; writes only to the local manuals index.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["add", "list", "remove"], "description": "add (default), list, or remove"},
+                    "path": {"type": "string", "description": "add: local file path of the manual"},
+                    "title": {"type": "string", "description": "add: optional display title (defaults to the filename)"},
+                    "manual_id": {"type": "string", "description": "remove: the manual_id returned by add/list"}
+                },
+                "required": ["action"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_equipment_manual",
+            "description": "Search the equipment-manual knowledge base and return passages WITH CITATIONS (manual title + page). Use it to look up a fault code, spec, or procedure — e.g. after diagnose_equipment surfaces a code or read_equipment returns an anomalous value — and cite the manual + page in your answer.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "what to look up (fault code, component, symptom, spec)"},
+                    "k": {"type": "integer", "description": "max passages (default 5, 1..20)"},
+                    "manual_id": {"type": "string", "description": "optional: restrict to one manual"}
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "write_file",
             "description": "Write/save a file to disk",
             "parameters": {
