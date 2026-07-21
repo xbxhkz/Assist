@@ -123,7 +123,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="AI Chat Application",
     description="Comprehensive AI chat with memory, research, and multi-modal capabilities",
-    version="1.0.0",
+    version="2.0.0",
 )
 
 # ========= CORS =========
