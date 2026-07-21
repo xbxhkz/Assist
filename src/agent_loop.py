@@ -1958,6 +1958,16 @@ _ADMIN_TOOLS = {
     "send_to_session", "pipeline", "ask_teacher", "list_models",
 }
 
+
+def _generate_image_hidden() -> bool:
+    """generate_image is hidden only when image gen is disabled AND no default
+    image model is configured. A configured default is a clear signal the user
+    wants image generation, so the tool stays available for a text-model chat."""
+    if get_setting("image_gen_enabled", False):
+        return False
+    return not str(get_setting("image_model", "") or "").strip()
+
+
 def _build_base_prompt(
     disabled_tools,
     mcp_mgr,
@@ -1977,7 +1987,7 @@ def _build_base_prompt(
     from src.tool_index import ALWAYS_AVAILABLE
 
     disabled = set(disabled_tools or [])
-    if not get_setting("image_gen_enabled", False):
+    if _generate_image_hidden():
         disabled.add("generate_image")
 
     if relevant_tools is not None:
