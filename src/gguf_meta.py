@@ -78,6 +78,105 @@ def read_gguf_architecture(path: str):
     return None
 
 
+# GGUF integer scalar types → struct format. Sizes match _SCALAR_SIZES, so
+# reading the value advances the file exactly as the seek-past path would.
+_INT_FORMATS = {0: "<B", 1: "<b", 2: "<H", 3: "<h", 4: "<I", 5: "<i", 10: "<Q", 11: "<q"}
+
+# result field -> GGUF metadata key suffix (prefixed by the architecture)
+_WANTED_SUFFIXES = {
+    "context_length": "context_length",
+    "block_count": "block_count",
+    "head_count": "attention.head_count",
+    "head_count_kv": "attention.head_count_kv",
+    "embedding_length": "embedding_length",
+}
+
+
+def read_gguf_metadata(path: str) -> dict:
+    """Best-effort numeric + architecture metadata from a GGUF header.
+
+    Walks the KV block, capturing `general.architecture` and every integer
+    scalar, then resolves the `<arch>.*` fields this app needs to fit a serve
+    context. Returns only the keys it found; {} for a non-GGUF / unreadable /
+    truncated file. Never raises. `read_gguf_architecture` is left untouched;
+    this file already keeps a separate walk per reader.
+    """
+    strings = {}
+    ints = {}
+    try:
+        with open(path, "rb") as f:
+            if f.read(4) != b"GGUF":
+                return {}
+            head = f.read(20)
+            if len(head) != 20:
+                return {}
+            version, _tensors, kv_count = struct.unpack("<IQQ", head)
+            if version not in (2, 3):
+                return {}
+            for _ in range(min(kv_count, _MAX_KEYS)):
+                raw = f.read(8)
+                if len(raw) != 8:
+                    break
+                klen = struct.unpack("<Q", raw)[0]
+                key = f.read(klen)
+                if len(key) != klen:
+                    break
+                raw = f.read(4)
+                if len(raw) != 4:
+                    break
+                vtype = struct.unpack("<I", raw)[0]
+                if vtype in _INT_FORMATS:
+                    size = _SCALAR_SIZES[vtype]
+                    raw = f.read(size)
+                    if len(raw) != size:
+                        break
+                    ints[key.decode("utf-8", "replace")] = struct.unpack(_INT_FORMATS[vtype], raw)[0]
+                elif vtype == _STRING:
+                    raw = f.read(8)
+                    if len(raw) != 8:
+                        break
+                    slen = struct.unpack("<Q", raw)[0]
+                    val = f.read(slen)
+                    if len(val) != slen:
+                        break
+                    strings[key.decode("utf-8", "replace")] = val.decode("utf-8", "replace")
+                elif vtype == _ARRAY:
+                    raw = f.read(12)
+                    if len(raw) != 12:
+                        break
+                    etype, count = struct.unpack("<IQ", raw)
+                    if etype in _SCALAR_SIZES:
+                        f.seek(count * _SCALAR_SIZES[etype], 1)
+                    elif etype == _STRING and count <= _MAX_ARRAY_ITEMS:
+                        ok = True
+                        for _ in range(count):
+                            raw = f.read(8)
+                            if len(raw) != 8:
+                                ok = False
+                                break
+                            f.seek(struct.unpack("<Q", raw)[0], 1)
+                        if not ok:
+                            break
+                    else:
+                        break  # unknown/huge array element — stop; resolve what we have
+                elif vtype in _SCALAR_SIZES:
+                    f.seek(_SCALAR_SIZES[vtype], 1)  # float/bool: skip
+                else:
+                    break  # unknown value type — misalignment risk, stop
+    except OSError:
+        return {}
+
+    arch = strings.get("general.architecture")
+    if not arch:
+        return {}
+    result = {"architecture": arch}
+    for field, suffix in _WANTED_SUFFIXES.items():
+        key = f"{arch}.{suffix}"
+        if key in ints:
+            result[field] = ints[key]
+    return result
+
+
 def _skip_value(f, vtype) -> bool:
     """Advance `f` past one GGUF metadata value of `vtype`. False if unreadable."""
     if vtype == _STRING:
