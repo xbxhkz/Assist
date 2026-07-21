@@ -17,7 +17,7 @@ def _guard_host(host):
         return "read_equipment: a host/endpoint is required"
     try:
         ip = socket.gethostbyname(host)
-    except (OSError, UnicodeError) as e:
+    except (OSError, UnicodeError, ValueError, TypeError) as e:
         return f"read_equipment: cannot resolve host {host!r}: {e}"
     try:
         _require_private(ip)
@@ -62,7 +62,10 @@ async def _do_opcua(args, opcua_read):
     nodes = args.get("nodes")
     if not isinstance(nodes, list) or not nodes or not all(isinstance(n, str) for n in nodes):
         return {"error": "read_equipment: opcua requires a non-empty 'nodes' list of strings"}
-    host = urlparse(endpoint).hostname
+    try:
+        host = urlparse(endpoint).hostname
+    except ValueError:
+        return {"error": f"read_equipment: invalid opcua endpoint {endpoint!r}"}
     guard = _guard_host(host)
     if guard:
         return {"error": guard}

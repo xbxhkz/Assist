@@ -80,3 +80,19 @@ def test_never_raises_when_adapter_raises(monkeypatch):
     out, _ = _exec(json.dumps({"protocol": "modbus", "host": "192.168.1.9", "address": 1}),
                    modbus_read=boom)
     assert "error" in out and "device down" in out["error"]
+
+
+def test_never_raises_on_null_byte_host():
+    # embedded null in host makes socket.gethostbyname raise (before the adapter, in the REAL
+    # _guard_host) -- the tool must still return an error, not propagate. chr(0) builds the null at
+    # runtime so the SOURCE file stays free of a literal null byte.
+    out, _ = _exec(json.dumps({"protocol": "modbus", "host": "192.168.1.5" + chr(0), "address": 1}))
+    assert "error" in out
+
+
+def test_never_raises_on_malformed_ipv6_endpoint():
+    # a malformed IPv6 opc.tcp URL makes urlparse().hostname raise ValueError (before _guard_host);
+    # the tool must catch it and return an error.
+    out, _ = _exec(json.dumps({"protocol": "opcua", "endpoint": "opc.tcp://[::1",
+                               "nodes": ["ns=2;i=2"]}))
+    assert "error" in out
