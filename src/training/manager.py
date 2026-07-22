@@ -39,6 +39,7 @@ class TrainingManager:
         self._free_vram = free_vram or _default_free_vram
         self._adapters_dir = adapters_dir
         self._proc = None
+        self._starting = False
         self._state = {"status": "idle", "last_step": None, "loss": None,
                        "vram_gb": None, "peak_vram_gb": None, "error": None, "output_dir": None}
         self._lock = threading.Lock()
@@ -47,6 +48,10 @@ class TrainingManager:
         with self._lock:
             if self._proc is not None and self._proc.poll() is None:
                 return {"error": "a training run is already in progress"}
+            if self._starting:
+                return {"error": "a training run is already starting"}
+            self._starting = True
+        try:
             errs = config.validate()
             if errs:
                 return {"error": "; ".join(errs)}
@@ -59,10 +64,14 @@ class TrainingManager:
             if not ready.get("ready"):
                 return {"error": f"training env not ready: {ready.get('error')}"}
 
-            # VRAM soft-gate (warn only — the user chose the model)
+            # VRAM soft-gate (warn only — the user chose the model). The injectable
+            # free_vram is called defensively: a failing probe must not break start().
             from src.training.config import parse_params_b, fit_level
             warning = None
-            level = fit_level(parse_params_b(config.base_model), self._free_vram())
+            try:
+                level = fit_level(parse_params_b(config.base_model), self._free_vram())
+            except Exception:
+                level = "unknown"
             if level == "too_big":
                 warning = "model may exceed available VRAM; it may fail with out-of-memory"
 
@@ -81,16 +90,21 @@ class TrainingManager:
                 with open(cfg_path, "w", encoding="utf-8") as f:
                     json.dump(cfg, f)
                 argv = [self._env.venv_python(), resolve_sidecar_script(), "--config", cfg_path]
-                self._state = {"status": "running", "last_step": None, "loss": None,
-                               "vram_gb": None, "peak_vram_gb": None, "error": warning,
-                               "output_dir": out_dir, "run_id": run_id}
-                self._proc = self._spawn(argv)
+                with self._lock:
+                    self._state = {"status": "running", "last_step": None, "loss": None,
+                                   "vram_gb": None, "peak_vram_gb": None, "error": warning,
+                                   "output_dir": out_dir, "run_id": run_id}
+                    self._proc = self._spawn(argv)
+                    proc = self._proc
             except Exception as e:
                 self._state["status"] = "error"
                 self._state["error"] = f"could not start training: {e}"
                 return {"error": self._state["error"]}
-            threading.Thread(target=self._pump, args=(self._proc,), daemon=True).start()
+            threading.Thread(target=self._pump, args=(proc,), daemon=True).start()
             return {"started": True, "run_id": run_id, "warning": warning}
+        finally:
+            with self._lock:
+                self._starting = False
 
     def _pump(self, proc):
         tail = []
@@ -108,6 +122,8 @@ class TrainingManager:
                     ev = json.loads(line)
                 except Exception:
                     continue
+                if self._proc is not proc:
+                    continue  # a newer run replaced us — stop touching shared state
                 kind = ev.get("event")
                 if kind == "step":
                     self._state.update(status="running", last_step=ev.get("step"),
@@ -120,10 +136,11 @@ class TrainingManager:
         except Exception:
             pass
         finally:
-            rc = proc.poll()
-            if rc not in (0, None) and self._state["status"] not in ("done", "error"):
-                self._state.update(status="error",
-                                   error="training process exited: " + "".join(tail)[-500:])
+            if self._proc is proc:
+                rc = proc.poll()
+                if rc not in (0, None) and self._state["status"] not in ("done", "error", "stopped"):
+                    self._state.update(status="error",
+                                       error="training process exited: " + "".join(tail)[-500:])
 
     def status(self) -> dict:
         return dict(self._state)

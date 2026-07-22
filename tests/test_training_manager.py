@@ -78,3 +78,52 @@ def test_start_never_raises_on_spawn_failure(tmp_path, monkeypatch):
                           adapters_dir=str(tmp_path / "ad"))
     out = mgr.start(_cfg(tmp_path))
     assert "error" in out
+
+
+class BlockingProc:
+    """A process whose readline blocks until kill(), then reports a nonzero exit."""
+    def __init__(self):
+        import threading as _t
+        self._ev = _t.Event()
+        self._killed = False
+        self.stdout = self
+    def readline(self):
+        self._ev.wait()      # block until killed
+        return ""            # then EOF
+    def poll(self):
+        return -9 if self._killed else None
+    def kill(self):
+        self._killed = True
+        self._ev.set()
+    def wait(self, timeout=None):
+        return -9
+
+
+def test_stop_status_not_overwritten_by_pump(tmp_path, monkeypatch):
+    import time
+    monkeypatch.setattr("src.training.manager.resolve_sidecar_script", lambda: "train.py")
+    proc = BlockingProc()
+    mgr = TrainingManager(env=FakeEnv(), spawn=lambda argv: proc, free_vram=lambda: 6.4,
+                          adapters_dir=str(tmp_path / "ad"))
+    assert mgr.start(_cfg(tmp_path)).get("started") is True
+    time.sleep(0.05)                      # let the pump reach its blocking readline
+    assert mgr.stop() == {"stopped": True}
+    time.sleep(0.1)                       # let the pump run its finally after EOF
+    assert mgr.status()["status"] == "stopped"   # NOT overwritten to "error"
+
+
+def test_start_never_raises_when_free_vram_raises(tmp_path, monkeypatch):
+    import time
+    monkeypatch.setattr("src.training.manager.resolve_sidecar_script", lambda: "train.py")
+    def boom_vram():
+        raise RuntimeError("nvml down")
+    lines = [json.dumps({"event": "done", "output_dir": "o", "peak_vram_gb": 1.0}) + "\n"]
+    mgr = TrainingManager(env=FakeEnv(), spawn=lambda argv: FakeProc(lines),
+                          free_vram=boom_vram, adapters_dir=str(tmp_path / "ad"))
+    out = mgr.start(_cfg(tmp_path))
+    assert out.get("started") is True     # a raising free_vram must not break start()
+    for _ in range(200):
+        if mgr.status()["status"] == "done":
+            break
+        time.sleep(0.01)
+    assert mgr.status()["status"] == "done"
