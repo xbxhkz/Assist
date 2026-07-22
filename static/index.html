@@ -1582,6 +1582,21 @@
       <div id="help-tab-manual" class="help-tab-panel">
         <div class="admin-card" style="font-size:13px;line-height:1.55;">
           <details open>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">New to Assist — or to AI? Start here</summary>
+            <p><b>What this program is.</b> Assist lets you talk to an AI assistant that runs on <i>your own computer</i>. You type a question or request, the AI writes back, and it can also do tasks for you. Because it can run offline, your conversations and files can stay on your machine — nothing goes to the internet unless you choose to connect an online service.</p>
+            <p><b>What an "AI model" is.</b> The model is the "brain" that reads your message and writes the reply. Before you can chat, you need <b>one model</b> available. You have two options: <b>(A)</b> download a model to run for free, offline, right here; or <b>(B)</b> connect to an online provider (like OpenAI or Anthropic) using an account and key. If you're not sure, start with option A.</p>
+            <p><b>Your first chat in 4 steps (offline, no account):</b></p>
+            <ol style="margin:4px 0 8px 18px;padding:0;">
+              <li>Click <b>Local Models</b> in the left sidebar.</li>
+              <li>Pick a model from the suggested list — it's sorted so the ones that fit your computer are near the top — and click <b>Download</b>. Models are large, so this takes a few minutes.</li>
+              <li>When it finishes, click <b>Serve</b> (choose <b>GPU</b> if your PC has a graphics card, otherwise <b>CPU</b>). Wait until it says it's running.</li>
+              <li>Type a question in the box at the bottom of the screen and press <b>Enter</b>. That's it — you're chatting.</li>
+            </ol>
+            <p><b>Chat vs. Agent — the one choice that matters.</b> Near the chat box there's a mode switch. <b>Chat</b> just talks with you. <b>Agent</b> lets the AI actually <i>do things</i> — search the web, open and edit files, generate images, manage email and calendar, and more — always asking your permission before anything sensitive. Start in Chat; switch to Agent when you want it to take actions.</p>
+            <p><b>Where to get unstuck.</b> The <b>Tutorials</b> tab at the top of this window has short guided click-throughs; or type <code>/demo</code> in the chat box for the full guided tour. Typing <code>/</code> in the chat box shows quick commands. Every section below explains one feature in more detail.</p>
+            <p><b>A note on safety.</b> The most powerful abilities — running commands, controlling your mouse/keyboard, and reading your screen — are <b>turned off by default</b> and only available to an <b>admin</b> account. You turn them on deliberately, and screen access resets to off every restart. You're always in control.</p>
+          </details>
+          <details>
             <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Getting started</summary>
             <p>Assist is a local-first AI workspace. Point it at any OpenAI-compatible endpoint or run models fully offline on this computer. Type <code>/setup</code> in the chat box to connect a provider (OpenAI, Anthropic, Groq, a local server, …), or open <b>Local Models</b> in the sidebar to download and run a model with no account at all. Pick the active model with the model picker at the top of the chat box.</p>
           </details>
@@ -1598,7 +1613,8 @@
             <p>The <b>Image models</b> card (inside Local Models) serves diffusion models locally. Downloaded image GGUFs are listed automatically; required text encoders and VAE are resolved from the shared <code>image-models/encoders</code> folder. <b>FLUX.1</b> uses ~20 steps; <b>FLUX.2 klein</b> is distilled to 4 steps and is much faster. <b>Steps</b> overrides the default; <b>Fast decode</b> uses a tiny autoencoder for near-instant decoding (FLUX.1 only, slightly softer detail).</p>
             <p>Other families are auto-detected and served with the right recipe: <b>Z-Image turbo</b> (6B, 8 steps; Qwen3 encoder + FLUX.1 VAE); <b>SDXL</b> all-in-one checkpoints (e.g. Juggernaut XL, RealVisXL — including Lightning/Turbo distilled variants); and <b>Chroma</b>, an uncensored, de-distilled FLUX finetune that uses real CFG.</p>
             <p><b>LoRAs</b> — open the LoRA section in the Image models card to search and download LoRAs from <b>Civitai</b> or <b>Hugging Face</b> (or upload your own). Apply one by adding a <code>&lt;lora:name:weight&gt;</code> tag to your prompt, where <code>name</code> is the file's stem (a "copy tag" button fills it in). The agent can list and use them too.</p>
-            <p>Sizing guidance for small GPUs (≈6&nbsp;GB): klein handles 1024×1024; FLUX.1 (12B) and Z-Image (6B) fit up to ~512×512 on GPU — set Settings → Image generation → Size, or serve on CPU for larger sizes. <b>VRAM fill-and-spill</b> keeps as much of the model on the GPU as fits and streams the rest from RAM, so heavier models still run (just slower). If a too-large size fails, Assist retries once at 512×512 automatically. Once served, ask for images in chat or use the Gallery.</p>
+            <p>Sizing guidance for small GPUs (≈6&nbsp;GB): klein handles 1024×1024; FLUX.1 (12B) and Z-Image (6B) fit up to ~512×512 on GPU — set Settings → Image generation → Size, or serve on CPU for larger sizes. <b>VRAM fill-and-spill</b> keeps as much of the model on the GPU as fits and streams the rest from RAM, so heavier models still run (just slower). If a too-large size fails, Assist retries once at 512×512 automatically.</p>
+            <p><b>Just ask for a picture.</b> You don't have to start the image model by hand first. Set a default image model under <b>Settings → Image generation</b>, then simply ask for an image while chatting with any normal model ("draw a red bicycle in the rain") — Assist starts your image model automatically and generates it. Finished images are saved to the <b>Gallery</b>.</p>
           </details>
           <details>
             <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Gallery</summary>
@@ -1615,6 +1631,17 @@
           <details>
             <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Skills</summary>
             <p>Skills teach the agent multi-step workflows. Browse and import community skills from GitHub in Brain → Skills (add a GitHub token in Settings → Services to unlock code search), or ask the agent to save one from the current chat.</p>
+          </details>
+          <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Workflows (visual automation)</summary>
+            <p>A <b>workflow</b> is an automation you build as a flowchart instead of writing code. Open <b>Workflows</b> from the sidebar (admin) to drag out steps — ask the AI something, run a tool, branch on a condition, feed one step's result into the next — then save and run the whole thing. Runs happen when you click <b>Run</b>, on a <b>schedule</b>, on an <b>event</b>, or from a <b>webhook</b>; the agent can also run a saved workflow for you from chat. Good for repeatable jobs like "every morning, summarize new emails and post the summary to a note."</p>
+          </details>
+          <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Industrial Assistant (maintenance &amp; equipment)</summary>
+            <p>Assist has tools aimed at maintenance technicians and engineers (all <b>admin-only</b>, used from chat in Agent mode):</p>
+            <p><b>Diagnose from a photo.</b> Attach a picture — a fault-code display, a wiring or ladder schematic, a VFD/drive screen, a nameplate/component, or a thermal image — and ask what's wrong. A vision model gives maintenance-expert, <i>safety-first</i> guidance (it always reminds you to follow lockout/t/tagout and use a qualified person). Just drop in the photo and ask.</p>
+            <p><b>Read live equipment data.</b> On your <i>private</i> network, Assist can read live values from a PLC, meter, or drive over <b>Modbus TCP</b> or <b>OPC&nbsp;UA</b> — e.g. a drive's output frequency or a tag value. It is strictly <b>read-only</b> (it never writes to your equipment) and only connects to private/local addresses for safety. Tell it the device address and what to read.</p>
+            <p><b>Cite your manuals.</b> Add your equipment manuals and datasheets (PDF, Word, text) to a searchable library, and the assistant can quote the exact <b>manual and page</b> while diagnosing a fault code or looking up a spec — so answers are grounded in your documentation, not guesses.</p>
           </details>
           <details>
             <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Coding: folders, workspace &amp; VS Code</summary>
