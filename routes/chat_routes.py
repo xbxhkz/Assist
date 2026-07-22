@@ -1082,8 +1082,18 @@ def setup_chat_routes(
                 _model_info["character_name"] = ctx.preset.character_name
             yield f'data: {json.dumps(_model_info)}\n\n'
 
-            if _is_image_generation_session(sess, owner=_user):
-                from src.settings import get_setting
+            from src.settings import get_setting
+            from src.image_intent import looks_like_image_request
+            _img_session = _is_image_generation_session(sess, owner=_user)
+            # A plain-language image request in a normal (non-image) chat routes
+            # straight to the configured default image model, so it works even
+            # when the chat model can't/doesn't emit a generate_image tool call.
+            _img_intent = (
+                (not _img_session)
+                and looks_like_image_request(message)
+                and bool(str(get_setting("image_model", "") or "").strip())
+            )
+            if _img_session or _img_intent:
                 if tool_policy.blocks("generate_image"):
                     _blocked_msg = tool_policy.reason_for("generate_image")
                     yield f'data: {json.dumps({"delta": _blocked_msg})}\n\n'
@@ -1097,9 +1107,15 @@ def setup_chat_routes(
                     return
                 from src.ai_interaction import do_generate_image
                 _user_msg = message or ""
+                # Image-model session → the selected model IS the image model.
+                # Intent route on a text model → blank model line so
+                # do_generate_image uses the configured default image_model
+                # (auto-served via ensure_image_served), not the text model.
+                _img_model_line = sess.model if _img_session else ""
+                _img_prompt = _user_msg if _img_session else " ".join(_user_msg.split())
                 yield f'data: {json.dumps({"type": "tool_start", "tool": "generate_image", "command": _user_msg[:100]})}\n\n'
                 yield ": heartbeat\n\n"
-                _img_result = await do_generate_image(f"{_user_msg}\n{sess.model}", session, owner=_user)
+                _img_result = await do_generate_image(f"{_img_prompt}\n{_img_model_line}", session, owner=_user)
                 _img_output = _img_result.get("results", _img_result.get("error", ""))
                 _img_tool_data = {"type": "tool_output", "tool": "generate_image", "command": _user_msg[:100], "output": _img_output, "exit_code": 0 if "error" not in _img_result else 1}
                 for _k in ("image_url", "image_id", "image_prompt", "image_model", "image_size", "image_quality"):
