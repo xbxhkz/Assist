@@ -20,6 +20,13 @@ def emit(obj):
 
 
 def main():
+    # stdout is the JSON-progress channel back to the app; force UTF-8 with a
+    # non-raising error handler so a non-ASCII message can never crash emit()
+    # (Windows Py3.11 stdout defaults to the locale encoding, not UTF-8).
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
+    except Exception:
+        pass
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True)
     args = ap.parse_args()
@@ -99,7 +106,10 @@ def main():
         emit({"event": "done", "output_dir": out_dir, "peak_vram_gb": peak})
     except Exception as e:  # noqa: BLE001
         import traceback
-        emit({"event": "error", "message": f"{e}", "trace": traceback.format_exc()[-1500:]})
+        try:
+            emit({"event": "error", "message": f"{e}", "trace": traceback.format_exc()[-1500:]})
+        except Exception:
+            pass
         sys.exit(1)
 
 
