@@ -42,6 +42,11 @@ datas = [
     ('build_assets/sd', 'sd'),
     # Bundled YOLO weight (yolov8n.pt) so webcam object detection works offline.
     ('build_assets/yolo', 'yolo'),
+    # Vendored uv binary — sets up the on-demand Python 3.11 CUDA training venv.
+    ('build_assets/uv', 'uv'),
+    # The training sidecar script, run inside the training venv (never imported
+    # by the Py3.14 app). Bundled so the frozen build can launch it.
+    ('training_sidecar', 'training_sidecar'),
 ] + _collected_datas
 
 hiddenimports = [
