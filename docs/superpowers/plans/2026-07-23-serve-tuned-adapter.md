@@ -6,7 +6,7 @@
 
 **Architecture:** Conversion runs in the reused Python-3.11 CUDA sidecar venv (the Py3.14 app never imports the conversion stack); serving is the bundled `llama-server` with one added `--lora` flag. Base↔adapter pairing is auto-matched by name with a pick/download fallback. Frontend controls are additive to the existing Training/Adapters panel.
 
-**Tech Stack:** Python 3.14 (app) + the Py3.11 CUDA sidecar venv (adds the `gguf` pip package + vendored llama.cpp `convert_lora_to_gguf.py`/`convert_hf_to_gguf.py`); the bundled `llama-server`; FastAPI; vanilla ES-module frontend.
+**Tech Stack:** Python 3.14 (app) + the Py3.11 CUDA sidecar venv (adds `gguf==0.19.0` + vendored llama.cpp `convert_lora_to_gguf.py` and its `conversion/` package, commit `c0bc859`); the bundled `llama-server` (`--lora`); FastAPI; vanilla ES-module frontend.
 
 ## Global Constraints
 
@@ -342,29 +342,33 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 ---
 
-### Task 4: Vendor convert scripts + `gguf` stack + `convert.py` sidecar
+### Task 4: Vendor convert script + `conversion/` package + `gguf` stack + `convert.py` sidecar
 
 **Files:**
 - Modify: `src/training/env.py` (`STACK`)
-- Create: `training_sidecar/convert.py`; vendor `training_sidecar/convert_lora_to_gguf.py` + `training_sidecar/convert_hf_to_gguf.py` (+ any `gguf`/helper modules the script imports) from the Task-1-recorded llama.cpp tag
+- Create: `training_sidecar/convert.py`; vendor `training_sidecar/convert_lora_to_gguf.py` + the `training_sidecar/conversion/` package from the Task-1-recorded llama.cpp commit
 - Test: `tests/test_convert_sidecar_syntax.py`
 
 **Interfaces:**
 - Produces: a sidecar `python convert.py --adapter <dir> [--base <hf_or_path>]` that writes `<dir>/adapter.gguf` and emits one JSON line: `{"event":"done","adapter_gguf":<path>}` or `{"event":"error","message":<str>}`.
 
-**IMPORTANT:** `convert.py` and the vendored scripts import `gguf`/torch/transformers — NOT importable by the Py3.14 app or suite. The only automated check is an `ast.parse` syntax gate on `convert.py` (the vendored upstream scripts are third-party — do not lint/parse-gate them here). `Assist.spec` already bundles the whole `training_sidecar/` dir, so the new files ship automatically.
+**IMPORTANT (from the Task-1 gate):** `convert_lora_to_gguf.py` imports `from conversion import …` — llama.cpp's model classes live in a **`conversion/` package** (~82 files, ~1.2 MB), NOT in `convert_hf_to_gguf.py`. So vendor the script **plus the whole `conversion/` package**; do **not** vendor `convert_hf_to_gguf.py` (it is only for the deferred merge-to-standalone-GGUF path). Pin **`gguf==0.19.0`** (the version must match the scripts). These import `gguf`/torch/transformers — NOT importable by the Py3.14 app or suite; the only automated check is an `ast.parse` syntax gate on `convert.py` (the vendored upstream files are third-party — do not parse-gate them). `Assist.spec` already bundles the whole `training_sidecar/` dir, so the new files ship automatically. The gate left a working checkout at `C:\tmp\serve_spike\llama.cpp` (commit `c0bc8591e8815c63cb01dd3f051a8b0df02501c9`) to vendor from.
 
-- [ ] **Step 1: Add `gguf` to the sidecar stack**
+- [ ] **Step 1: Pin `gguf` in the sidecar stack**
 
-In `src/training/env.py`, change line 11:
+In `src/training/env.py`, change line 11 (pin the version the convert scripts require):
 
 ```python
-STACK = ["transformers", "peft", "bitsandbytes", "accelerate", "datasets", "trl", "gguf"]
+STACK = ["transformers", "peft", "bitsandbytes", "accelerate", "datasets", "trl", "gguf==0.19.0"]
 ```
 
-- [ ] **Step 2: Vendor the upstream convert scripts**
+- [ ] **Step 2: Vendor the convert script + `conversion/` package**
 
-Copy `convert_lora_to_gguf.py` and `convert_hf_to_gguf.py` (and any local modules they import, e.g. a `gguf/` shim if the script uses a repo-relative import) from the llama.cpp tag Task 1 recorded into `training_sidecar/`. Do not edit them.
+From the Task-1 llama.cpp checkout (`C:\tmp\serve_spike\llama.cpp`, commit `c0bc859`), copy into `training_sidecar/`:
+- `convert_lora_to_gguf.py`
+- the entire `conversion/` directory (it must sit beside `convert_lora_to_gguf.py` so `from conversion import …` resolves when the script runs — `python <dir>/convert_lora_to_gguf.py` puts `<dir>` on `sys.path[0]`).
+
+Do not edit the vendored files. (Do NOT copy `convert_hf_to_gguf.py` — not needed for LoRA conversion.)
 
 - [ ] **Step 3: Write the `convert.py` wrapper**
 
@@ -444,12 +448,12 @@ Expected: PASS (1 passed).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/training/env.py training_sidecar/convert.py training_sidecar/convert_lora_to_gguf.py training_sidecar/convert_hf_to_gguf.py tests/test_convert_sidecar_syntax.py
-git commit -m "feat(serve-adapter): vendor llama.cpp LoRA->GGUF convert + sidecar wrapper
+git add src/training/env.py training_sidecar/convert.py training_sidecar/convert_lora_to_gguf.py training_sidecar/conversion tests/test_convert_sidecar_syntax.py
+git commit -m "feat(serve-adapter): vendor llama.cpp LoRA->GGUF convert + conversion pkg + sidecar wrapper
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ```
-(Also stage any additional helper modules the upstream script imports.)
+(Staging `training_sidecar/conversion` adds the whole package dir.)
 
 ---
 
