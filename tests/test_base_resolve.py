@@ -24,3 +24,19 @@ def test_no_candidates_when_family_absent():
 def test_non_str_inputs_safe():
     assert resolve_base_gguf(None, GGUFS)["matched"] is None
     assert resolve_base_gguf("Qwen/Qwen2.5-0.5B", None)["candidates"] == []
+
+
+def test_unrelated_family_same_size_not_matched():
+    # same size + generic "instruct" must NOT match a different family (garbage-serve guard)
+    out = resolve_base_gguf("Qwen/Qwen2.5-0.5B-Instruct", ["phi-0.5b-instruct-q4_k_m.gguf"])
+    assert out["matched"] is None and out["candidates"] == []
+    out2 = resolve_base_gguf("Qwen/Qwen2.5-7B-Instruct", ["llama-3.2-7b-instruct-q8_0.gguf"])
+    assert out2["matched"] is None
+
+
+def test_family_and_size_both_required():
+    ggufs = ["qwen2.5-0.5b-instruct-q4_k_m.gguf", "qwen2.5-7b-instruct-q4_k_m.gguf",
+             "llama-3.2-0.5b-instruct-q4_k_m.gguf"]
+    out = resolve_base_gguf("Qwen/Qwen2.5-0.5B-Instruct", ggufs)
+    assert out["matched"] == "qwen2.5-0.5b-instruct-q4_k_m.gguf"
+    assert out["candidates"] == ["qwen2.5-0.5b-instruct-q4_k_m.gguf"]
