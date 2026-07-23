@@ -225,6 +225,7 @@
   <link rel="modulepreload" href="/static/js/ui.js">
   <link rel="modulepreload" href="/static/js/sessions.js">
   <link rel="modulepreload" href="/static/js/markdown.js">
+  <link rel="modulepreload" href="/static/js/trainingCore.js">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content, viewport-fit=cover" />
 </head>
 <body>
@@ -458,6 +459,51 @@
             <span class="admin-toggle-sub" style="display:block;margin-top:6px;opacity:0.5">Set to 0 to disable skill injection.</span>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Local Training (LoRA/QLoRA) — admin -->
+  <div id="training-modal" class="modal hidden">
+    <div class="modal-content admin-modal-content" role="dialog" aria-label="Training">
+      <div class="modal-header">
+        <h4>Training (LoRA / QLoRA)</h4>
+        <button class="close-btn" id="training-close" aria-label="Close training">&#x2716;</button>
+      </div>
+      <div class="admin-card" id="training-env-card">
+        <div>Environment: <b id="training-env-status">checking…</b></div>
+        <button id="training-env-setup" class="btn">Set up training environment (one-time ~3–4 GB)</button>
+        <div id="training-env-progress" style="font-size:12px;opacity:0.75;white-space:pre-wrap;"></div>
+      </div>
+      <div class="admin-card" id="training-run-card">
+        <label>Base model (HuggingFace id)<br><input id="training-model" list="training-model-suggestions" placeholder="Qwen/Qwen2.5-0.5B-Instruct" style="width:100%"></label>
+        <datalist id="training-model-suggestions">
+          <option value="Qwen/Qwen2.5-0.5B-Instruct"></option>
+          <option value="Qwen/Qwen2.5-1.5B-Instruct"></option>
+          <option value="TinyLlama/TinyLlama-1.1B-Chat-v1.0"></option>
+          <option value="meta-llama/Llama-3.2-1B-Instruct"></option>
+        </datalist>
+        <div id="training-vram-hint" style="font-size:12px;opacity:0.8;margin:4px 0;"></div>
+        <label>Dataset (.jsonl file path)<br><input id="training-dataset" placeholder="C:\path\to\data.jsonl" style="width:100%"></label>
+        <details><summary>Advanced</summary>
+          <label>Mode <select id="training-mode"><option value="steps">steps</option><option value="epochs">epochs</option></select></label>
+          <label>Steps <input id="training-steps" type="number" value="100" style="width:90px"></label>
+          <label>Epochs <input id="training-epochs" type="number" value="3" step="0.5" style="width:90px"></label>
+          <label>LoRA r <input id="training-r" type="number" value="8" style="width:70px"></label>
+          <label>LoRA alpha <input id="training-alpha" type="number" value="16" style="width:70px"></label>
+          <label>Dropout <input id="training-dropout" type="number" value="0.05" step="0.01" style="width:70px"></label>
+          <label>Batch <input id="training-batch" type="number" value="1" style="width:70px"></label>
+          <label>LR <input id="training-lr" type="number" value="0.0002" step="0.0001" style="width:90px"></label>
+        </details>
+        <div style="margin-top:8px">
+          <button id="training-start" class="btn">Start training</button>
+          <button id="training-stop" class="btn">Stop</button>
+        </div>
+        <div id="training-progress" style="font-size:13px;margin-top:8px"></div>
+      </div>
+      <div class="admin-card">
+        <div style="font-weight:600">Adapters</div>
+        <div id="training-adapters"></div>
       </div>
     </div>
   </div>
@@ -734,6 +780,7 @@
     <button class="icon-rail-btn" id="rail-tasks" title="Tasks"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M9 16l2 2 4-4"/></svg></button>
     <button class="icon-rail-btn" id="rail-theme" title="Theme"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 0 0 20 5 5 0 0 0 5-5 3 3 0 0 0-3-3h-2a3 3 0 0 1-3-3 5 5 0 0 1 5-5"/></svg></button>
     <button class="icon-rail-btn" id="rail-workflows" title="Workflows" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><path d="M10 6.5h4a2 2 0 0 1 2 2v5.5"/></svg></button>
+    <button class="icon-rail-btn" id="rail-training" title="Training" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/><circle cx="12" cy="12" r="4"/></svg></button>
     <div style="flex:1"></div>
     <!-- Static: bottom -->
     <button class="icon-rail-btn" id="rail-settings" title="Settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
@@ -2934,6 +2981,7 @@
 <script type="module" src="/static/js/chat.js?v=20260630toolmetrics"></script>
 <script type="module" src="/static/js/cookbook.js"></script>
 <script type="module" src="/static/js/workflows.js"></script>
+<script type="module" src="/static/js/training.js"></script>
 <script src="/static/js/cookbookSchedule.js"></script>
 <script src="/static/js/localModels.js"></script>
 <script src="/static/js/imageModels.js"></script>
