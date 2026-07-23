@@ -33,3 +33,5 @@ After a frozen rebuild, an admin verifies it by hand.
 - Live `step` events must reach the progress line (guards the `disable_tqdm`
   fix — a tqdm bar on the JSON channel would blank the telemetry).
 - A user **Stop** must read `stopped`, never `error`.
+- Closing the panel (✕) or reloading the page **during** an active run and
+  reopening it must resume the live progress line (guards the poll-resume fix).

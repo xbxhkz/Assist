@@ -31,7 +31,7 @@ async function isAdmin() {
   } catch (e) { return false; }
 }
 
-function openTraining() { $('training-modal').classList.remove('hidden'); refreshEnv(); refreshAdapters(); loadFreeVram(); }
+function openTraining() { $('training-modal').classList.remove('hidden'); refreshEnv(); refreshAdapters(); loadFreeVram(); resumeIfRunning(); }
 function closeTraining() { $('training-modal').classList.add('hidden'); stopPolling(); }
 
 async function loadFreeVram() {
@@ -58,7 +58,11 @@ async function refreshEnv() {
     const ready = j.status === 'ready';
     $('training-run-card').style.opacity = ready ? '1' : '0.5';
     $('training-env-setup').style.display = ready ? 'none' : '';
-  } catch (e) { $('training-env-status').textContent = 'error'; }
+    const start = $('training-start'); if (start) start.disabled = !ready;
+  } catch (e) {
+    $('training-env-status').textContent = 'error';
+    const start = $('training-start'); if (start) start.disabled = true;
+  }
 }
 
 async function setupEnv() {
@@ -93,21 +97,41 @@ async function startRun() {
   } catch (e) { if (prog) prog.textContent = 'Error: ' + e.message; }
 }
 
-async function stopRun() { try { await api('/api/training/runs/stop', { method: 'POST' }); } catch (e) {} }
+async function stopRun() {
+  const prog = $('training-progress'); if (prog) prog.textContent = 'Stopping…';
+  try {
+    await api('/api/training/runs/stop', { method: 'POST' });
+    if (prog) prog.textContent = 'Stopped.';
+  } catch (e) { if (prog) prog.textContent = 'Stop failed: ' + e.message; }
+}
 
 function startPolling() { stopPolling(); pollTimer = setInterval(pollStatus, 1500); pollStatus(); }
 function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
 
+function renderStatus(s) {
+  const bits = ['status: ' + s.status];
+  if (s.last_step != null) bits.push('step ' + s.last_step);
+  if (s.loss != null) bits.push('loss ' + s.loss);
+  if (s.vram_gb != null) bits.push('vram ' + s.vram_gb + ' GB');
+  if (s.error) bits.push('(' + s.error + ')');
+  const prog = $('training-progress'); if (prog) prog.textContent = bits.join(' · ');
+}
+
 async function pollStatus() {
   try {
     const s = await api('/api/training/runs/current');
-    const bits = ['status: ' + s.status];
-    if (s.last_step != null) bits.push('step ' + s.last_step);
-    if (s.loss != null) bits.push('loss ' + s.loss);
-    if (s.vram_gb != null) bits.push('vram ' + s.vram_gb + ' GB');
-    if (s.error) bits.push('(' + s.error + ')');
-    const prog = $('training-progress'); if (prog) prog.textContent = bits.join(' · ');
+    renderStatus(s);
     if (s.status === 'done' || s.status === 'error' || s.status === 'stopped') { stopPolling(); refreshAdapters(); }
+  } catch (e) {}
+}
+
+// On (re)open, show the current run's status and resume polling if it's live.
+// startPolling() calls stopPolling() first, so this is idempotent with any timer.
+async function resumeIfRunning() {
+  try {
+    const s = await api('/api/training/runs/current');
+    if (s.status && s.status !== 'idle') renderStatus(s);
+    if (s.status === 'running') startPolling();
   } catch (e) {}
 }
 
