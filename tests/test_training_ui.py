@@ -32,3 +32,8 @@ def test_help_manual_has_training_section():
     # a phrase unique to the Help-manual paragraph (NOT present in Task 2's modal),
     # so this test genuinely gates the Help section rather than the modal.
     assert "fine-tune a small model on your own GPU" in html
+
+
+def test_training_js_references_adapter_serve_routes():
+    src = (ROOT / "static" / "js" / "training.js").read_text(encoding="utf-8")
+    assert "/convert" in src and "/serve" in src and "serveCore.js" in src

@@ -3,6 +3,7 @@
 // /api/auth/status reports is_admin. Mirrors workflows.js (Modals, $, api, isAdmin).
 import * as Modals from './modalManager.js';
 import { formToConfig, vramHint, parseParamsB } from './trainingCore.js';
+import { adapterActions } from './serveCore.js';
 
 function $(id) { return document.getElementById(id); }
 let pollTimer = null;
@@ -139,12 +140,47 @@ async function refreshAdapters() {
   try {
     const j = await api('/api/training/adapters');
     const host = $('training-adapters');
-    if (host) {
-      host.innerHTML = (j.adapters || []).map(function (a) {
-        return '<div>' + (a.complete ? '✅' : '⏳') + ' ' + esc(a.run_id) + ' — ' + esc(a.base_model || '?') + '</div>';
-      }).join('') || 'None yet.';
-    }
+    if (!host) return;
+    const rows = (j.adapters || []).map(function (a) {
+      const act = adapterActions(a);
+      const btns =
+        (act.canConvert ? '<button class="btn" data-conv="' + esc(a.run_id) + '">Convert to GGUF</button>' : '') +
+        (act.canServe ? '<button class="btn" data-serve="' + esc(a.run_id) + '">Serve</button>' : '');
+      return '<div>' + (a.complete ? '✅' : '⏳') + ' ' + esc(a.run_id) + ' — ' +
+             esc(a.base_model || '?') + ' ' + btns + '</div>';
+    });
+    host.innerHTML = rows.join('') || 'None yet.';
+    host.querySelectorAll('[data-conv]').forEach(function (b) {
+      b.addEventListener('click', function () { convertAdapter(b.getAttribute('data-conv')); });
+    });
+    host.querySelectorAll('[data-serve]').forEach(function (b) {
+      b.addEventListener('click', function () { serveAdapter(b.getAttribute('data-serve')); });
+    });
   } catch (e) {}
+}
+
+async function convertAdapter(runId) {
+  const host = $('training-adapters');
+  try {
+    if (host) host.textContent = 'Converting ' + runId + ' to GGUF…';
+    await api('/api/training/adapters/' + encodeURIComponent(runId) + '/convert', { method: 'POST' });
+  } catch (e) { alert('Convert failed: ' + e.message); }
+  refreshAdapters();
+}
+
+async function serveAdapter(runId) {
+  try {
+    const st = await api('/api/training/adapters/' + encodeURIComponent(runId));
+    let base = st.base_match && st.base_match.matched;
+    base = window.prompt('Base GGUF to serve with this adapter (must match ' +
+                         (st.base_model || 'the base') + '):', base || '');
+    if (!base) return;
+    await api('/api/training/adapters/' + encodeURIComponent(runId) + '/serve', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base_gguf: base }),
+    });
+    alert('Serving — pick the tuned model in the model selector.');
+  } catch (e) { alert('Serve failed: ' + e.message); }
 }
 
 function init() {
