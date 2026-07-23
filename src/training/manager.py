@@ -102,6 +102,8 @@ class TrainingManager:
                 return {"error": self._state["error"]}
             threading.Thread(target=self._pump, args=(proc,), daemon=True).start()
             return {"started": True, "run_id": run_id, "warning": warning}
+        except Exception as e:
+            return {"error": f"could not start training: {e}"}
         finally:
             with self._lock:
                 self._starting = False
@@ -171,24 +173,27 @@ class TrainingManager:
 
     def list_adapters(self) -> list:
         out = []
-        if not os.path.isdir(self._adapters_dir):
+        try:
+            if not os.path.isdir(self._adapters_dir):
+                return out
+            for name in sorted(os.listdir(self._adapters_dir), reverse=True):
+                d = os.path.join(self._adapters_dir, name)
+                if not os.path.isdir(d):
+                    continue
+                has = os.path.isfile(os.path.join(d, "adapter_model.safetensors"))
+                cfg = {}
+                rc = os.path.join(d, "run_config.json")
+                if os.path.isfile(rc):
+                    try:
+                        with open(rc, "r", encoding="utf-8") as f:
+                            cfg = json.load(f)
+                    except Exception:
+                        cfg = {}
+                out.append({"run_id": name, "complete": has,
+                            "base_model": cfg.get("base_model"), "path": d})
             return out
-        for name in sorted(os.listdir(self._adapters_dir), reverse=True):
-            d = os.path.join(self._adapters_dir, name)
-            if not os.path.isdir(d):
-                continue
-            has = os.path.isfile(os.path.join(d, "adapter_model.safetensors"))
-            cfg = {}
-            rc = os.path.join(d, "run_config.json")
-            if os.path.isfile(rc):
-                try:
-                    with open(rc, "r", encoding="utf-8") as f:
-                        cfg = json.load(f)
-                except Exception:
-                    cfg = {}
-            out.append({"run_id": name, "complete": has,
-                        "base_model": cfg.get("base_model"), "path": d})
-        return out
+        except Exception:
+            return out
 
 
 def _new_run_id():

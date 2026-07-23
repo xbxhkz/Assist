@@ -127,3 +127,14 @@ def test_start_never_raises_when_free_vram_raises(tmp_path, monkeypatch):
             break
         time.sleep(0.01)
     assert mgr.status()["status"] == "done"
+
+
+def test_list_adapters_never_raises_on_listdir_failure(tmp_path, monkeypatch):
+    ad = tmp_path / "ad"
+    ad.mkdir()
+    mgr = TrainingManager(env=FakeEnv(), spawn=lambda a: None, free_vram=lambda: 6.4,
+                          adapters_dir=str(ad))
+    def boom(_):
+        raise PermissionError("denied")
+    monkeypatch.setattr("os.listdir", boom)
+    assert mgr.list_adapters() == []   # must not raise

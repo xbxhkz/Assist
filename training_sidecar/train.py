@@ -76,7 +76,7 @@ def main():
         targs = dict(output_dir=out_dir, per_device_train_batch_size=int(cfg.get("batch_size", 1)),
                      gradient_accumulation_steps=1, learning_rate=float(cfg.get("learning_rate", 2e-4)),
                      logging_steps=1, gradient_checkpointing=True, fp16=True,
-                     report_to=[], save_strategy="no")
+                     report_to=[], save_strategy="no", disable_tqdm=True)
         if steps:
             targs["max_steps"] = int(steps)
         else:
