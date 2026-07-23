@@ -1684,6 +1684,10 @@
             <p>A <b>workflow</b> is an automation you build as a flowchart instead of writing code. Open <b>Workflows</b> from the sidebar (admin) to drag out steps — ask the AI something, run a tool, branch on a condition, feed one step's result into the next — then save and run the whole thing. Runs happen when you click <b>Run</b>, on a <b>schedule</b>, on an <b>event</b>, or from a <b>webhook</b>; the agent can also run a saved workflow for you from chat. Good for repeatable jobs like "every morning, summarize new emails and post the summary to a note."</p>
           </details>
           <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Training (LoRA / QLoRA)</summary>
+            <p>Open <b>Training</b> from the sidebar (admin only) to fine-tune a small model on your own GPU. The first time, click <b>Set up training environment</b> — Assist downloads a one-time (~3–4 GB) CUDA training toolkit. Then pick a small <b>base model</b> (a HuggingFace id, e.g. Qwen2.5-0.5B/1.5B), point it at a <b>.jsonl dataset</b> (each line <code>{"text": …}</code> or <code>{"instruction": …, "response": …}</code>), and click <b>Start training</b>. It uses <b>QLoRA</b> (4-bit) so small models fit ~6 GB; the VRAM hint shows whether your model fits. Progress (step / loss / VRAM) updates live, and the finished <b>LoRA adapter</b> appears in the Adapters list. (Serving the fine-tuned model is coming in a later update.)</p>
+          </details>
+          <details>
             <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Industrial Assistant (maintenance &amp; equipment)</summary>
             <p>Assist has tools aimed at maintenance technicians and engineers (all <b>admin-only</b>, used from chat in Agent mode):</p>
             <p><b>Diagnose from a photo.</b> Attach a picture — a fault-code display, a wiring or ladder schematic, a VFD/drive screen, a nameplate/component, or a thermal image — and ask what's wrong. A vision model gives maintenance-expert, <i>safety-first</i> guidance (it always reminds you to follow lockout/t/tagout and use a qualified person). Just drop in the photo and ask.</p>
