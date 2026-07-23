@@ -35,3 +35,12 @@ After a frozen rebuild, an admin verifies it by hand.
 - A user **Stop** must read `stopped`, never `error`.
 - Closing the panel (✕) or reloading the page **during** an active run and
   reopening it must resume the live progress line (guards the poll-resume fix).
+
+## Serving a tuned adapter (sub-project 3)
+- After a completed run, the adapter row shows **Convert to GGUF**; clicking it
+  writes `adapter.gguf` next to the adapter and the row then shows **Serve**.
+- **Serve** auto-fills the matched base GGUF (or prompts to pick/download one);
+  confirm and serve. The tuned model appears in the model selector as
+  `<base> · <run-id> (LoRA)` and its output differs from the base.
+- A wrong/mismatched base must fail with a clear error (surfaced from the
+  `llama-server` log tail), never a crash.
