@@ -8,7 +8,7 @@ import subprocess
 
 PY_VERSION = "3.11"
 TORCH_INDEX = "https://download.pytorch.org/whl/cu121"
-STACK = ["transformers", "peft", "bitsandbytes", "accelerate", "datasets", "trl"]
+STACK = ["transformers", "peft", "bitsandbytes", "accelerate", "datasets", "trl", "gguf==0.19.0"]
 
 
 def _default_run(argv):
