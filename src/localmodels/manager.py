@@ -176,7 +176,8 @@ class LocalModelManager:
             self._sleep(self._probe_interval)
         return False
 
-    def start(self, model_path: str, device: str = "cpu") -> dict:
+    def start(self, model_path: str, device: str = "cpu",
+              lora: str = None, alias: str = None) -> dict:
         with self._lock:
             if self._proc is not None:
                 self._stop_locked()
@@ -190,7 +191,8 @@ class LocalModelManager:
             self._served_ctx = ctx
             proc = self._spawn(build_serve_argv(binary, model_path, port,
                                                 ctx_size=ctx, device=device,
-                                                mmproj=mmproj))
+                                                mmproj=mmproj,
+                                                lora=lora, alias=alias))
             url = local_endpoint_url(port)
             timeout = self._ready_timeout_for(model_path)
             if not self._await_ready(url + "/models", proc, timeout):
@@ -207,7 +209,7 @@ class LocalModelManager:
                 raise RuntimeError(msg)
             endpoint_id = None
             if self._register:
-                endpoint_id = self._register(name=os.path.basename(model_path),
+                endpoint_id = self._register(name=(alias or os.path.basename(model_path)),
                                              base_url=url)
             self._proc = proc
             self._state = {"model_path": model_path, "port": port,

@@ -58,7 +58,8 @@ def find_mmproj(model_path: str, listdir=os.listdir) -> str:
 
 def build_serve_argv(binary: str, model_path: str, port: int,
                      ctx_size: int = 16384, host: str = "127.0.0.1",
-                     device: str = "cpu", mmproj: str = None) -> list:
+                     device: str = "cpu", mmproj: str = None,
+                     lora: str = None, alias: str = None) -> list:
     """llama-server argv for an OpenAI-compatible loopback server.
 
     `--alias` sets the id llama-server advertises at /v1/models (and accepts
@@ -74,13 +75,15 @@ def build_serve_argv(binary: str, model_path: str, port: int,
     argv = [
         binary,
         "--model", model_path,
-        "--alias", os.path.basename(model_path),
+        "--alias", alias or os.path.basename(model_path),
         "--host", host,
         "--port", str(port),
         "--ctx-size", str(ctx_size),
     ]
     if mmproj:
         argv += ["--mmproj", mmproj]
+    if lora:
+        argv += ["--lora", lora]
     # device=gpu adds NO flags on purpose: the Vulkan build auto-fits GPU
     # layers to free VRAM (common_fit_params), and an explicit -ngl DISABLES
     # that fitter ("n_gpu_layers already set by user, abort") — observed live
