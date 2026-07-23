@@ -189,8 +189,12 @@ class TrainingManager:
                             cfg = json.load(f)
                     except Exception:
                         cfg = {}
+                adapter_gguf = os.path.join(d, "adapter.gguf")
+                converted = os.path.isfile(adapter_gguf)
                 out.append({"run_id": name, "complete": has,
-                            "base_model": cfg.get("base_model"), "path": d})
+                            "base_model": cfg.get("base_model"), "path": d,
+                            "converted": converted,
+                            "adapter_gguf": adapter_gguf if converted else None})
             return out
         except Exception:
             return out

@@ -1,12 +1,18 @@
 """Admin-gated Local Training API. All heavy work happens in the training
 sidecar (a separate CUDA venv); these routes just orchestrate it."""
 import asyncio
+import os
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from core.middleware import require_admin
 from src.training.manager import get_training_manager
 from src.training.config import TrainingConfig
+from src.training.convert_manager import get_adapter_converter
+from src.training.base_resolve import resolve_base_gguf
+from src.localmodels.manager import get_manager as get_local_manager
+from src.localmodels.runtime import list_gguf_models
+from src.constants import MODELS_DIR
 
 
 def setup_training_routes() -> APIRouter:
@@ -55,5 +61,48 @@ def setup_training_routes() -> APIRouter:
     @router.get("/adapters")
     async def adapters():
         return {"adapters": get_training_manager().list_adapters()}
+
+    def _find_adapter(run_id):
+        for a in get_training_manager().list_adapters():
+            if a.get("run_id") == run_id:
+                return a
+        return None
+
+    @router.get("/adapters/{run_id}")
+    async def adapter_status(run_id: str):
+        a = _find_adapter(run_id)
+        if not a:
+            raise HTTPException(404, "adapter not found")
+        names = [m["name"] for m in list_gguf_models(MODELS_DIR) if isinstance(m, dict) and m.get("name")]
+        match = resolve_base_gguf(a.get("base_model"), names)
+        return {**a, "base_match": match}
+
+    @router.post("/adapters/{run_id}/convert")
+    async def convert_adapter(run_id: str):
+        a = _find_adapter(run_id)
+        if not a:
+            raise HTTPException(404, "adapter not found")
+        out = await asyncio.to_thread(get_adapter_converter().convert, a["path"])
+        if "error" in out:
+            raise HTTPException(400, out["error"])
+        return out
+
+    @router.post("/adapters/{run_id}/serve")
+    async def serve_adapter(run_id: str, body: dict = Body(...)):
+        a = _find_adapter(run_id)
+        if not a:
+            raise HTTPException(404, "adapter not found")
+        if not a.get("converted") or not a.get("adapter_gguf"):
+            raise HTTPException(400, "adapter is not converted yet")
+        base = str(body.get("base_gguf", "")).strip()
+        if not base:
+            raise HTTPException(400, "base_gguf is required")
+        if not os.path.isabs(base):
+            base = os.path.join(MODELS_DIR, base)  # accept a bare GGUF filename from base_match
+        alias = f"{os.path.basename(base)} · {run_id} (LoRA)"
+        out = get_local_manager().start(base, lora=a["adapter_gguf"], alias=alias)
+        if isinstance(out, dict) and out.get("error"):
+            raise HTTPException(400, out["error"])
+        return out
 
     return router
