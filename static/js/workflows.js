@@ -585,8 +585,15 @@ async function isAdmin() {
 }
 
 function init() {
-  isAdmin().then((ok) => { const b = $('rail-workflows'); if (b && ok) b.style.display = ''; });
+  // Admin-only: reveal BOTH the icon-rail button and the sidebar Tools entry.
+  isAdmin().then((ok) => {
+    if (!ok) return;
+    ['rail-workflows', 'tool-workflows-btn'].forEach((id) => {
+      const b = $(id); if (b) b.style.display = '';
+    });
+  });
   const rail = $('rail-workflows'); if (rail) rail.addEventListener('click', openWorkflows);
+  const sideBtn = $('tool-workflows-btn'); if (sideBtn) sideBtn.addEventListener('click', openWorkflows);
   const x = $('wf-close'); if (x) x.addEventListener('click', closeWorkflows);
   const add = $('wf-add');
   if (add) add.addEventListener('click', () => {

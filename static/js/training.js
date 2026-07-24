@@ -184,14 +184,23 @@ async function serveAdapter(runId) {
 }
 
 function init() {
-  isAdmin().then(function (ok) { const b = $('rail-training'); if (b && ok) b.style.display = ''; });
+  // Admin-only: reveal BOTH the icon-rail button and the sidebar Tools entry.
+  isAdmin().then(function (ok) {
+    if (!ok) return;
+    ['rail-training', 'tool-training-btn'].forEach(function (id) {
+      const b = $(id); if (b) b.style.display = '';
+    });
+  });
   const rail = $('rail-training'); if (rail) rail.addEventListener('click', openTraining);
+  const side = $('tool-training-btn'); if (side) side.addEventListener('click', openTraining);
   const x = $('training-close'); if (x) x.addEventListener('click', closeTraining);
   const setup = $('training-env-setup'); if (setup) setup.addEventListener('click', setupEnv);
   const start = $('training-start'); if (start) start.addEventListener('click', startRun);
   const stop = $('training-stop'); if (stop) stop.addEventListener('click', stopRun);
   const model = $('training-model'); if (model) model.addEventListener('input', updateHint);
-  Modals.register('training-modal', { railBtnId: 'rail-training', closeFn: closeTraining });
+  Modals.register('training-modal', {
+    railBtnId: 'rail-training', sidebarBtnId: 'tool-training-btn', closeFn: closeTraining,
+  });
 }
 
 document.addEventListener('DOMContentLoaded', init);

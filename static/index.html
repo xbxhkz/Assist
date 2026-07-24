@@ -1097,6 +1097,18 @@
           <span class="grow">AI Operator</span>
           <span id="operator-active-indicator" class="sidebar-notif-dot" style="display:none;background:var(--green,#50fa7b);margin-right:6px;" title="Operator active"></span>
         </div>
+
+        <!-- Admin-only tools: hidden by default, revealed by their module's
+             isAdmin() check (same gate as their icon-rail buttons). -->
+        <div class="list-item" id="tool-workflows-btn" style="display:none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.5;"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><path d="M10 6.5h4a2 2 0 0 1 2 2v5.5"/></svg>
+          <span class="grow">Workflows</span>
+        </div>
+
+        <div class="list-item" id="tool-training-btn" style="display:none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.5;"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/><circle cx="12" cy="12" r="4"/></svg>
+          <span class="grow">Training</span>
+        </div>
       </div>
     </div>
     <div class="sidebar-user-bar" id="sidebar-user-bar">

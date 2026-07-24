@@ -37,3 +37,19 @@ def test_help_manual_has_training_section():
 def test_training_js_references_adapter_serve_routes():
     src = (ROOT / "static" / "js" / "training.js").read_text(encoding="utf-8")
     assert "/convert" in src and "/serve" in src and "serveCore.js" in src
+
+
+def test_sidebar_tools_lists_admin_tools():
+    """Training and Workflows are admin tools that previously existed ONLY as
+    icon-rail buttons, so they were invisible in the sidebar Tools list where
+    every other tool lives. Both must have a sidebar entry (admin-revealed)."""
+    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    assert 'id="tool-training-btn"' in html, "Training missing from sidebar Tools list"
+    assert 'id="tool-workflows-btn"' in html, "Workflows missing from sidebar Tools list"
+
+
+def test_sidebar_tool_buttons_are_wired_and_admin_gated():
+    tjs = (ROOT / "static" / "js" / "training.js").read_text(encoding="utf-8")
+    wjs = (ROOT / "static" / "js" / "workflows.js").read_text(encoding="utf-8")
+    assert "tool-training-btn" in tjs, "training.js must wire the sidebar button"
+    assert "tool-workflows-btn" in wjs, "workflows.js must wire the sidebar button"
