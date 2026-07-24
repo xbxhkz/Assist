@@ -52,14 +52,22 @@ class TrainingEnv:
         try:
             uv = self._uv_bin()
             py = self.venv_python()
+            # (argv, required). `uv python install` is BEST-EFFORT: beyond fetching
+            # the interpreter it also creates a convenience minor-version link, and
+            # on some Windows setups creating that link fails (e.g. os error 448,
+            # "untrusted mount point" — Redirection Guard blocking traversal of a
+            # reparse point created in a different trust context) even when a usable
+            # Python 3.11 is already present. `uv venv --python` locates/fetches the
+            # interpreter on its own, so that step — not this one — is the real gate.
             steps = [
-                [uv, "python", "install", PY_VERSION],
-                [uv, "venv", "--python", PY_VERSION, self._venv],
-                [uv, "pip", "install", "--python", py, "torch", "--index-url", TORCH_INDEX],
-                [uv, "pip", "install", "--python", py] + STACK,
+                ([uv, "python", "install", PY_VERSION], False),
+                ([uv, "venv", "--python", PY_VERSION, self._venv], True),
+                ([uv, "pip", "install", "--python", py, "torch", "--index-url", TORCH_INDEX], True),
+                ([uv, "pip", "install", "--python", py] + STACK, True),
             ]
             os.makedirs(self._base, exist_ok=True)
-            for argv in steps:
+            soft_failures = []
+            for argv, required in steps:
                 if progress:
                     try:
                         progress({"event": "install", "cmd": " ".join(argv[:3])})
@@ -67,7 +75,13 @@ class TrainingEnv:
                         pass
                 rc, out = self._run(argv)
                 if rc != 0:
-                    return {"ready": False, "error": f"uv step failed ({argv[1]}): {out[-500:]}"}
+                    if not required:
+                        soft_failures.append(f"{argv[1]}: {(out or '').strip()[-200:]}")
+                        continue
+                    msg = f"uv step failed ({argv[1]}): {out[-500:]}"
+                    if soft_failures:
+                        msg += " | earlier non-fatal: " + "; ".join(soft_failures)
+                    return {"ready": False, "error": msg}
             if not os.path.isfile(py):
                 return {"ready": False, "error": "venv python missing after setup"}
             open(self._marker(), "w").close()
