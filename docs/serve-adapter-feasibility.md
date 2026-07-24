@@ -41,7 +41,12 @@ Prompt: `Question: greet number 7\nAnswer:`
 classes into a **`conversion/` package** (82 `.py` files, ~1.2 MB). So the sidecar must vendor:
 - `training_sidecar/convert_lora_to_gguf.py`
 - `training_sidecar/conversion/` (the whole package, from commit `c0bc859`)
-and pin **`gguf==0.19.0`** in `TrainingEnv.STACK` (the `gguf` version must match the scripts — use the
+and **vendor the matching `gguf` package** (`training_sidecar/gguf/`, from the same `c0bc859` checkout's
+`gguf-py/gguf/`). **CORRECTION (found by the first real train→convert run):** do NOT `pip install
+gguf==0.19.0` — the PyPI 0.19.0 *release* lacks newer enums the `conversion/` package references
+(`AttributeError: MODEL_ARCH.DFLASH`) yet reports the same version, silently breaking conversion. Vendoring
+`gguf/` beside the convert scripts makes `import gguf` resolve to the matching code via `sys.path[0]`; the
+gate originally passed only because it installed `gguf-py` FROM the checkout. Historical note below said to
 llama.cpp checkout's `gguf-py`, which is 0.19.0 at this commit). **`convert_hf_to_gguf.py` is NOT
 needed** for LoRA→GGUF (it's only for the deferred merge-to-standalone-GGUF sub-project). The
 `conversion/` package must sit beside `convert_lora_to_gguf.py` so `from conversion import …` resolves

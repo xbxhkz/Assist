@@ -22,7 +22,7 @@ After training a LoRA adapter, serve it locally as a chat model:
 See `docs/serve-adapter-feasibility.md` — a real Qwen2.5-0.5B adapter converted to a
 GGUF LoRA and the bundled `llama-server` applied it via `--lora` (base vs base+lora output
 differs at temperature 0). Confirmed: convert via llama.cpp `convert_lora_to_gguf.py`
-(commit `c0bc859`) + the `conversion/` package + `gguf==0.19.0`; serve flag `--lora`.
+(commit `c0bc859`) + the `conversion/` package + the vendored matching `gguf/` package (NOT PyPI gguf — it mismatches); serve flag `--lora`.
 
 ## Owed (manual, needs the GPU)
 - One real end-to-end run: train → Convert → Serve → chat, verifying the tuned

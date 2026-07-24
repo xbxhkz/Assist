@@ -6,7 +6,7 @@
 
 **Architecture:** Conversion runs in the reused Python-3.11 CUDA sidecar venv (the Py3.14 app never imports the conversion stack); serving is the bundled `llama-server` with one added `--lora` flag. Base↔adapter pairing is auto-matched by name with a pick/download fallback. Frontend controls are additive to the existing Training/Adapters panel.
 
-**Tech Stack:** Python 3.14 (app) + the Py3.11 CUDA sidecar venv (adds `gguf==0.19.0` + vendored llama.cpp `convert_lora_to_gguf.py` and its `conversion/` package, commit `c0bc859`); the bundled `llama-server` (`--lora`); FastAPI; vanilla ES-module frontend.
+**Tech Stack:** Python 3.14 (app) + the Py3.11 CUDA sidecar venv + vendored llama.cpp `convert_lora_to_gguf.py`, its `conversion/` package, AND the matching `gguf/` package — all from commit `c0bc859` (do NOT `pip install gguf`; the PyPI release mismatches the vendored scripts); the bundled `llama-server` (`--lora`); FastAPI; vanilla ES-module frontend.
 
 ## Global Constraints
 
