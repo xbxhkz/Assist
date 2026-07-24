@@ -8,7 +8,14 @@ import subprocess
 
 PY_VERSION = "3.11"
 TORCH_INDEX = "https://download.pytorch.org/whl/cu121"
-STACK = ["transformers", "peft", "bitsandbytes", "accelerate", "datasets", "trl", "gguf==0.19.0"]
+# NOTE: `gguf` is NOT pip-installed here. The LoRA->GGUF conversion needs the gguf
+# package that MATCHES the vendored training_sidecar/conversion/ + convert_lora_to_gguf.py
+# (llama.cpp c0bc859): the PyPI gguf 0.19.0 *release* lacks newer enums the conversion
+# package references (e.g. MODEL_ARCH.DFLASH) yet reports the same version, so pinning it
+# silently breaks conversion. The matching gguf is vendored at training_sidecar/gguf/ and
+# resolves via sys.path[0] when the convert script runs. gguf's own deps (numpy, pyyaml,
+# tqdm) come transitively from transformers/datasets below.
+STACK = ["transformers", "peft", "bitsandbytes", "accelerate", "datasets", "trl"]
 
 
 def _default_run(argv):
