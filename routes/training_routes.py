@@ -99,8 +99,15 @@ def setup_training_routes() -> APIRouter:
             raise HTTPException(400, "base_gguf is required")
         if not os.path.isabs(base):
             base = os.path.join(MODELS_DIR, base)  # accept a bare GGUF filename from base_match
-        alias = f"{os.path.basename(base)} · {run_id} (LoRA)"
-        out = get_local_manager().start(base, lora=a["adapter_gguf"], alias=alias)
+        alias = f"{os.path.splitext(os.path.basename(base))[0]} · {run_id} (LoRA)"
+        # start() blocks until llama-server is ready and RAISES RuntimeError on a
+        # failed/mismatched-base serve (the wrong-base path). Offload it off the
+        # event loop and surface the log tail as a clean error — never a 500.
+        try:
+            out = await asyncio.to_thread(
+                lambda: get_local_manager().start(base, lora=a["adapter_gguf"], alias=alias))
+        except RuntimeError as e:
+            raise HTTPException(503, str(e))
         if isinstance(out, dict) and out.get("error"):
             raise HTTPException(400, out["error"])
         return out

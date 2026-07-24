@@ -14,7 +14,7 @@ def _default_spawn(argv):
     p = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8",
                        errors="replace", env=env,
                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    return p.returncode, (p.stdout or "")
+    return p.returncode, (p.stdout or "") + (p.stderr or "")
 
 
 class AdapterConverter:

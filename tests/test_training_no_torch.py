@@ -16,7 +16,7 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def test_app_import_does_not_load_training_stack():
     code = (
         "import app, sys\n"
-        "bad = [m for m in ('torch', 'peft', 'bitsandbytes', 'transformers') if m in sys.modules]\n"
+        "bad = [m for m in ('torch', 'peft', 'bitsandbytes', 'transformers', 'gguf', 'trl', 'datasets', 'accelerate') if m in sys.modules]\n"
         "assert not bad, 'app imported the training stack: ' + ','.join(bad)\n"
         "print('NO_TRAINING_STACK_OK')\n"
     )

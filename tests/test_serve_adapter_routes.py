@@ -51,6 +51,18 @@ def test_serve_endpoint(monkeypatch):
     assert served["lora"] == "p/adapter.gguf" and "run-1" in served["alias"]
 
 
+def test_serve_surfaces_llama_server_failure_as_503(monkeypatch):
+    # LocalModelManager.start RAISES RuntimeError when llama-server fails to come up
+    # (the wrong/mismatched-base path). The route must surface it with the log tail,
+    # never let it escape as a 500.
+    class LM:
+        def start(self, path, device="cpu", lora=None, alias=None):
+            raise RuntimeError("llama-server exited on startup.\n--- tail ---\nbad base")
+    c = _client(monkeypatch, get_local_manager=lambda: LM())
+    r = c.post("/api/training/adapters/run-1/serve", json={"base_gguf": "b.gguf"})
+    assert r.status_code == 503 and "bad base" in r.json()["detail"]
+
+
 def test_serve_requires_converted(monkeypatch):
     class Mgr2(FakeMgr):
         def list_adapters(self):
