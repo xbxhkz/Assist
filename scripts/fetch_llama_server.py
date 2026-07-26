@@ -39,7 +39,7 @@ def _fetch(kind: str, url: str) -> bool:
             if not base:
                 continue
             # Take the server exe and every DLL (runtime deps) at any depth.
-            if base == "llama-server.exe" or base.lower().endswith(".dll"):
+            if base in ("llama-server.exe", "llama-quantize.exe") or base.lower().endswith(".dll"):
                 with zf.open(member) as src, open(os.path.join(dest, base), "wb") as dst:
                     dst.write(src.read())
     if not os.path.isfile(exe):

@@ -136,6 +136,32 @@ def resolve_llama_binary(device: str = "cpu", path_lookup=shutil.which,
     )
 
 
+def resolve_quantize_binary(device: str = "cpu", frozen_base: str = None,
+                            dev_base: str = None) -> str:
+    """Resolve the bundled llama-quantize executable. Mirrors resolve_llama_binary's
+    bundled-layout resolution (`<base>/llama/<cpu|vulkan>/<name>`, dev fallback under
+    build_assets/llama) but does NO PATH lookup — the quantizer must match the bundled
+    ggml/quantize DLLs. Raises RuntimeError if not found."""
+    sub = "vulkan" if device == "gpu" else "cpu"
+    name = "llama-quantize.exe" if os.name == "nt" else "llama-quantize"
+    base = frozen_base
+    if base is None and getattr(sys, "frozen", False):
+        base = getattr(sys, "_MEIPASS", None)
+    if base:
+        for rel in (os.path.join("llama", sub, name), os.path.join("llama", name)):
+            cand = os.path.join(base, rel)
+            if os.path.isfile(cand):
+                return cand
+    if dev_base is None:
+        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        dev_base = os.path.join(repo_root, "build_assets", "llama")
+    for cand in (os.path.join(dev_base, sub, name), os.path.join(dev_base, name)):
+        if os.path.isfile(cand):
+            return cand
+    raise RuntimeError("llama-quantize not found under the bundled/dev llama dir "
+                       "(run scripts/fetch_llama_server.py).")
+
+
 def list_gguf_models(models_dir: str) -> list:
     """List llama-servable `.gguf` files in `models_dir` as [{name, path, size}],
     sorted by name. Diffusion/encoder-architecture files (FLUX, t5, ...) share
