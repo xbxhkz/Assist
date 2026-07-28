@@ -66,3 +66,19 @@ def resolve_convert_script(frozen_base=None, dev_base=None) -> str:
     if os.path.isfile(cand):
         return cand
     raise RuntimeError("training_sidecar/convert.py not found.")
+
+
+def resolve_merge_script(frozen_base=None, dev_base=None) -> str:
+    """Path to training_sidecar/merge.py (frozen <_MEIPASS>/training_sidecar/merge.py;
+    dev <repo>/training_sidecar/merge.py). Raises RuntimeError if missing."""
+    base = _frozen_base(frozen_base)
+    if base:
+        cand = os.path.join(base, "training_sidecar", "merge.py")
+        if os.path.isfile(cand):
+            return cand
+    if dev_base is None:
+        dev_base = os.path.join(_REPO_ROOT, "training_sidecar")
+    cand = os.path.join(dev_base, "merge.py")
+    if os.path.isfile(cand):
+        return cand
+    raise RuntimeError("training_sidecar/merge.py not found.")
