@@ -15,7 +15,7 @@ TORCH_INDEX = "https://download.pytorch.org/whl/cu121"
 # silently breaks conversion. The matching gguf is vendored at training_sidecar/gguf/ and
 # resolves via sys.path[0] when the convert script runs. gguf's own deps (numpy, pyyaml,
 # tqdm) come transitively from transformers/datasets below.
-STACK = ["transformers", "peft", "bitsandbytes", "accelerate", "datasets", "trl"]
+STACK = ["transformers", "peft", "bitsandbytes", "accelerate", "datasets", "trl", "sentencepiece"]
 
 
 def _default_run(argv):
