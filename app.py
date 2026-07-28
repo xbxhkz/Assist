@@ -767,6 +767,8 @@ from routes.imagemodels_routes import setup_imagemodels_routes
 app.include_router(setup_imagemodels_routes())
 from routes.training_routes import setup_training_routes
 app.include_router(setup_training_routes())
+from routes.dataset_routes import setup_dataset_routes
+app.include_router(setup_dataset_routes())
 from routes.loras_routes import setup_loras_routes
 app.include_router(setup_loras_routes())
 
