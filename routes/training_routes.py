@@ -9,6 +9,7 @@ from core.middleware import require_admin
 from src.training.manager import get_training_manager
 from src.training.config import TrainingConfig
 from src.training.convert_manager import get_adapter_converter
+from src.training.export_manager import get_adapter_exporter, VALID_QUANTS
 from src.training.base_resolve import resolve_base_gguf
 from src.localmodels.manager import get_manager as get_local_manager
 from src.localmodels.runtime import list_gguf_models
@@ -75,7 +76,7 @@ def setup_training_routes() -> APIRouter:
             raise HTTPException(404, "adapter not found")
         names = [m["name"] for m in list_gguf_models(MODELS_DIR) if isinstance(m, dict) and m.get("name")]
         match = resolve_base_gguf(a.get("base_model"), names)
-        return {**a, "base_match": match}
+        return {**a, "base_match": match, "exports": get_adapter_exporter().list_exports(run_id)}
 
     @router.post("/adapters/{run_id}/convert")
     async def convert_adapter(run_id: str):
@@ -111,5 +112,30 @@ def setup_training_routes() -> APIRouter:
         if isinstance(out, dict) and out.get("error"):
             raise HTTPException(400, out["error"])
         return out
+
+    @router.post("/adapters/{run_id}/export")
+    async def export_adapter(run_id: str, body: dict = Body(...)):
+        a = _find_adapter(run_id)
+        if not a:
+            raise HTTPException(404, "adapter not found")
+        quant = str(body.get("quant", "Q4_K_M"))
+        if quant not in VALID_QUANTS:
+            raise HTTPException(400, f"invalid quant (allowed: {', '.join(VALID_QUANTS)})")
+        out = await asyncio.to_thread(get_adapter_exporter().export, a["path"], quant, a.get("base_model"))
+        if "error" in out:
+            raise HTTPException(400, out["error"])
+        return out
+
+    @router.post("/exports/reveal")
+    async def reveal_exports():
+        d = get_adapter_exporter().exports_dir()
+        try:
+            os.makedirs(d, exist_ok=True)
+            sf = getattr(os, "startfile", None)
+            if sf:
+                sf(d)  # open the exports folder in the OS file manager (Windows)
+            return {"ok": True, "path": d}
+        except Exception as e:
+            return {"ok": False, "path": d, "error": str(e)}
 
     return router
