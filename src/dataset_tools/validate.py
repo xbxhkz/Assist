@@ -21,12 +21,6 @@ def _len_stats(texts):
             "approx_tokens": round(sum(lens) / 4)}
 
 
-def _report(total, texts, errors):
-    shapes = {"text": 0, "instruction": 0, "prompt": 0}
-    return {"total": total, "valid": len(texts), "invalid": len(errors),
-            "errors": errors, "stats": {**_len_stats(texts), "shapes": shapes}}
-
-
 def validate_rows(rows) -> dict:
     """Validate a list of already-parsed row dicts (numbered by position)."""
     if not isinstance(rows, list):
@@ -53,7 +47,7 @@ def validate_jsonl_text(text) -> dict:
     errors, texts = [], []
     shapes = {"text": 0, "instruction": 0, "prompt": 0}
     total = 0
-    for i, line in enumerate((text or "").splitlines(), start=1):
+    for i, line in enumerate((text if isinstance(text, str) else "").splitlines(), start=1):
         line = line.strip()
         if not line:
             continue

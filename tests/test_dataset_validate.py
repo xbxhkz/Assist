@@ -24,3 +24,9 @@ def test_never_raises_on_hostile():
     assert validate_rows("junk")["invalid"] >= 0
     assert validate_rows(None)["total"] == 0
     assert validate_jsonl_text(None)["total"] == 0
+
+
+def test_jsonl_text_hostile_non_str_never_raises():
+    for bad in (42, True, ["a", "b"], {"a": 1}):
+        rep = validate_jsonl_text(bad)
+        assert rep["total"] == 0 and rep["valid"] == 0 and rep["invalid"] == 0
