@@ -44,3 +44,11 @@ After a frozen rebuild, an admin verifies it by hand.
   `<base> · <run-id> (LoRA)` and its output differs from the base.
 - A wrong/mismatched base must fail with a clear error (surfaced from the
   `llama-server` log tail), never a crash.
+
+## Exporting a standalone GGUF (sub-project 4)
+- On a completed adapter, pick a quant (Q4_K_M default) and click **Export GGUF**.
+  The merge + convert + quantize runs; the file lands in
+  `<DATA_DIR>/training/exports/<base>-<run-id>-<quant>.gguf`.
+- **Open folder** reveals it; confirm the GGUF loads in an external tool (e.g. LM
+  Studio). Confirm the F16 intermediate was cleaned up (only the final GGUF remains).
+- A `F16` export skips quantization (the F16 GGUF is the output).
