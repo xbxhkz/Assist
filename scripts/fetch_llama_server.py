@@ -26,7 +26,10 @@ ASSET_ROOT = os.path.abspath(
 def _fetch(kind: str, url: str) -> bool:
     dest = os.path.join(ASSET_ROOT, kind)
     exe = os.path.join(dest, "llama-server.exe")
-    if os.path.isfile(exe):
+    quant = os.path.join(dest, "llama-quantize.exe")
+    # Re-fetch if EITHER binary is missing so a machine vendored before the
+    # quantizer was added self-heals on the next run.
+    if os.path.isfile(exe) and os.path.isfile(quant):
         print(f"{kind}: already vendored, skipping")
         return True
     os.makedirs(dest, exist_ok=True)
