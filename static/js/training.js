@@ -4,6 +4,7 @@
 import * as Modals from './modalManager.js';
 import { formToConfig, vramHint, parseParamsB } from './trainingCore.js';
 import { adapterActions } from './serveCore.js';
+import { EXPORT_QUANTS, exportButtonState } from './exportCore.js';
 
 function $(id) { return document.getElementById(id); }
 let pollTimer = null;
@@ -146,8 +147,14 @@ async function refreshAdapters() {
       const btns =
         (act.canConvert ? '<button class="btn" data-conv="' + esc(a.run_id) + '">Convert to GGUF</button>' : '') +
         (act.canServe ? '<button class="btn" data-serve="' + esc(a.run_id) + '">Serve</button>' : '');
+      const q = exportButtonState(a).canExport
+        ? '<select data-quant="' + esc(a.run_id) + '">' +
+          EXPORT_QUANTS.map(function (x) { return '<option>' + x + '</option>'; }).join('') +
+          '</select><button class="btn" data-export="' + esc(a.run_id) + '">Export GGUF</button>' +
+          '<button class="btn" data-reveal="1">Open folder</button>'
+        : '';
       return '<div>' + (a.complete ? '✅' : '⏳') + ' ' + esc(a.run_id) + ' — ' +
-             esc(a.base_model || '?') + ' ' + btns + '</div>';
+             esc(a.base_model || '?') + ' ' + btns + ' ' + q + '</div>';
     });
     host.innerHTML = rows.join('') || 'None yet.';
     host.querySelectorAll('[data-conv]').forEach(function (b) {
@@ -156,7 +163,28 @@ async function refreshAdapters() {
     host.querySelectorAll('[data-serve]').forEach(function (b) {
       b.addEventListener('click', function () { serveAdapter(b.getAttribute('data-serve')); });
     });
+    host.querySelectorAll('[data-export]').forEach(function (b) {
+      b.addEventListener('click', function () { exportAdapter(b.getAttribute('data-export')); });
+    });
+    host.querySelectorAll('[data-reveal]').forEach(function (b) {
+      b.addEventListener('click', function () { api('/api/training/exports/reveal', { method: 'POST' }).catch(function () {}); });
+    });
   } catch (e) {}
+}
+
+async function exportAdapter(runId) {
+  const host = $('training-adapters');
+  const sel = host && host.querySelector('[data-quant="' + runId + '"]');
+  const quant = sel ? sel.value : 'Q4_K_M';
+  try {
+    if (host) host.textContent = 'Exporting ' + runId + ' as ' + quant + ' (merge + convert + quantize)…';
+    const r = await api('/api/training/adapters/' + encodeURIComponent(runId) + '/export', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quant: quant }),
+    });
+    alert('Exported: ' + (r.gguf || '(done)'));
+  } catch (e) { alert('Export failed: ' + e.message); }
+  refreshAdapters();
 }
 
 async function convertAdapter(runId) {

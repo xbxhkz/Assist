@@ -53,3 +53,8 @@ def test_sidebar_tool_buttons_are_wired_and_admin_gated():
     wjs = (ROOT / "static" / "js" / "workflows.js").read_text(encoding="utf-8")
     assert "tool-training-btn" in tjs, "training.js must wire the sidebar button"
     assert "tool-workflows-btn" in wjs, "workflows.js must wire the sidebar button"
+
+
+def test_training_js_references_export():
+    src = (ROOT / "static" / "js" / "training.js").read_text(encoding="utf-8")
+    assert "/export" in src and "exportCore.js" in src and "exports/reveal" in src
