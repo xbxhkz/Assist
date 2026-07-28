@@ -27,3 +27,8 @@ def test_dataset_js_syntax(tmp_path):
 def test_training_js_populates_dataset_datalist():
     src = (ROOT / "static" / "js" / "training.js").read_text(encoding="utf-8")
     assert "/api/datasets" in src and "dataset-suggestions" in src
+
+
+def test_help_manual_has_dataset_section():
+    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    assert "build a training dataset without writing JSON" in html
