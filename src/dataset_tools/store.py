@@ -26,18 +26,30 @@ class DatasetStore:
         return safe, (os.path.join(self._dir, safe + ".jsonl") if safe else None)
 
     def save(self, name, rows) -> dict:
+        tmp = None
         try:
             safe, path = self._path(name)
             if not safe:
                 return {"error": "invalid dataset name"}
             if not isinstance(rows, list) or not rows:
                 return {"error": "rows must be a non-empty list"}
+            # Serialize every row BEFORE touching the destination so an
+            # unserializable row can't truncate an existing dataset; then
+            # write to a temp file and os.replace() atomically (all-or-nothing).
+            blob = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows)
             os.makedirs(self._dir, exist_ok=True)
-            with open(path, "w", encoding="utf-8") as f:
-                for r in rows:
-                    f.write(json.dumps(r, ensure_ascii=False) + "\n")
+            tmp = path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write(blob)
+            os.replace(tmp, path)
+            tmp = None
             return {"ok": True, "path": path, "name": safe}
         except Exception as e:  # noqa: BLE001
+            if tmp:
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
             return {"error": f"save failed: {e}"}
 
     def list(self) -> list:

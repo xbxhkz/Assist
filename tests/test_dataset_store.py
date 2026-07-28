@@ -27,3 +27,15 @@ def test_empty_rows_and_bad_name_rejected(tmp_path):
 
 def test_load_missing(tmp_path):
     assert "error" in DatasetStore(base_dir=str(tmp_path)).load("nope")
+
+
+def test_failed_overwrite_preserves_existing(tmp_path):
+    # A save that errors partway (unserializable row) must NOT destroy the
+    # dataset it was overwriting — the write is atomic (temp + os.replace).
+    s = DatasetStore(base_dir=str(tmp_path))
+    assert s.save("keep", [{"text": "a"}, {"text": "b"}]).get("ok")
+    out = s.save("keep", [{"text": "new"}, {"bad": {1, 2, 3}}])  # set → not JSON-serializable
+    assert "error" in out
+    assert s.load("keep")["rows"] == [{"text": "a"}, {"text": "b"}]
+    # no stray temp file leaks into the listing
+    assert [d["name"] for d in s.list()] == ["keep"]
