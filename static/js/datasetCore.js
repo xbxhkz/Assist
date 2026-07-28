@@ -6,8 +6,10 @@ export const ROW_FORMATS = {
 };
 
 export function formToRow(format, fields) {
-  const f = fields || {};
-  const g = function (k) { return (f[k] || '').trim(); };
+  const f = (fields && typeof fields === 'object') ? fields : {};
+  // Coerce truthy non-strings to string so a stray number/array can't throw
+  // (.trim is string-only); falsy values stay '' as before.
+  const g = function (k) { const v = f[k]; return (v ? String(v) : '').trim(); };
   if (format === 'text') {
     return g('text') ? { row: { text: g('text') }, error: null } : { row: null, error: 'text is required' };
   }
