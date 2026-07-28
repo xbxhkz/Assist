@@ -226,6 +226,7 @@
   <link rel="modulepreload" href="/static/js/sessions.js">
   <link rel="modulepreload" href="/static/js/markdown.js">
   <link rel="modulepreload" href="/static/js/trainingCore.js">
+  <link rel="modulepreload" href="/static/js/datasetCore.js">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content, viewport-fit=cover" />
 </head>
 <body>
@@ -463,6 +464,44 @@
     </div>
   </div>
 
+  <!-- AI Studio: Dataset builder/validator — admin -->
+  <div id="dataset-modal" class="modal hidden">
+    <div class="modal-content admin-modal-content" role="dialog" aria-label="Dataset builder">
+      <div class="modal-header">
+        <h4>Dataset builder</h4>
+        <button class="close-btn" id="dataset-close" aria-label="Close">&#x2716;</button>
+      </div>
+      <div class="admin-card">
+        <label>Format
+          <select id="dataset-format">
+            <option value="text">text</option>
+            <option value="instruction">instruction + response</option>
+            <option value="prompt">prompt + completion</option>
+          </select>
+        </label>
+        <div id="dataset-fields"></div>
+        <button id="dataset-add" class="btn">Add row</button>
+      </div>
+      <div class="admin-card">
+        <label>Import (.jsonl — one JSON object per line)<br>
+          <textarea id="dataset-import" rows="3" style="width:100%" placeholder='{"text": "..."}'></textarea></label>
+        <button id="dataset-import-btn" class="btn">Import lines</button>
+      </div>
+      <div class="admin-card">
+        <div>Rows: <b id="dataset-count">0 row(s)</b></div>
+        <div id="dataset-rows" style="max-height:180px;overflow:auto;font-size:12px"></div>
+        <button id="dataset-validate" class="btn">Validate</button>
+        <div id="dataset-report" style="font-size:12px;margin-top:6px"></div>
+      </div>
+      <div class="admin-card">
+        <label>Save as <input id="dataset-name" placeholder="my-dataset" style="width:60%"></label>
+        <button id="dataset-save" class="btn">Save dataset</button>
+        <div style="font-weight:600;margin-top:8px">Saved datasets</div>
+        <div id="dataset-saved"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Local Training (LoRA/QLoRA) — admin -->
   <div id="training-modal" class="modal hidden">
     <div class="modal-content admin-modal-content" role="dialog" aria-label="Training">
@@ -484,7 +523,7 @@
           <option value="meta-llama/Llama-3.2-1B-Instruct"></option>
         </datalist>
         <div id="training-vram-hint" style="font-size:12px;opacity:0.8;margin:4px 0;"></div>
-        <label>Dataset (.jsonl file path)<br><input id="training-dataset" placeholder="C:\path\to\data.jsonl" style="width:100%"></label>
+        <label>Dataset (.jsonl file path)<br><input id="training-dataset" list="dataset-suggestions" placeholder="C:\path\to\data.jsonl" style="width:100%"><datalist id="dataset-suggestions"></datalist></label>
         <details><summary>Advanced</summary>
           <label>Mode <select id="training-mode"><option value="steps">steps</option><option value="epochs">epochs</option></select></label>
           <label>Steps <input id="training-steps" type="number" value="100" style="width:90px"></label>
@@ -781,6 +820,7 @@
     <button class="icon-rail-btn" id="rail-theme" title="Theme"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 0 0 20 5 5 0 0 0 5-5 3 3 0 0 0-3-3h-2a3 3 0 0 1-3-3 5 5 0 0 1 5-5"/></svg></button>
     <button class="icon-rail-btn" id="rail-workflows" title="Workflows" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><path d="M10 6.5h4a2 2 0 0 1 2 2v5.5"/></svg></button>
     <button class="icon-rail-btn" id="rail-training" title="Training" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/><circle cx="12" cy="12" r="4"/></svg></button>
+    <button class="icon-rail-btn" id="rail-dataset" title="Dataset" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg></button>
     <div style="flex:1"></div>
     <!-- Static: bottom -->
     <button class="icon-rail-btn" id="rail-settings" title="Settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
@@ -1108,6 +1148,11 @@
         <div class="list-item" id="tool-training-btn" style="display:none">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.5;"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/><circle cx="12" cy="12" r="4"/></svg>
           <span class="grow">Training</span>
+        </div>
+
+        <div class="list-item" id="tool-dataset-btn" style="display:none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.5;"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
+          <span class="grow">Dataset</span>
         </div>
       </div>
     </div>
@@ -2998,6 +3043,7 @@
 <script type="module" src="/static/js/cookbook.js"></script>
 <script type="module" src="/static/js/workflows.js"></script>
 <script type="module" src="/static/js/training.js"></script>
+<script type="module" src="/static/js/dataset.js"></script>
 <script src="/static/js/cookbookSchedule.js"></script>
 <script src="/static/js/localModels.js"></script>
 <script src="/static/js/imageModels.js"></script>

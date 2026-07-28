@@ -33,7 +33,7 @@ async function isAdmin() {
   } catch (e) { return false; }
 }
 
-function openTraining() { $('training-modal').classList.remove('hidden'); refreshEnv(); refreshAdapters(); loadFreeVram(); resumeIfRunning(); }
+function openTraining() { $('training-modal').classList.remove('hidden'); refreshEnv(); refreshAdapters(); loadFreeVram(); resumeIfRunning(); refreshDatasetList(); }
 function closeTraining() { $('training-modal').classList.add('hidden'); stopPolling(); }
 
 async function loadFreeVram() {
@@ -134,6 +134,16 @@ async function resumeIfRunning() {
     const s = await api('/api/training/runs/current');
     if (s.status && s.status !== 'idle') renderStatus(s);
     if (s.status === 'running') startPolling();
+  } catch (e) {}
+}
+
+async function refreshDatasetList() {
+  try {
+    const j = await api('/api/datasets');
+    const dl = $('dataset-suggestions');
+    if (dl) dl.innerHTML = (j.datasets || []).map(function (d) {
+      return '<option value="' + esc(d.path) + '">' + esc(d.name) + '</option>';
+    }).join('');
   } catch (e) {}
 }
 
