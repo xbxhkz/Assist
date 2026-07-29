@@ -40,3 +40,9 @@ def test_parse_tolerates_prose_and_truncated_tail():
 def test_parse_never_raises_on_non_str():
     for bad in (None, 42, ["x"], {"a": 1}):
         assert parse_generated_rows(bad) == []
+
+
+def test_prompt_unhashable_fmt_never_raises():
+    for bad in (["text"], {"a": 1}, {"text"}):
+        system, user = build_generation_prompt(bad, 3, "b", None)
+        assert '"text"' in system  # falls back to text shape, no raise

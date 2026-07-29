@@ -21,7 +21,7 @@ _SHAPE_EXAMPLE = {
 def build_generation_prompt(fmt, count, brief, seed_rows=None):
     """Build (system, user) messages instructing the model to emit JSONL rows of
     the target shape. Deterministic, string-only, never raises."""
-    fmt = fmt if fmt in _SHAPE_DESC else "text"
+    fmt = fmt if isinstance(fmt, str) and fmt in _SHAPE_DESC else "text"
     system = (
         "You generate high-quality fine-tuning data for a language model. "
         "Output ONLY JSONL: one JSON object per line, no prose, no markdown, no code fences. "
