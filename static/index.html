@@ -488,6 +488,13 @@
         <button id="dataset-import-btn" class="btn">Import lines</button>
       </div>
       <div class="admin-card">
+        <label>Generate with AI (uses the served chat model)<br>
+          <textarea id="dataset-gen-brief" rows="2" style="width:100%" placeholder="e.g. concise Q&amp;A about troubleshooting VFD overvoltage faults"></textarea></label>
+        <label>How many <input id="dataset-gen-count" type="number" min="1" max="200" value="10" style="width:80px"></label>
+        <button id="dataset-generate" class="btn">Generate</button>
+        <div id="dataset-gen-staging" style="max-height:200px;overflow:auto;font-size:12px;margin-top:6px"></div>
+      </div>
+      <div class="admin-card">
         <div>Rows: <b id="dataset-count">0 row(s)</b></div>
         <div id="dataset-rows" style="max-height:180px;overflow:auto;font-size:12px"></div>
         <button id="dataset-validate" class="btn">Validate</button>

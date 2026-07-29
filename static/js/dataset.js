@@ -5,6 +5,7 @@ import { ROW_FORMATS, formToRow } from './datasetCore.js';
 
 function $(id) { return document.getElementById(id); }
 let rows = [];
+let staged = [];
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
@@ -75,6 +76,52 @@ function importText() {
   if (skipped) alert('Imported ' + added.length + ' row(s); skipped ' + skipped + ' invalid line(s).');
 }
 
+async function generate() {
+  const brief = $('dataset-gen-brief') ? $('dataset-gen-brief').value.trim() : '';
+  const count = $('dataset-gen-count') ? (parseInt($('dataset-gen-count').value, 10) || 10) : 10;
+  const fmt = $('dataset-format') ? $('dataset-format').value : 'text';
+  const btn = $('dataset-generate');
+  const out = $('dataset-gen-staging');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+  if (out) out.innerHTML = '<div style="opacity:0.6">Generating… this can take a minute.</div>';
+  try {
+    const rep = await api('/api/datasets/generate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ format: fmt, count: count, brief: brief,
+                             existing: rows, seed_rows: rows.slice(0, 3) }),
+    });
+    staged = rep.rows || [];
+    renderStaging(rep);
+  } catch (e) {
+    if (out) out.textContent = 'Generate failed: ' + e.message;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Generate'; }
+  }
+}
+
+function renderStaging(rep) {
+  const out = $('dataset-gen-staging'); if (!out) return;
+  if (rep.error) { out.innerHTML = '<div style="color:#c00">' + esc(rep.error) + '</div>'; return; }
+  const items = (staged || []).map(function (c) {
+    const mark = c.valid ? (c.duplicate ? '⚠' : '✓') : '✗';
+    const note = c.duplicate ? ' (duplicate)' : (c.error ? ' — ' + esc(c.error) : '');
+    return '<div>' + mark + ' ' + esc(JSON.stringify(c.row)).slice(0, 140) + note + '</div>';
+  }).join('');
+  out.innerHTML = '<div>produced ' + rep.produced + ' of ' + rep.requested +
+    ' · ' + rep.attempts + ' attempt(s)</div>' + items +
+    '<button class="btn" id="dataset-gen-add">Add valid rows</button>';
+  const add = $('dataset-gen-add');
+  if (add) add.addEventListener('click', addGenerated);
+}
+
+function addGenerated() {
+  const good = (staged || []).filter(function (c) { return c.valid && !c.duplicate; })
+                             .map(function (c) { return c.row; });
+  if (!good.length) { alert('No new valid rows to add.'); return; }
+  rows = rows.concat(good); staged = []; renderRows();
+  const out = $('dataset-gen-staging'); if (out) out.innerHTML = 'Added ' + good.length + ' row(s).';
+}
+
 async function validate() {
   const out = $('dataset-report');
   try {
@@ -137,6 +184,7 @@ function init() {
   const imp = $('dataset-import-btn'); if (imp) imp.addEventListener('click', importText);
   const val = $('dataset-validate'); if (val) val.addEventListener('click', validate);
   const sv = $('dataset-save'); if (sv) sv.addEventListener('click', save);
+  const gen = $('dataset-generate'); if (gen) gen.addEventListener('click', generate);
   Modals.register('dataset-modal', { railBtnId: 'rail-dataset', sidebarBtnId: 'tool-dataset-btn', closeFn: closeDataset });
 }
 
