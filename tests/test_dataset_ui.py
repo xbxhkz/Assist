@@ -45,3 +45,8 @@ def test_dataset_js_wires_generate():
     src = (ROOT / "static" / "js" / "dataset.js").read_text(encoding="utf-8")
     for s in ('/api/datasets/generate', 'dataset-generate', 'renderStaging', 'addGenerated', 'staged'):
         assert s in src, f"{s} missing from dataset.js"
+
+
+def test_help_mentions_ai_generation():
+    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    assert "generate rows with a local model" in html
