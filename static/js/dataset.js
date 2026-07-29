@@ -62,13 +62,17 @@ function addRow() {
 
 function importText() {
   const ta = $('dataset-import'); if (!ta) return;
-  const added = [];
+  const added = []; let skipped = 0;
   ta.value.split('\n').forEach(function (line) {
     line = line.trim(); if (!line) return;
-    try { added.push(JSON.parse(line)); } catch (e) { /* skip bad line */ }
+    try { added.push(JSON.parse(line)); } catch (e) { skipped += 1; }
   });
-  if (!added.length) { alert('No valid JSON lines found.'); return; }
+  if (!added.length) {
+    alert('No valid JSON lines found' + (skipped ? ' (' + skipped + ' invalid line(s) skipped).' : '.'));
+    return;
+  }
   rows = rows.concat(added); ta.value = ''; renderRows();
+  if (skipped) alert('Imported ' + added.length + ' row(s); skipped ' + skipped + ' invalid line(s).');
 }
 
 async function validate() {
