@@ -115,7 +115,7 @@ async def generate_rows(fmt, count, brief, *, seed_rows=None, existing=None,
     else:
         try:
             max_attempts = max(0, int(max_attempts))
-        except (TypeError, ValueError):
+        except Exception:  # noqa: BLE001
             max_attempts = _default_attempts
     seen = set()
     for r in (existing if isinstance(existing, list) else []):

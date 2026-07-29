@@ -121,3 +121,10 @@ def test_generate_bad_max_attempts_never_raises():
         return '{"text": "a"}'
     rep = _run(generate_rows("text", 2, "b", model_call=fake, batch_size=1, max_attempts="oops"))
     assert rep["produced"] == 1  # coerced to default, no raise
+
+
+def test_generate_overflow_max_attempts_never_raises():
+    async def fake(prompt, system=None):
+        return '{"text": "a"}'
+    rep = _run(generate_rows("text", 3, "b", model_call=fake, batch_size=1, max_attempts=float("inf")))
+    assert rep["produced"] == 1  # inf max_attempts coerced to default, no raise
