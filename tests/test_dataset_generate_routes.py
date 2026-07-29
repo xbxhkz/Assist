@@ -42,3 +42,21 @@ def test_generate_bad_body_no_500(monkeypatch):
     c = _client(monkeypatch, fake)
     r = c.post("/api/datasets/generate", json={})  # no count/brief/format
     assert r.status_code == 200 and "requested" in r.json()
+
+
+def test_generate_infinite_count_no_500(monkeypatch):
+    async def fake(prompt, system=None, owner=None):
+        return '{"text": "x"}'
+    c = _client(monkeypatch, fake)
+    # `json={"count": 1e400}` can't be used here: this env's TestClient encodes
+    # the outgoing request body with allow_nan=False, so it raises client-side
+    # on float('inf') before the request is even sent. Send the raw bytes
+    # instead so "1e400" (a syntactically valid JSON number that overflows to
+    # inf) reaches the server's own json.loads the way a real client's body
+    # would, exercising the route's int(body["count"]) parsing directly.
+    r = c.post(
+        "/api/datasets/generate",
+        content=b'{"format": "text", "count": 1e400, "brief": "b"}',
+        headers={"content-type": "application/json"},
+    )
+    assert r.status_code == 200 and "requested" in r.json()  # inf count degrades, no 500

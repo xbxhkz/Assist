@@ -42,7 +42,7 @@ def setup_dataset_routes() -> APIRouter:
         fmt = body.get("format") or body.get("fmt") or "text"
         try:
             count = int(body.get("count", 10))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             count = 10
         count = max(1, min(count, MAX_GENERATE))
         return await generate_rows(
