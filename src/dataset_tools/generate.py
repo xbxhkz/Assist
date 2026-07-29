@@ -109,8 +109,14 @@ async def generate_rows(fmt, count, brief, *, seed_rows=None, existing=None,
         batch_size = max(1, int(batch_size))
     except Exception:  # noqa: BLE001
         batch_size = 10
+    _default_attempts = min(math.ceil(count / batch_size) * 3, 30) if count else 0
     if max_attempts is None:
-        max_attempts = min(math.ceil(count / batch_size) * 3, 30) if count else 0
+        max_attempts = _default_attempts
+    else:
+        try:
+            max_attempts = max(0, int(max_attempts))
+        except (TypeError, ValueError):
+            max_attempts = _default_attempts
     seen = set()
     for r in (existing if isinstance(existing, list) else []):
         if isinstance(r, dict):
@@ -123,7 +129,10 @@ async def generate_rows(fmt, count, brief, *, seed_rows=None, existing=None,
         try:
             raw = await model_call(_user, system=_system)
         except Exception as e:  # noqa: BLE001
-            err = f"model call failed: {e}"
+            try:
+                err = f"model call failed: {e}"
+            except Exception:  # noqa: BLE001
+                err = "model call failed"
             break
         for row in parse_generated_rows(raw if isinstance(raw, str) else ""):
             _text, verr = normalize_row(row)
