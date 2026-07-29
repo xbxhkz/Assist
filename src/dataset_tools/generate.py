@@ -86,3 +86,68 @@ def parse_generated_rows(text):
         if isinstance(r, dict):
             out.append(r)
     return out
+
+
+def _sig(row):
+    try:
+        return json.dumps(row, sort_keys=True, ensure_ascii=False)
+    except Exception:  # noqa: BLE001
+        return repr(row)
+
+
+async def generate_rows(fmt, count, brief, *, seed_rows=None, existing=None,
+                        model_call, batch_size=10, max_attempts=None):
+    """Batched synthetic generation. Loops model_call in chunks, validating each
+    row via normalize_row and deduping across batches, until it reaches `count`,
+    exhausts `max_attempts`, or model_call raises. Never raises."""
+    fmt = fmt if isinstance(fmt, str) and fmt in _SHAPE_DESC else "text"
+    try:
+        count = max(0, int(count))
+    except Exception:  # noqa: BLE001
+        count = 0
+    try:
+        batch_size = max(1, int(batch_size))
+    except Exception:  # noqa: BLE001
+        batch_size = 10
+    if max_attempts is None:
+        max_attempts = min(math.ceil(count / batch_size) * 3, 30) if count else 0
+    seen = set()
+    for r in (existing if isinstance(existing, list) else []):
+        if isinstance(r, dict):
+            seen.add(_sig(r))
+    seed_rows = seed_rows if isinstance(seed_rows, list) else []
+    candidates, accepted, attempts, err = [], 0, 0, None
+    while accepted < count and attempts < max_attempts:
+        attempts += 1
+        _system, _user = build_generation_prompt(fmt, min(batch_size, count - accepted), brief, seed_rows)
+        try:
+            raw = await model_call(_user, system=_system)
+        except Exception as e:  # noqa: BLE001
+            err = f"model call failed: {e}"
+            break
+        for row in parse_generated_rows(raw if isinstance(raw, str) else ""):
+            _text, verr = normalize_row(row)
+            if verr:
+                candidates.append({"row": row, "valid": False, "error": verr, "duplicate": False})
+                continue
+            sig = _sig(row)
+            if sig in seen:
+                candidates.append({"row": row, "valid": True, "error": None, "duplicate": True})
+                continue
+            seen.add(sig)
+            candidates.append({"row": row, "valid": True, "error": None, "duplicate": False})
+            accepted += 1
+            if accepted >= count:
+                break
+    report = {
+        "rows": candidates,
+        "valid": sum(1 for c in candidates if c["valid"] and not c["duplicate"]),
+        "invalid": sum(1 for c in candidates if not c["valid"]),
+        "duplicates": sum(1 for c in candidates if c["duplicate"]),
+        "requested": count,
+        "produced": accepted,
+        "attempts": attempts,
+    }
+    if err:
+        report["error"] = err
+    return report
