@@ -136,10 +136,17 @@ async def generate_rows(fmt, count, brief, *, seed_rows=None, existing=None,
         try:
             raw = await model_call(_user, system=_system)
         except Exception as e:  # noqa: BLE001
+            # Show the exception's own message directly rather than burying it
+            # behind a generic "model call failed:" prefix — model_call raises
+            # clear, actionable text (e.g. "no chat model available — serve a
+            # local model or set a Default Chat Model in Settings"), and a
+            # boilerplate prefix made that read as a mysterious failure instead
+            # of an instruction.
             try:
-                err = f"model call failed: {e}"
+                msg = str(e).strip()
+                err = msg if msg else "model call failed (no error detail)"
             except Exception:  # noqa: BLE001
-                err = "model call failed"
+                err = "model call failed (no error detail)"
             break
         for row in parse_generated_rows(raw if isinstance(raw, str) else ""):
             _text, verr = normalize_row(row)

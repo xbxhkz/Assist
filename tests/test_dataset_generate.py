@@ -150,3 +150,13 @@ def test_generate_rows_threads_context_into_prompt():
     rep = _run(generate_rows("text", 1, "", model_call=fake, batch_size=1,
                               context="GROUNDING SOURCE XYZ"))
     assert "GROUNDING SOURCE XYZ" in seen["prompt"]
+
+
+def test_generate_surfaces_model_call_error_verbatim_not_wrapped():
+    # A model_call RuntimeError with clear, actionable text must reach rep["error"]
+    # unprefixed -- no generic "model call failed:" boilerplate burying the message.
+    async def boom(prompt, system=None):
+        raise RuntimeError("no chat model available — serve a local model or set a Default Chat Model in Settings")
+    rep = _run(generate_rows("text", 1, "b", model_call=boom, batch_size=1))
+    assert rep["error"] == "no chat model available — serve a local model or set a Default Chat Model in Settings"
+    assert not rep["error"].startswith("model call failed")
