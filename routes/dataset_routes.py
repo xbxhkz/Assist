@@ -44,14 +44,13 @@ def _served_local_endpoint(owner=None, *, manager=None, resolve_by_id=None):
 
 
 async def _default_model_call(prompt, *, system=None, owner=None):
-    """Call a chat model over the OpenAI-compat API. Resolves, in order: the
-    configured Default Chat Model, then the currently-served LOCAL model. Raises
-    only when neither is available. (SP2 mirrored workflows.nodes.default_model_call,
-    which resolves "default" only — that missed the common local-first case where a
-    model is served but no Default Chat Model is configured in Settings.)"""
+    """Call a chat model over the OpenAI-compat API. Resolves, in order: an
+    explicit Dataset Generation Model setting (falls through to Utility, then
+    Default, when unset — resolve_endpoint's own cascade), then the currently-
+    served LOCAL model. Raises only when nothing is available."""
     import httpx
     from src.endpoint_resolver import resolve_endpoint
-    url, model, headers = resolve_endpoint("default", owner=owner)
+    url, model, headers = resolve_endpoint("dataset_generation", owner=owner)
     if not url:
         url, model, headers = _served_local_endpoint(owner=owner)
     if not url:

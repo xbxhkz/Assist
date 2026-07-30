@@ -107,6 +107,8 @@ DEFAULT_SETTINGS = {
     "serper_api_key": "",
     "research_endpoint_id": "",
     "research_model": "",
+    "dataset_generation_endpoint_id": "",
+    "dataset_generation_model": "",
     "research_search_provider": "",
     "research_max_tokens": 16384,
     "research_extraction_timeout_seconds": 90,

@@ -112,3 +112,36 @@ def test_served_local_endpoint_port_fallback_when_id_unresolvable():
     mgr = _FakeMgr({"running": True, "endpoint_id": "ep1", "model": "qwen.gguf", "port": 8137})
     url, model, headers = dr._served_local_endpoint(manager=mgr, resolve_by_id=lambda *a, **k: None)
     assert url == "http://127.0.0.1:8137/v1/chat/completions" and model == "qwen.gguf"
+
+
+def test_default_model_call_resolves_dataset_generation_prefix_first(monkeypatch):
+    import src.endpoint_resolver as er
+    calls = []
+
+    def fake_resolve(prefix, *a, **k):
+        calls.append(prefix)
+        if prefix == "dataset_generation":
+            return ("http://ep/v1/chat/completions", "pinned-model", {})
+        return (None, None, None)
+
+    monkeypatch.setattr(er, "resolve_endpoint", fake_resolve)
+    # served-local fallback must NOT be consulted when the new prefix resolves
+    monkeypatch.setattr(dr, "_served_local_endpoint", lambda *a, **k: (_ for _ in ()).throw(
+        AssertionError("should not fall back to served-local when dataset_generation resolves")))
+
+    class _FakeResp:
+        status_code = 200
+        def raise_for_status(self): pass
+        def json(self): return {"choices": [{"message": {"content": "hi"}}]}
+
+    class _FakeClient:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def post(self, *a, **k): return _FakeResp()
+
+    import httpx
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **k: _FakeClient())
+
+    result = asyncio.run(dr._default_model_call("hi"))
+    assert calls[0] == "dataset_generation"
+    assert result == "hi"
