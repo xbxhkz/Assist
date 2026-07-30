@@ -1,5 +1,5 @@
 import asyncio
-from src.dataset_tools.ground import chunk_document, generate_grounded
+from src.dataset_tools.ground import chunk_document, generate_grounded, library_chunks, document_chunks
 
 
 def _run(coro):
@@ -45,3 +45,40 @@ def test_generate_grounded_model_error_and_empty_never_raise():
     assert rep["produced"] == 0 and "error" in rep
     rep2 = _run(generate_grounded([], "text", 3, model_call=boom))
     assert rep2["produced"] == 0 and rep2["chunks_used"] == 0
+
+
+class _FakeStore:
+    def __init__(self, hits): self._hits = hits
+    def search(self, query, k=8): return self._hits
+
+
+def test_library_chunks_labels_title_and_page():
+    store = _FakeStore([
+        {"title": "VFD Manual", "page": 42, "snippet": "E12 = overpressure trip"},
+        {"title": "VFD Manual", "page": None, "snippet": "general notes"},
+        {"title": "X", "page": 1, "snippet": "   "},           # blank -> skipped
+    ])
+    chunks = library_chunks(store, "overpressure", k=8)
+    assert chunks[0] == {"source": "VFD Manual, p.42", "text": "E12 = overpressure trip"}
+    assert chunks[1]["source"] == "VFD Manual"                 # no page
+    assert all(c["text"].strip() for c in chunks) and len(chunks) == 2
+
+
+def test_library_chunks_never_raises():
+    assert library_chunks(None, "q") == []
+    assert library_chunks(_FakeStore("not-a-list"), "q") == []
+    assert library_chunks(_FakeStore([]), "") == []           # empty query
+
+
+def test_document_chunks_pdf_and_text_and_unsupported():
+    def fake_pdf(path):
+        return [(1, "page one text"), (2, "page two text")]
+    pdf = document_chunks("f.pdf", ".pdf", pdf_pages=fake_pdf, filename="Guide.pdf")
+    assert pdf[0] == {"source": "Guide.pdf p.1", "text": "page one text"}
+    def fake_read(path, ext):
+        return "plain body"
+    txt = document_chunks("f.txt", ".txt", read_text=fake_read, filename="notes.txt")
+    assert txt[0]["source"] == "notes.txt p.1" and txt[0]["text"] == "plain body"
+    def none_read(path, ext):
+        return None
+    assert document_chunks("f.xyz", ".xyz", read_text=none_read) == []   # unsupported

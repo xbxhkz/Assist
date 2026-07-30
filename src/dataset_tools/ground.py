@@ -85,3 +85,62 @@ async def generate_grounded(chunks, fmt, count, *, model_call, existing=None,
     if err:
         report["error"] = err
     return report
+
+
+def _default_pdf_pages(path):
+    from src.industrial.manual_store import _pdf_pages
+    return _pdf_pages(path)
+
+
+def _default_read_text(path, ext):
+    from src.industrial.manual_store import _read_document_text
+    return _read_document_text(path, ext)
+
+
+def library_chunks(store, query, *, k=8):
+    """Retrieve top-k manual passages for `query` -> grounding chunks labeled
+    '<title>, p.<page>'. Never raises; [] on any failure."""
+    try:
+        if store is None or not isinstance(query, str) or not query.strip():
+            return []
+        try:
+            k = max(1, min(int(k), 20))
+        except Exception:  # noqa: BLE001
+            k = 8
+        hits = store.search(query, k=k)
+    except Exception:  # noqa: BLE001
+        return []
+    out = []
+    for h in (hits if isinstance(hits, list) else []):
+        if not isinstance(h, dict):
+            continue
+        text = h.get("snippet")
+        if not isinstance(text, str) or not text.strip():
+            continue
+        title = h.get("title") or "manual"
+        page = h.get("page")
+        label = f"{title}, p.{page}" if isinstance(page, int) and page >= 1 else str(title)
+        out.append({"source": label, "text": text.strip()})
+    return out
+
+
+def document_chunks(path, ext, *, pdf_pages=None, read_text=None, filename=None, max_chars=2000):
+    """Extract an uploaded document into grounding chunks (PDF via pdf_pages ->
+    (page,text); else read_text -> str), labeled '<filename> p.<n>'. Never raises;
+    [] on unsupported/unreadable input."""
+    name = filename or "document"
+    try:
+        e = (ext or "").lower()
+        if e == ".pdf":
+            pages = list((pdf_pages or _default_pdf_pages)(path))
+        else:
+            text = (read_text or _default_read_text)(path, e)
+            if not isinstance(text, str) or not text.strip():
+                return []
+            pages = [(1, text)]
+    except Exception:  # noqa: BLE001
+        return []
+    chunks = chunk_document(pages, max_chars=max_chars)
+    for c in chunks:
+        c["source"] = f"{name} {c['source']}"
+    return chunks
