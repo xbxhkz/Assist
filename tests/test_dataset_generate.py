@@ -128,3 +128,25 @@ def test_generate_overflow_max_attempts_never_raises():
         return '{"text": "a"}'
     rep = _run(generate_rows("text", 3, "b", model_call=fake, batch_size=1, max_attempts=float("inf")))
     assert rep["produced"] == 1  # inf max_attempts coerced to default, no raise
+
+
+def test_prompt_context_grounds_and_is_backward_compatible():
+    base_sys, base_usr = build_generation_prompt("text", 3, "b", None)
+    # no context (explicit None) == prior behavior
+    n_sys, n_usr = build_generation_prompt("text", 3, "b", None, None)
+    assert (n_sys, n_usr) == (base_sys, base_usr)
+    assert "Source text" not in base_usr
+    # with context: grounding instruction in system + the passage in the user message
+    g_sys, g_usr = build_generation_prompt("text", 3, "b", None, "PUMP TRIP CODE E12 = overpressure")
+    assert "ONLY" in g_sys and "source" in g_sys.lower()
+    assert "E12 = overpressure" in g_usr and "Source text" in g_usr
+
+
+def test_generate_rows_threads_context_into_prompt():
+    seen = {}
+    async def fake(prompt, system=None):
+        seen["prompt"] = prompt
+        return '{"text": "a"}'
+    rep = _run(generate_rows("text", 1, "", model_call=fake, batch_size=1,
+                              context="GROUNDING SOURCE XYZ"))
+    assert "GROUNDING SOURCE XYZ" in seen["prompt"]

@@ -18,15 +18,20 @@ _SHAPE_EXAMPLE = {
 }
 
 
-def build_generation_prompt(fmt, count, brief, seed_rows=None):
+def build_generation_prompt(fmt, count, brief, seed_rows=None, context=None):
     """Build (system, user) messages instructing the model to emit JSONL rows of
-    the target shape. Deterministic, string-only, never raises."""
+    the target shape. When `context` is a non-empty passage, ground generation in
+    it. Deterministic, string-only, never raises."""
     fmt = fmt if isinstance(fmt, str) and fmt in _SHAPE_DESC else "text"
+    ctx = context.strip() if isinstance(context, str) else ""
     system = (
         "You generate high-quality fine-tuning data for a language model. "
         "Output ONLY JSONL: one JSON object per line, no prose, no markdown, no code fences. "
         f"Each object MUST have {_SHAPE_DESC[fmt]}. Example line: {_SHAPE_EXAMPLE[fmt]}"
     )
+    if ctx:
+        system += (" Every example MUST be answerable using ONLY the provided source text; "
+                   "do NOT introduce facts that are not present in it.")
     try:
         n = int(count)
     except Exception:  # noqa: BLE001
@@ -35,6 +40,8 @@ def build_generation_prompt(fmt, count, brief, seed_rows=None):
     b = brief if isinstance(brief, str) else ""
     if b.strip():
         parts.append("Topic / instructions: " + b.strip())
+    if ctx:
+        parts.append("Source text (generate examples ONLY from this):\n" + ctx)
     examples = []
     for r in (seed_rows if isinstance(seed_rows, list) else []):
         if isinstance(r, dict):
@@ -96,7 +103,7 @@ def _sig(row):
 
 
 async def generate_rows(fmt, count, brief, *, seed_rows=None, existing=None,
-                        model_call, batch_size=10, max_attempts=None):
+                        model_call, batch_size=10, max_attempts=None, context=None):
     """Batched synthetic generation. Loops model_call in chunks, validating each
     row via normalize_row and deduping across batches, until it reaches `count`,
     exhausts `max_attempts`, or model_call raises. Never raises."""
@@ -125,7 +132,7 @@ async def generate_rows(fmt, count, brief, *, seed_rows=None, existing=None,
     candidates, accepted, attempts, err = [], 0, 0, None
     while accepted < count and attempts < max_attempts:
         attempts += 1
-        _system, _user = build_generation_prompt(fmt, min(batch_size, count - accepted), brief, seed_rows)
+        _system, _user = build_generation_prompt(fmt, min(batch_size, count - accepted), brief, seed_rows, context)
         try:
             raw = await model_call(_user, system=_system)
         except Exception as e:  # noqa: BLE001
