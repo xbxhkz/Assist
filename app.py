@@ -183,6 +183,8 @@ _TIMEOUT_EXEMPT_PREFIXES = (
     "/api/upload",          # large files
     "/api/image",           # diffusion proxies (inpaint/harmonize/upscale/etc.) — own 120s httpx timeout
     "/api/memory/audit",    # retains own 120s LLM inactivity timeout
+    "/api/datasets/generate",  # AI Studio dataset generation: batched LLM calls
+                                # (multiple sequential requests, own 180s httpx timeout each)
 )
 
 
