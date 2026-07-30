@@ -59,3 +59,40 @@ def test_missing_source_file_is_skipped_not_fatal(tmp_path):
 
 def test_load_missing(tmp_path):
     assert "error" in ImageDatasetStore(base_dir=str(tmp_path)).load("nope")
+
+
+def test_failed_swap_does_not_destroy_existing_dataset(tmp_path, monkeypatch):
+    src_dir = tmp_path / "src"; src_dir.mkdir()
+    a = _src_image(src_dir, "a.png", b"AAA")
+    store = ImageDatasetStore(base_dir=str(tmp_path / "store"))
+    assert store.save("foo", [{"path": a, "caption": "cap a"}]).get("ok")
+
+    import src.image_dataset_tools.store as store_mod
+    real_replace = store_mod.os.replace
+    calls = {"n": 0}
+    def flaky_replace(src, dst):
+        calls["n"] += 1
+        if calls["n"] == 2:  # the tmp->path swap, not the path->backup move
+            raise OSError("simulated failure during final swap")
+        return real_replace(src, dst)
+    monkeypatch.setattr(store_mod.os, "replace", flaky_replace)
+
+    b = _src_image(src_dir, "b.png", b"BBB")
+    out = store.save("foo", [{"path": b, "caption": "new cap"}])
+    assert "error" in out
+    # the ORIGINAL dataset must still be intact, byte-for-byte
+    loaded = store.load("foo")
+    assert loaded["images"] and loaded["images"][0]["caption"] == "cap a"
+
+
+def test_all_missing_sources_does_not_wipe_existing_dataset(tmp_path):
+    src_dir = tmp_path / "src"; src_dir.mkdir()
+    a = _src_image(src_dir, "a.png", b"AAA")
+    store = ImageDatasetStore(base_dir=str(tmp_path / "store"))
+    assert store.save("foo", [{"path": a, "caption": "cap a"}]).get("ok")
+
+    out = store.save("foo", [{"path": "/nope1.png", "caption": "x"},
+                             {"path": "/nope2.png", "caption": "y"}])
+    assert "error" in out  # must be rejected, not silently accepted
+    loaded = store.load("foo")
+    assert loaded["images"] and loaded["images"][0]["caption"] == "cap a"  # untouched

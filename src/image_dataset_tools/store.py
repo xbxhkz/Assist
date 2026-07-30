@@ -54,12 +54,43 @@ class ImageDatasetStore:
                 saved.append(base_name)
             meta = {"trigger_word": trigger_word if isinstance(trigger_word, str) else "",
                     "images": len(saved)}
+            if not saved:
+                # Nothing valid to save -- do NOT touch any existing dataset of
+                # this name. Reject before any destructive step.
+                shutil.rmtree(tmp, ignore_errors=True)
+                return {"error": "no valid image entries -- all source files were missing"}
             with open(os.path.join(tmp, "meta.json"), "w", encoding="utf-8") as f:
                 json.dump(meta, f)
-            if os.path.isdir(path):
-                shutil.rmtree(path, ignore_errors=True)
-            os.replace(tmp, path)
-            return {"ok": True, "path": path, "name": safe}
+
+            # os.replace() cannot swap a directory over an existing directory on
+            # Windows, so we can't just rmtree(path) then os.replace(tmp, path) --
+            # any failure in that window destroys the old dataset with nothing to
+            # replace it (confirmed: os.replace raises PermissionError in that case
+            # on Windows). Instead: rename the OLD dir aside first (a same-volume
+            # rename onto a name that doesn't yet exist, so it can't collide),
+            # rename tmp into the now-vacant `path`, and only delete the backup
+            # once the new dataset is confirmed in place. If the second rename
+            # fails, roll the backup back so the old dataset is never lost.
+            backup = path + ".old"
+            moved_old_aside = False
+            try:
+                if os.path.isdir(backup):
+                    shutil.rmtree(backup, ignore_errors=True)
+                if os.path.isdir(path):
+                    os.replace(path, backup)
+                    moved_old_aside = True
+                os.replace(tmp, path)
+                if moved_old_aside:
+                    shutil.rmtree(backup, ignore_errors=True)
+                return {"ok": True, "path": path, "name": safe}
+            except Exception as e:  # noqa: BLE001
+                if moved_old_aside and not os.path.isdir(path):
+                    try:
+                        os.replace(backup, path)
+                    except Exception:  # noqa: BLE001
+                        pass
+                shutil.rmtree(tmp, ignore_errors=True)
+                return {"error": f"save failed: {e}"}
         except Exception as e:  # noqa: BLE001
             if os.path.isdir(tmp):
                 shutil.rmtree(tmp, ignore_errors=True)
