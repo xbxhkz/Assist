@@ -105,3 +105,10 @@ def test_default_model_call_errors_clearly_when_nothing_available(monkeypatch):
         assert False, "expected RuntimeError"
     except RuntimeError as e:
         assert "serve a local model" in str(e).lower() or "default chat model" in str(e).lower()
+
+
+def test_served_local_endpoint_port_fallback_when_id_unresolvable():
+    # endpoint id present but unresolvable (e.g. empty model list) -> build from port
+    mgr = _FakeMgr({"running": True, "endpoint_id": "ep1", "model": "qwen.gguf", "port": 8137})
+    url, model, headers = dr._served_local_endpoint(manager=mgr, resolve_by_id=lambda *a, **k: None)
+    assert url == "http://127.0.0.1:8137/v1/chat/completions" and model == "qwen.gguf"

@@ -23,12 +23,21 @@ def _served_local_endpoint(owner=None, *, manager=None, resolve_by_id=None):
         if resolve_by_id is None:
             from src.endpoint_resolver import resolve_endpoint_by_id as resolve_by_id
         st = manager.status() or {}
-        if not st.get("running") or not st.get("endpoint_id"):
+        if not st.get("running"):
             return None, None, None
-        for own in (owner, None):
-            resolved = resolve_by_id(st["endpoint_id"], st.get("model") or "", owner=own)
-            if resolved:
-                return resolved
+        # Preferred: resolve the registered endpoint id (gives the real served
+        # model id + headers the app recorded at serve time).
+        if st.get("endpoint_id"):
+            for own in (owner, None):
+                resolved = resolve_by_id(st["endpoint_id"], st.get("model") or "", owner=own)
+                if resolved:
+                    return resolved
+        # Fallback: the endpoint id didn't resolve (e.g. empty model list) — build
+        # the OpenAI-compat URL straight from the served port.
+        port = st.get("port")
+        if port:
+            from src.localmodels.runtime import local_endpoint_url
+            return local_endpoint_url(port) + "/chat/completions", st.get("model") or "local", {}
     except Exception:  # noqa: BLE001 -- resolution is best-effort
         pass
     return None, None, None
