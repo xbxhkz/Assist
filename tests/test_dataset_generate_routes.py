@@ -60,3 +60,48 @@ def test_generate_infinite_count_no_500(monkeypatch):
         headers={"content-type": "application/json"},
     )
     assert r.status_code == 200 and "requested" in r.json()  # inf count degrades, no 500
+
+
+# --- served-local-model fallback (fixes "no model endpoint configured" when a
+#     local model is served but no Default Chat Model is set in Settings) ---
+import asyncio
+
+
+class _FakeMgr:
+    def __init__(self, st): self._st = st
+    def status(self): return self._st
+
+
+def test_served_local_endpoint_resolves_running_model():
+    mgr = _FakeMgr({"running": True, "endpoint_id": "ep1", "model": "qwen.gguf"})
+    seen = {}
+
+    def fake_resolve(ep_id, model, owner=None):
+        seen["args"] = (ep_id, model, owner)
+        return ("http://127.0.0.1:8100/v1/chat/completions", "qwen-real-id", {})
+
+    url, model, headers = dr._served_local_endpoint(owner="admin", manager=mgr, resolve_by_id=fake_resolve)
+    assert url.endswith("/chat/completions") and model == "qwen-real-id"
+    assert seen["args"][0] == "ep1"  # resolved by the manager-tracked endpoint id
+
+
+def test_served_local_endpoint_none_when_not_running():
+    mgr = _FakeMgr({"running": False, "endpoint_id": None, "model": None})
+    assert dr._served_local_endpoint(manager=mgr, resolve_by_id=lambda *a, **k: ("u", "m", {})) == (None, None, None)
+
+
+def test_served_local_endpoint_never_raises_on_bad_resolver():
+    mgr = _FakeMgr({"running": True, "endpoint_id": "ep1", "model": "m"})
+    def boom(*a, **k): raise RuntimeError("db down")
+    assert dr._served_local_endpoint(manager=mgr, resolve_by_id=boom) == (None, None, None)
+
+
+def test_default_model_call_errors_clearly_when_nothing_available(monkeypatch):
+    import src.endpoint_resolver as er
+    monkeypatch.setattr(er, "resolve_endpoint", lambda *a, **k: (None, None, None))
+    monkeypatch.setattr(dr, "_served_local_endpoint", lambda *a, **k: (None, None, None))
+    try:
+        asyncio.run(dr._default_model_call("hi"))
+        assert False, "expected RuntimeError"
+    except RuntimeError as e:
+        assert "serve a local model" in str(e).lower() or "default chat model" in str(e).lower()

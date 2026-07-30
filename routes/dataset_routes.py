@@ -10,14 +10,44 @@ from src.dataset_tools.ground import generate_grounded, library_chunks, document
 MAX_GENERATE = 200
 
 
+def _served_local_endpoint(owner=None, *, manager=None, resolve_by_id=None):
+    """(url, model, headers) for the currently-served LOCAL model, or (None, None,
+    None). Serving a local model registers a ModelEndpoint (whose id the manager
+    tracks) but does NOT set `default_endpoint_id`; interactive chat reaches it via
+    the session endpoint, so a session-less admin feature must resolve it directly.
+    `manager`/`resolve_by_id` are injectable for tests. Never raises."""
+    try:
+        if manager is None:
+            from src.localmodels.manager import get_manager
+            manager = get_manager()
+        if resolve_by_id is None:
+            from src.endpoint_resolver import resolve_endpoint_by_id as resolve_by_id
+        st = manager.status() or {}
+        if not st.get("running") or not st.get("endpoint_id"):
+            return None, None, None
+        for own in (owner, None):
+            resolved = resolve_by_id(st["endpoint_id"], st.get("model") or "", owner=own)
+            if resolved:
+                return resolved
+    except Exception:  # noqa: BLE001 -- resolution is best-effort
+        pass
+    return None, None, None
+
+
 async def _default_model_call(prompt, *, system=None, owner=None):
-    """Call the configured default chat model over the OpenAI-compat API.
-    Mirrors src/workflows/nodes.py:default_model_call. Raises if no endpoint."""
+    """Call a chat model over the OpenAI-compat API. Resolves, in order: the
+    configured Default Chat Model, then the currently-served LOCAL model. Raises
+    only when neither is available. (SP2 mirrored workflows.nodes.default_model_call,
+    which resolves "default" only — that missed the common local-first case where a
+    model is served but no Default Chat Model is configured in Settings.)"""
     import httpx
     from src.endpoint_resolver import resolve_endpoint
     url, model, headers = resolve_endpoint("default", owner=owner)
     if not url:
-        raise RuntimeError("no default model endpoint configured")
+        url, model, headers = _served_local_endpoint(owner=owner)
+    if not url:
+        raise RuntimeError(
+            "no chat model available — serve a local model or set a Default Chat Model in Settings")
     messages = ([{"role": "system", "content": system}] if system else [])
     messages.append({"role": "user", "content": prompt})
     body = {"model": model, "messages": messages, "stream": False}
