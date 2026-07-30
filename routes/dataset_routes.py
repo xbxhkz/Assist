@@ -91,7 +91,7 @@ def setup_dataset_routes() -> APIRouter:
         cnt = max(1, min(cnt, MAX_GENERATE))
         try:
             ex = _json.loads(existing) if existing else None
-        except (ValueError, TypeError):
+        except Exception:  # noqa: BLE001 -- never 500 on a hostile existing field
             ex = None
         empty = {"rows": [], "valid": 0, "invalid": 0, "duplicates": 0,
                  "requested": cnt, "produced": 0, "chunks_used": 0}

@@ -52,3 +52,12 @@ def test_upload_unextractable(monkeypatch):
     files = {"file": ("x.bin", io.BytesIO(b"\x00\x01"), "application/octet-stream")}
     r = c.post("/api/datasets/generate/upload", files=files, data={"format": "text", "count": "1"})
     assert r.status_code == 200 and "error" in r.json() and r.json()["produced"] == 0
+
+
+def test_upload_deeply_nested_existing_no_500(monkeypatch):
+    c = _client(monkeypatch, chunks=[{"source": "M p.1", "text": "AAA"}])
+    files = {"file": ("x.txt", io.BytesIO(b"hello"), "text/plain")}
+    deep = "[" * 6000 + "]" * 6000  # json.loads -> RecursionError
+    r = c.post("/api/datasets/generate/upload", files=files,
+               data={"format": "text", "count": "1", "existing": deep})
+    assert r.status_code == 200  # RecursionError on `existing` must not 500
