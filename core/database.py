@@ -6,8 +6,7 @@ from pathlib import Path
 from sqlalchemy import event, create_engine, Column, String, Text, Boolean, DateTime, Integer, ForeignKey, JSON, Index, func, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.types import TypeDecorator
-from sqlalchemy.ext.declarative import declarative_base, declared_attr
-from sqlalchemy.orm import relationship, sessionmaker, backref
+from sqlalchemy.orm import declarative_base, declared_attr, relationship, sessionmaker, backref
 
 from src.runtime_paths import get_app_root
 
