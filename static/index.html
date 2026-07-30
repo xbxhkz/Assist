@@ -491,6 +491,15 @@
         <label>Generate with AI (uses the served chat model)<br>
           <textarea id="dataset-gen-brief" rows="2" style="width:100%" placeholder="e.g. concise Q&amp;A about troubleshooting VFD overvoltage faults"></textarea></label>
         <label>How many <input id="dataset-gen-count" type="number" min="1" max="200" value="10" style="width:80px"></label>
+        <label>Source
+          <select id="dataset-gen-source">
+            <option value="none">None (free)</option>
+            <option value="upload">Uploaded document</option>
+            <option value="library">Manual library</option>
+          </select>
+        </label>
+        <input id="dataset-gen-file" type="file" accept=".pdf,.txt,.md,.docx" style="display:none">
+        <input id="dataset-gen-query" placeholder="topic to pull from your manuals" style="width:100%;display:none">
         <button id="dataset-generate" class="btn">Generate</button>
         <div id="dataset-gen-staging" style="max-height:200px;overflow:auto;font-size:12px;margin-top:6px"></div>
       </div>

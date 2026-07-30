@@ -50,3 +50,16 @@ def test_dataset_js_wires_generate():
 def test_help_mentions_ai_generation():
     html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
     assert "generate rows with a local model" in html
+
+
+def test_index_has_grounding_source_controls():
+    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    for el in ('id="dataset-gen-source"', 'id="dataset-gen-file"', 'id="dataset-gen-query"'):
+        assert el in html, f"{el} missing from index.html"
+
+
+def test_dataset_js_branches_grounded_sources():
+    src = (ROOT / "static" / "js" / "dataset.js").read_text(encoding="utf-8")
+    for s in ('/api/datasets/generate/upload', '/api/datasets/generate/grounded',
+              'dataset-gen-source', 'c.source', 'FormData'):
+        assert s in src, f"{s} missing from dataset.js"

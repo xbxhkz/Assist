@@ -77,6 +77,7 @@ function importText() {
 }
 
 async function generate() {
+  const src = $('dataset-gen-source') ? $('dataset-gen-source').value : 'none';
   const brief = $('dataset-gen-brief') ? $('dataset-gen-brief').value.trim() : '';
   const count = $('dataset-gen-count') ? (parseInt($('dataset-gen-count').value, 10) || 10) : 10;
   const fmt = $('dataset-format') ? $('dataset-format').value : 'text';
@@ -85,11 +86,28 @@ async function generate() {
   if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
   if (out) out.innerHTML = '<div style="opacity:0.6">Generating… this can take a minute.</div>';
   try {
-    const rep = await api('/api/datasets/generate', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ format: fmt, count: count, brief: brief,
-                             existing: rows, seed_rows: rows.slice(0, 3) }),
-    });
+    let rep;
+    if (src === 'upload') {
+      const f = $('dataset-gen-file');
+      if (!f || !f.files || !f.files[0]) { throw new Error('Choose a file to upload.'); }
+      const fd = new FormData();
+      fd.append('file', f.files[0]);
+      fd.append('format', fmt); fd.append('count', String(count));
+      fd.append('brief', brief); fd.append('existing', JSON.stringify(rows));
+      rep = await api('/api/datasets/generate/upload', { method: 'POST', body: fd });
+    } else if (src === 'library') {
+      const q = $('dataset-gen-query') ? $('dataset-gen-query').value.trim() : '';
+      rep = await api('/api/datasets/generate/grounded', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ format: fmt, count: count, brief: brief, query: q, existing: rows }),
+      });
+    } else {
+      rep = await api('/api/datasets/generate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ format: fmt, count: count, brief: brief,
+                               existing: rows, seed_rows: rows.slice(0, 3) }),
+      });
+    }
     staged = rep.rows || [];
     renderStaging(rep);
   } catch (e) {
@@ -101,15 +119,18 @@ async function generate() {
 
 function renderStaging(rep) {
   const out = $('dataset-gen-staging'); if (!out) return;
-  if (rep.error) { out.innerHTML = '<div style="color:#c00">' + esc(rep.error) + '</div>'; return; }
+  if (rep.error && !(rep.rows || []).length) { out.innerHTML = '<div style="color:#c00">' + esc(rep.error) + '</div>'; return; }
   const items = (staged || []).map(function (c) {
     const mark = c.valid ? (c.duplicate ? '⚠' : '✓') : '✗';
+    const srcnote = c.source ? ' <span style="opacity:0.6">[' + esc(c.source) + ']</span>' : '';
     const note = c.duplicate ? ' (duplicate)' : (c.error ? ' — ' + esc(c.error) : '');
-    return '<div>' + mark + ' ' + esc(JSON.stringify(c.row)).slice(0, 140) + note + '</div>';
+    return '<div>' + mark + ' ' + esc(JSON.stringify(c.row)).slice(0, 140) + srcnote + note + '</div>';
   }).join('');
+  const meta = (rep.chunks_used != null) ? (rep.chunks_used + ' chunk(s)')
+             : (rep.attempts != null ? rep.attempts + ' attempt(s)' : '');
   out.innerHTML = '<div>produced ' + rep.produced + ' of ' + rep.requested +
-    ' · ' + rep.attempts + ' attempt(s)</div>' + items +
-    '<button class="btn" id="dataset-gen-add">Add valid rows</button>';
+    (meta ? ' · ' + meta : '') + (rep.error ? ' · <span style="color:#c00">' + esc(rep.error) + '</span>' : '') +
+    '</div>' + items + '<button class="btn" id="dataset-gen-add">Add valid rows</button>';
   const add = $('dataset-gen-add');
   if (add) add.addEventListener('click', addGenerated);
 }
@@ -185,6 +206,12 @@ function init() {
   const val = $('dataset-validate'); if (val) val.addEventListener('click', validate);
   const sv = $('dataset-save'); if (sv) sv.addEventListener('click', save);
   const gen = $('dataset-generate'); if (gen) gen.addEventListener('click', generate);
+  const srcSel = $('dataset-gen-source');
+  if (srcSel) srcSel.addEventListener('change', function () {
+    const v = srcSel.value;
+    const f = $('dataset-gen-file'); if (f) f.style.display = (v === 'upload') ? '' : 'none';
+    const q = $('dataset-gen-query'); if (q) q.style.display = (v === 'library') ? '' : 'none';
+  });
   Modals.register('dataset-modal', { railBtnId: 'rail-dataset', sidebarBtnId: 'tool-dataset-btn', closeFn: closeDataset });
 }
 
