@@ -144,7 +144,16 @@ async def generate_rows(fmt, count, brief, *, seed_rows=None, existing=None,
             # of an instruction.
             try:
                 msg = str(e).strip()
-                err = msg if msg else "model call failed (no error detail)"
+                if not msg:
+                    # Some exceptions carry no message by design — notably
+                    # httpx's own timeout exceptions (ReadTimeout etc.), which
+                    # str() to '' on a genuine request timeout. Name the
+                    # failure kind so it stays actionable instead of blank.
+                    cls = type(e).__name__
+                    msg = (f"the model did not respond in time ({cls}) — it may be slow, "
+                          "overloaded, or still loading; try again or use a faster model"
+                          if "timeout" in cls.lower() else f"model call failed ({cls})")
+                err = msg
             except Exception:  # noqa: BLE001
                 err = "model call failed (no error detail)"
             break

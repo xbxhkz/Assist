@@ -160,3 +160,28 @@ def test_generate_surfaces_model_call_error_verbatim_not_wrapped():
     rep = _run(generate_rows("text", 1, "b", model_call=boom, batch_size=1))
     assert rep["error"] == "no chat model available — serve a local model or set a Default Chat Model in Settings"
     assert not rep["error"].startswith("model call failed")
+
+
+def test_generate_names_empty_message_timeout_exception():
+    # httpx's own timeout exceptions (ReadTimeout et al.) str() to '' on a real
+    # timeout -- the error must name the failure kind, not read as blank/opaque.
+    class _FakeReadTimeout(Exception):
+        pass
+    _FakeReadTimeout.__name__ = "ReadTimeout"
+
+    async def boom(prompt, system=None):
+        raise _FakeReadTimeout("")  # empty message, mirrors real httpx behavior
+
+    rep = _run(generate_rows("text", 1, "b", model_call=boom, batch_size=1))
+    assert "did not respond in time" in rep["error"] and "ReadTimeout" in rep["error"]
+
+
+def test_generate_names_empty_message_non_timeout_exception():
+    class _FakeWeirdError(Exception):
+        pass
+
+    async def boom(prompt, system=None):
+        raise _FakeWeirdError()  # empty message, not a timeout
+
+    rep = _run(generate_rows("text", 1, "b", model_call=boom, batch_size=1))
+    assert rep["error"] == "model call failed (_FakeWeirdError)"
