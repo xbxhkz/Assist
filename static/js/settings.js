@@ -639,6 +639,68 @@ async function initUtilityModel() {
   });
 }
 
+/* ── Dataset Generation Model ── */
+async function initDatasetGenerationModel() {
+  var epSel = el('set-datasetGenEndpoint');
+  var modelSel = el('set-datasetGenModel');
+  var msg = el('set-datasetGenMsg');
+  var endpoints = [];
+  if (!epSel || !modelSel) return;
+
+  try {
+    endpoints = await _fetchModelEndpoints();
+    _fillEndpointSelect(epSel, endpoints, epSel.value, true);
+  } catch (e) { console.warn('Failed to load endpoints for dataset generation', e); }
+
+  function refreshModels(selectedModel) {
+    var epId = epSel.value;
+    var ep = endpoints.find(function(e) { return e.id === epId; });
+    _fillModelSelect(modelSel, ep ? ep.models : [], selectedModel, true);
+  }
+
+  try {
+    var res = await fetch('/api/auth/settings', { credentials: 'same-origin' });
+    var settings = await res.json();
+    if (settings.dataset_generation_endpoint_id) epSel.value = settings.dataset_generation_endpoint_id;
+    refreshModels(settings.dataset_generation_model || '');
+  } catch (e) { console.warn('Failed to load dataset generation settings', e); }
+
+  function showStatus() {
+    if (epSel.value) {
+      var epName = epSel.options[epSel.selectedIndex].textContent;
+      var mName = modelSel.value ? modelSel.value.split('/').pop() : 'auto';
+      msg.textContent = epName + ' / ' + mName;
+    } else {
+      msg.textContent = 'Using chat defaults';
+    }
+    msg.style.color = 'var(--fg)';
+  }
+  showStatus();
+
+  async function saveDatasetGen() {
+    try {
+      await fetch('/api/auth/settings', { method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dataset_generation_endpoint_id: epSel.value || '',
+          dataset_generation_model: modelSel.value || ''
+        })
+      });
+      msg.textContent = 'Saved'; msg.style.color = 'var(--fg)';
+      setTimeout(showStatus, 1500);
+    } catch (e) { msg.textContent = 'Failed to save'; msg.style.color = 'var(--red)'; }
+  }
+
+  epSel.addEventListener('change', function() { refreshModels(''); saveDatasetGen(); });
+  modelSel.addEventListener('change', saveDatasetGen);
+
+  _registerAiEndpointRefresh(function(nextEndpoints) {
+    endpoints = nextEndpoints;
+    _fillEndpointSelect(epSel, endpoints, epSel.value, true);
+    refreshModels(modelSel.value);
+  });
+}
+
 /* ── Teacher Model ── */
 // SOTA model called automatically when a self-hosted student model
 // fails an agent-mode task. Stored as a single `teacher_model` string
@@ -2417,6 +2479,7 @@ function initAll() {
   initDefaultChat();
   initTeacherModel();
   initUtilityModel();
+  initDatasetGenerationModel();
   initImageSettings();
   initFolderAccess();
   initVisionSettings();
