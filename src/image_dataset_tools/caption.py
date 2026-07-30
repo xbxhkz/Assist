@@ -19,7 +19,11 @@ def caption_image(path, *, vl_call=None, prompt=None, owner=None):
         call = vl_call or _default_vl_call
         result = call(path, owner=owner, prompt=prompt or DEFAULT_CAPTION_PROMPT)
     except Exception as e:  # noqa: BLE001
-        return None, str(e) or "caption failed (no error detail)"
+        try:
+            msg = str(e).strip()
+        except Exception:  # noqa: BLE001
+            msg = ""
+        return None, msg if msg else "caption failed (no error detail)"
     if not isinstance(result, dict):
         return None, "vision call returned an unexpected result"
     text = result.get("text")
@@ -29,5 +33,6 @@ def caption_image(path, *, vl_call=None, prompt=None, owner=None):
     if stripped.startswith("[") and stripped.endswith("]"):
         # analyze_image_with_vl_result signals "vision disabled" / "no model
         # configured" with a bracketed marker string, not an exception.
-        return None, stripped.strip("[]")
+        inner = stripped.strip("[]").strip()
+        return None, inner if inner else "vision model is unavailable"
     return stripped, None

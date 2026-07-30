@@ -47,3 +47,20 @@ def test_caption_image_bracketed_unavailable_marker_is_an_error():
         return {"text": "[No vision model configured — set one in Settings → Vision]", "model": ""}
     caption, error = caption_image("p.jpg", vl_call=fake_vl)
     assert caption is None and "vision model" in error.lower()
+
+
+def test_caption_image_never_raises_on_hostile_exception_str():
+    class EvilError(Exception):
+        def __str__(self):
+            raise ValueError("str exploded")
+    def evil_vl(path, owner=None, *, prompt=None):
+        raise EvilError("outer message ignored")
+    caption, error = caption_image("p.jpg", vl_call=evil_vl)
+    assert caption is None and isinstance(error, str) and error
+
+
+def test_caption_image_empty_bracket_marker_has_fallback_message():
+    def fake_vl(path, owner=None, *, prompt=None):
+        return {"text": "[]", "model": ""}
+    caption, error = caption_image("p.jpg", vl_call=fake_vl)
+    assert caption is None and error  # never an empty/falsy error string
