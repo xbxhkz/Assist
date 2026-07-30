@@ -63,3 +63,8 @@ def test_dataset_js_branches_grounded_sources():
     for s in ('/api/datasets/generate/upload', '/api/datasets/generate/grounded',
               'dataset-gen-source', 'c.source', 'FormData'):
         assert s in src, f"{s} missing from dataset.js"
+
+
+def test_help_mentions_grounded_generation():
+    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    assert "grounded in a document or your manuals" in html
