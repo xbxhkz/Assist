@@ -53,3 +53,16 @@ def test_validate_never_raises_on_hostile_input():
     assert validate_image_set("not-a-list")["total"] == 0
     rep = validate_image_set([{"id": "a"}, "not-a-dict", 42, {"path": "/nope/x.png", "caption": "x"}])
     assert rep["total"] == 4 and rep["invalid"] == 4  # every entry unresolvable, none raise
+
+
+def test_validate_never_raises_if_pillow_import_fails(monkeypatch):
+    import builtins
+    real_import = builtins.__import__
+    def fake_import(name, *a, **k):
+        if name == "PIL":
+            raise ImportError("simulated: Pillow DLL failed to load")
+        return real_import(name, *a, **k)
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    from src.image_dataset_tools.validate import validate_image_set
+    rep = validate_image_set([{"id": "a", "path": "whatever.png", "caption": "x"}])
+    assert rep["total"] == 1 and rep["invalid"] == 1 and rep["valid"] == 0

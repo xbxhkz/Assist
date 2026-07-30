@@ -24,7 +24,14 @@ def validate_image_set(entries, *, min_dimension=256):
     except Exception:  # noqa: BLE001
         min_dim = 256
 
-    from PIL import Image, UnidentifiedImageError
+    try:
+        from PIL import Image, UnidentifiedImageError
+    except Exception as import_error:  # noqa: BLE001
+        msg = f"image library unavailable: {import_error}"
+        errs = [{"id": (entry.get("id", i) if isinstance(entry, dict) else i), "message": msg}
+               for i, entry in enumerate(entries)]
+        return {"total": len(entries), "valid": 0, "invalid": len(errs), "errors": errs,
+               "stats": {"duplicates": 0, "missing_captions": 0}}
 
     errors = []
     seen_hashes = {}
@@ -47,9 +54,6 @@ def validate_image_set(entries, *, min_dimension=256):
                 img.verify()
             with Image.open(path) as img2:
                 w, h = img2.size
-        except (UnidentifiedImageError, OSError, ValueError):
-            errors.append({"id": eid, "message": "image is corrupt or unreadable"})
-            continue
         except Exception:  # noqa: BLE001
             errors.append({"id": eid, "message": "image is corrupt or unreadable"})
             continue
