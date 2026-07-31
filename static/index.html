@@ -464,6 +464,42 @@
     </div>
   </div>
 
+  <!-- Image AI Studio: dataset prep (captioning/labeling/validation) — admin -->
+  <div id="imagedataset-modal" class="modal hidden">
+    <div class="modal-content admin-modal-content" role="dialog" aria-label="Image dataset prep">
+      <div class="modal-header">
+        <h4>Image dataset</h4>
+        <button class="close-btn" id="imagedataset-close" aria-label="Close">&#x2716;</button>
+      </div>
+      <div class="admin-card">
+        <label>Source
+          <select id="imgds-source">
+            <option value="upload">Upload images</option>
+            <option value="gallery">From Gallery</option>
+          </select>
+        </label>
+        <input id="imgds-file" type="file" accept="image/*" multiple>
+        <button id="imgds-gallery-pick" class="btn" style="display:none">Pick from Gallery…</button>
+      </div>
+      <div class="admin-card">
+        <div>Working set: <b id="imgds-count">0 image(s)</b></div>
+        <div id="imgds-grid" style="display:flex;flex-wrap:wrap;gap:10px;max-height:320px;overflow:auto"></div>
+        <button id="imgds-caption-all" class="btn">Caption all (AI)</button>
+      </div>
+      <div class="admin-card">
+        <label>Trigger word <input id="imgds-trigger" placeholder="ohwx-widget" style="width:60%"></label>
+        <button id="imgds-validate" class="btn">Validate</button>
+        <div id="imgds-report" style="font-size:12px;margin-top:6px"></div>
+      </div>
+      <div class="admin-card">
+        <label>Save as <input id="imgds-name" placeholder="my-image-dataset" style="width:60%"></label>
+        <button id="imgds-save" class="btn">Save dataset</button>
+        <div style="font-weight:600;margin-top:8px">Saved datasets</div>
+        <div id="imgds-saved"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- AI Studio: Dataset builder/validator — admin -->
   <div id="dataset-modal" class="modal hidden">
     <div class="modal-content admin-modal-content" role="dialog" aria-label="Dataset builder">
@@ -837,6 +873,7 @@
     <button class="icon-rail-btn" id="rail-workflows" title="Workflows" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><path d="M10 6.5h4a2 2 0 0 1 2 2v5.5"/></svg></button>
     <button class="icon-rail-btn" id="rail-training" title="Training" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/><circle cx="12" cy="12" r="4"/></svg></button>
     <button class="icon-rail-btn" id="rail-dataset" title="Dataset" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg></button>
+    <button class="icon-rail-btn" id="rail-imagedataset" title="Image Dataset" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></button>
     <div style="flex:1"></div>
     <!-- Static: bottom -->
     <button class="icon-rail-btn" id="rail-settings" title="Settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
@@ -1169,6 +1206,11 @@
         <div class="list-item" id="tool-dataset-btn" style="display:none">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.5;"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
           <span class="grow">Dataset</span>
+        </div>
+
+        <div class="list-item" id="tool-imagedataset-btn" style="display:none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.5;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <span class="grow">Image Dataset</span>
         </div>
       </div>
     </div>
@@ -3086,6 +3128,7 @@
 <script type="module" src="/static/js/workflows.js"></script>
 <script type="module" src="/static/js/training.js"></script>
 <script type="module" src="/static/js/dataset.js"></script>
+<script type="module" src="/static/js/imageDataset.js"></script>
 <script src="/static/js/cookbookSchedule.js"></script>
 <script src="/static/js/localModels.js"></script>
 <script src="/static/js/imageModels.js"></script>
