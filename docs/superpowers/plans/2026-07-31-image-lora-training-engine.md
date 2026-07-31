@@ -826,8 +826,33 @@ def test_stop_when_not_running(tmp_path):
     assert mgr.stop() == {"stopped": False}
 
 
+class BlockingProc:
+    """A process whose readline blocks until kill(), then reports a
+    nonzero exit -- deterministic stand-in for "still running", unlike
+    racing on how fast a fake stdout drains."""
+    def __init__(self):
+        import threading as _t
+        self._ev = _t.Event()
+        self._killed = False
+        self.stdout = self
+
+    def readline(self):
+        self._ev.wait()
+        return ""
+
+    def poll(self):
+        return -9 if self._killed else None
+
+    def kill(self):
+        self._killed = True
+        self._ev.set()
+
+    def wait(self, timeout=None):
+        return -9
+
+
 def test_second_start_rejected_while_running(tmp_path):
-    mgr = _mgr(tmp_path, spawn=lambda a: FakeProc(["notjson\n"] * 1000))
+    mgr = _mgr(tmp_path, spawn=lambda a: BlockingProc())
     assert mgr.start(_cfg()).get("started") is True
     out = mgr.start(_cfg())
     assert "error" in out and "already in progress" in out["error"]
@@ -1055,7 +1080,7 @@ def get_image_training_manager():
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `python -m pytest tests/test_image_training_manager.py -v --import-mode=importlib`
-Expected: PASS (9 tests)
+Expected: PASS (10 tests)
 
 - [ ] **Step 5: Commit**
 
