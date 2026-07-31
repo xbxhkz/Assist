@@ -46,8 +46,13 @@ function renderGrid() {
   });
   grid.querySelectorAll('[data-remove]').forEach(function (b) {
     b.addEventListener('click', function () {
-      images = images.filter(function (i) { return i.id !== b.getAttribute('data-remove'); });
-      renderGrid();
+      const iid = b.getAttribute('data-remove');
+      api('/api/image-datasets/working/' + encodeURIComponent(workingSetId) + '/' + encodeURIComponent(iid), { method: 'DELETE' })
+        .then(function () {
+          images = images.filter(function (i) { return i.id !== iid; });
+          renderGrid();
+        })
+        .catch(function (e) { alert('Remove failed: ' + e.message); });
     });
   });
 }
@@ -57,12 +62,14 @@ async function uploadFiles() {
   if (!input || !input.files || !input.files.length) { alert('Choose image file(s) first.'); return; }
   const fd = new FormData();
   for (let i = 0; i < input.files.length; i++) fd.append('files', input.files[i]);
+  if (workingSetId) fd.append('working_set_id', workingSetId);
   try {
     const r = await api('/api/image-datasets/upload', { method: 'POST', body: fd });
     workingSetId = r.working_set_id;
     images = images.concat(r.images || []);
     renderGrid();
   } catch (e) { alert('Upload failed: ' + e.message); }
+  finally { input.value = ''; }
 }
 
 async function pickFromGallery() {

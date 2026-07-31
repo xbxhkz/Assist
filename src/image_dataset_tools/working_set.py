@@ -98,8 +98,10 @@ def list_images(working_set_id) -> list:
     if not ws_dir or not os.path.isdir(ws_dir):
         return []
     state = _read_state(ws_dir)
+    imgs = state.get("images")
+    imgs = imgs if isinstance(imgs, list) else []
     return [{"id": img.get("id"), "caption": img.get("caption", "")}
-            for img in state.get("images", []) if isinstance(img, dict)]
+            for img in imgs if isinstance(img, dict)]
 
 
 def get_image_path(working_set_id, image_id):
@@ -108,7 +110,9 @@ def get_image_path(working_set_id, image_id):
     if not ws_dir or not safe_id:
         return None
     state = _read_state(ws_dir)
-    for img in state.get("images", []):
+    imgs = state.get("images")
+    imgs = imgs if isinstance(imgs, list) else []
+    for img in imgs:
         if isinstance(img, dict) and img.get("id") == safe_id:
             path = os.path.join(ws_dir, img.get("filename", ""))
             return path if os.path.isfile(path) else None
@@ -121,15 +125,44 @@ def set_caption(working_set_id, image_id, caption) -> bool:
     if not ws_dir or not safe_id or not os.path.isdir(ws_dir):
         return False
     state = _read_state(ws_dir)
+    imgs = state.get("images")
+    imgs = imgs if isinstance(imgs, list) else []
     found = False
-    for img in state.get("images", []):
+    for img in imgs:
         if isinstance(img, dict) and img.get("id") == safe_id:
             img["caption"] = caption if isinstance(caption, str) else ""
             found = True
             break
     if found:
+        state["images"] = imgs
         return _write_state(ws_dir, state)
     return False
+
+
+def remove_image(working_set_id, image_id) -> bool:
+    """Remove a single image (state entry + underlying file) from a working
+    set. Returns False (never raises) if the working set or image id doesn't
+    exist. Used so a client-side "Remove" actually excludes the image from
+    later validate/save calls, which read from server-side state."""
+    ws_dir = _ws_dir(working_set_id)
+    safe_id = _safe_id(image_id)
+    if not ws_dir or not safe_id or not os.path.isdir(ws_dir):
+        return False
+    state = _read_state(ws_dir)
+    imgs = state.get("images")
+    imgs = imgs if isinstance(imgs, list) else []
+    kept = [img for img in imgs if not (isinstance(img, dict) and img.get("id") == safe_id)]
+    if len(kept) == len(imgs):
+        return False  # nothing matched
+    # best-effort delete the underlying file too
+    removed = next((img for img in imgs if isinstance(img, dict) and img.get("id") == safe_id), None)
+    if removed:
+        try:
+            os.remove(os.path.join(ws_dir, removed.get("filename", "")))
+        except Exception:  # noqa: BLE001
+            pass
+    state["images"] = kept
+    return _write_state(ws_dir, state)
 
 
 def delete_working_set(working_set_id) -> bool:

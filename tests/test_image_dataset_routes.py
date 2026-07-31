@@ -1,5 +1,4 @@
 import io
-import json
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import routes.image_dataset_routes as idr
@@ -111,3 +110,84 @@ def test_from_gallery_is_owner_scoped(monkeypatch, tmp_path):
     r2 = c.post("/api/image-datasets/from-gallery", json={"ids": ["g1", "g2"]})
     assert r2.status_code == 200
     assert len(r2.json()["images"]) == 1
+
+
+def test_remove_working_image_excludes_from_validate_and_save(monkeypatch, tmp_path):
+    monkeypatch.setattr(idr.working_set, "_default_dir", lambda: str(tmp_path / "working"))
+    monkeypatch.setattr(idr, "get_image_dataset_store",
+                        lambda: idr.ImageDatasetStore(base_dir=str(tmp_path / "saved")))
+    c = _client(monkeypatch)
+
+    files = [("files", ("a.png", io.BytesIO(b"AAA"), "image/png")),
+            ("files", ("b.png", io.BytesIO(b"BBB"), "image/png")),
+            ("files", ("c.png", io.BytesIO(b"CCC"), "image/png"))]
+    r = c.post("/api/image-datasets/upload", files=files)
+    wid = r.json()["working_set_id"]
+    ids = [img["id"] for img in r.json()["images"]]
+    assert len(ids) == 3
+
+    # remove 2 of the 3 images via the DELETE endpoint (mirrors the UI's Remove button)
+    r_del1 = c.delete(f"/api/image-datasets/working/{wid}/{ids[0]}")
+    assert r_del1.status_code == 200 and r_del1.json().get("ok")
+    r_del2 = c.delete(f"/api/image-datasets/working/{wid}/{ids[1]}")
+    assert r_del2.status_code == 200 and r_del2.json().get("ok")
+
+    # removing an id that's already gone (or never existed) 404s, not 200
+    r_del_again = c.delete(f"/api/image-datasets/working/{wid}/{ids[0]}")
+    assert r_del_again.status_code == 404
+
+    # validate must only see the one remaining image
+    r_val = c.post("/api/image-datasets/validate", json={"working_set_id": wid, "captions": {}})
+    assert r_val.status_code == 200 and r_val.json()["total"] == 1
+
+    # save must only write the one remaining image
+    r_save = c.post("/api/image-datasets", json={"working_set_id": wid, "name": "remove-test",
+                                                  "trigger_word": "", "captions": {}})
+    assert r_save.status_code == 200 and r_save.json().get("ok")
+    loaded = idr.ImageDatasetStore(base_dir=str(tmp_path / "saved")).load("remove-test")
+    assert len(loaded["images"]) == 1
+
+
+def test_second_upload_with_same_working_set_id_accumulates(monkeypatch, tmp_path):
+    monkeypatch.setattr(idr.working_set, "_default_dir", lambda: str(tmp_path / "working"))
+    c = _client(monkeypatch)
+
+    r1 = c.post("/api/image-datasets/upload",
+                files=[("files", ("a.png", io.BytesIO(b"AAA"), "image/png"))])
+    wid = r1.json()["working_set_id"]
+    assert len(r1.json()["images"]) == 1
+
+    # a second upload call passing the SAME working_set_id must ADD to it, not
+    # orphan the first batch into a separate, now-unreachable working set.
+    r2 = c.post("/api/image-datasets/upload",
+                files=[("files", ("b.png", io.BytesIO(b"BBB"), "image/png"))],
+                data={"working_set_id": wid})
+    assert r2.status_code == 200
+    assert r2.json()["working_set_id"] == wid
+
+    # both batches' images are visible to the server -- reflected in /validate.
+    r_val = c.post("/api/image-datasets/validate", json={"working_set_id": wid, "captions": {}})
+    assert r_val.status_code == 200 and r_val.json()["total"] == 2
+
+
+def test_router_is_admin_gated():
+    # Deliberately does NOT monkeypatch require_admin -- every other test in
+    # this file does, so none of them actually prove the router requires
+    # admin. This test inspects the real APIRouter object's dependency wiring.
+    # Note: `fastapi.Depends` is a FACTORY FUNCTION (returns a `params.Depends`
+    # instance), not a class -- isinstance() needs the real class from
+    # fastapi.params.
+    from fastapi.params import Depends as DependsClass
+    router = idr.setup_image_dataset_routes()
+    assert any(
+        isinstance(dep, DependsClass) and dep.dependency is idr.require_admin
+        for dep in router.dependencies
+    )
+    # confirm the dependency actually propagates to every individual route,
+    # not just the router object itself
+    assert router.routes
+    for route in router.routes:
+        assert any(
+            isinstance(dep, DependsClass) and dep.dependency is idr.require_admin
+            for dep in route.dependencies
+        ), f"route {route.path} missing require_admin dependency"

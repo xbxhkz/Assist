@@ -13,8 +13,16 @@ def _default_dir():
 
 
 def _safe_name(name):
-    base = os.path.basename(str(name or "").strip())
+    try:
+        base = os.path.basename(str(name or "").strip())
+    except Exception:  # noqa: BLE001
+        return ""
     base = re.sub(r"[^A-Za-z0-9._-]+", "-", base).strip("-.")
+    if base.lower().endswith((".tmp", ".old")):
+        # ".tmp"/".old" are reserved -- save()'s atomic-swap machinery uses
+        # `path + ".tmp"` / `path + ".old"` as its own internal working names,
+        # so a real dataset with one of these suffixes would collide with it.
+        base = base + "-set"
     return base
 
 

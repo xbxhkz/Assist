@@ -85,6 +85,44 @@ def test_failed_swap_does_not_destroy_existing_dataset(tmp_path, monkeypatch):
     assert loaded["images"] and loaded["images"][0]["caption"] == "cap a"
 
 
+def test_reserved_suffix_name_does_not_collide_with_atomic_save_internals(tmp_path):
+    # save()'s atomic-swap machinery uses `path + ".tmp"` / `path + ".old"` as
+    # its own internal working names. A dataset literally named "chairs.old"
+    # or "chairs.tmp" must not land on those same paths, or a later
+    # save("chairs", ...) would rmtree/rename over it and silently destroy it.
+    src_dir = tmp_path / "src"; src_dir.mkdir()
+    a = _src_image(src_dir, "a.png", b"AAA")
+    b = _src_image(src_dir, "b.png", b"BBB")
+    store = ImageDatasetStore(base_dir=str(tmp_path / "store"))
+
+    out_old = store.save("chairs.old", [{"path": a, "caption": "old-dataset cap"}])
+    assert out_old.get("ok")
+    # the sanitized name must not literally end in .old/.tmp (that's the reserved suffix)
+    assert not out_old["name"].lower().endswith((".tmp", ".old"))
+
+    out_main = store.save("chairs", [{"path": b, "caption": "main-dataset cap"}])
+    assert out_main.get("ok")
+
+    # both datasets must be independently loadable and unharmed
+    loaded_old = store.load(out_old["name"])
+    assert loaded_old["images"] and loaded_old["images"][0]["caption"] == "old-dataset cap"
+    loaded_main = store.load("chairs")
+    assert loaded_main["images"] and loaded_main["images"][0]["caption"] == "main-dataset cap"
+
+
+def test_safe_name_never_raises_on_hostile_object(tmp_path):
+    from src.image_dataset_tools.store import _safe_name
+
+    class Hostile:
+        def __str__(self): raise RuntimeError("str() blew up")
+        def __bool__(self): raise RuntimeError("bool() blew up")
+
+    assert _safe_name(Hostile()) == ""
+    store = ImageDatasetStore(base_dir=str(tmp_path / "store"))
+    out = store.save(Hostile(), [{"path": "x", "caption": "y"}])
+    assert "error" in out
+
+
 def test_all_missing_sources_does_not_wipe_existing_dataset(tmp_path):
     src_dir = tmp_path / "src"; src_dir.mkdir()
     a = _src_image(src_dir, "a.png", b"AAA")

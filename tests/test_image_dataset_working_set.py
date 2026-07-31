@@ -54,6 +54,7 @@ def test_never_raises_on_hostile_input(tmp_path, monkeypatch):
     assert ws.list_images("does-not-exist") == []
     assert ws.set_caption("does-not-exist", "x", "c") is False
     assert ws.delete_working_set("does-not-exist") is False
+    assert ws.remove_image("does-not-exist", "x") is False
 
 
 def test_safe_id_never_raises_on_hostile_object(tmp_path, monkeypatch):
@@ -66,6 +67,40 @@ def test_safe_id_never_raises_on_hostile_object(tmp_path, monkeypatch):
     assert ws.set_caption(Hostile(), "x", "c") is False
     assert ws.delete_working_set(Hostile()) is False
     assert ws.add_images(Hostile(), [("a.png", b"A")]) == []
+    assert ws.remove_image(Hostile(), "x") is False
+
+
+def test_tampered_non_list_images_does_not_raise(tmp_path, monkeypatch):
+    monkeypatch.setattr(ws, "_default_dir", lambda: str(tmp_path))
+    wid = ws.new_working_set()
+    ws_dir = os.path.join(str(tmp_path), wid)
+    os.makedirs(ws_dir, exist_ok=True)
+    with open(os.path.join(ws_dir, "state.json"), "w", encoding="utf-8") as f:
+        f.write('{"images": "not-a-list"}')
+    assert ws.list_images(wid) == []
+    assert ws.get_image_path(wid, "x") is None
+    assert ws.set_caption(wid, "x", "c") is False
+    assert ws.remove_image(wid, "x") is False
+
+
+def test_remove_image(tmp_path, monkeypatch):
+    monkeypatch.setattr(ws, "_default_dir", lambda: str(tmp_path))
+    wid = ws.new_working_set()
+    added = ws.add_images(wid, [("a.png", b"AAA"), ("b.png", b"BBB")])
+    assert len(added) == 2
+    id_a, id_b = added[0]["id"], added[1]["id"]
+    path_a = ws.get_image_path(wid, id_a)
+    assert path_a and os.path.isfile(path_a)
+
+    assert ws.remove_image(wid, id_a) is True
+    remaining = ws.list_images(wid)
+    assert len(remaining) == 1 and remaining[0]["id"] == id_b
+    assert not os.path.isfile(path_a)  # underlying file removed too
+
+    # removing an id that no longer exists (or never existed) reports failure
+    assert ws.remove_image(wid, id_a) is False
+    assert ws.remove_image(wid, "does-not-exist") is False
+    assert ws.remove_image("does-not-exist-ws", id_b) is False
 
 
 def test_add_images_and_set_caption_report_failure_when_write_fails(tmp_path, monkeypatch):

@@ -1,5 +1,5 @@
 """Admin-gated Image Dataset prep API (Image AI Studio, sub-project 1)."""
-from fastapi import APIRouter, Body, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Request, UploadFile
 
 from core.middleware import require_admin
 from core.database import SessionLocal, GalleryImage
@@ -20,8 +20,8 @@ def setup_image_dataset_routes() -> APIRouter:
                        dependencies=[Depends(require_admin)])
 
     @router.post("/upload")
-    async def upload(files: list[UploadFile] = File(...)):
-        wid = working_set.new_working_set()
+    async def upload(files: list[UploadFile] = File(...), working_set_id: str = Form(None)):
+        wid = working_set_id or working_set.new_working_set()
         pairs = []
         for f in files:
             try:
@@ -42,7 +42,7 @@ def setup_image_dataset_routes() -> APIRouter:
         db = SessionLocal()
         try:
             q = db.query(GalleryImage).filter(GalleryImage.id.in_(ids))
-            q = owner_filter(q, GalleryImage, owner, include_shared=True)
+            q = owner_filter(q, GalleryImage, owner, include_shared=False)
             rows = q.all()
         except Exception:  # noqa: BLE001
             rows = []
@@ -67,6 +67,13 @@ def setup_image_dataset_routes() -> APIRouter:
         if not path:
             raise HTTPException(404, "image not found")
         return FileResponse(path)
+
+    @router.delete("/working/{working_set_id}/{image_id}")
+    async def remove_working_image(working_set_id: str, image_id: str):
+        ok = working_set.remove_image(working_set_id, image_id)
+        if not ok:
+            raise HTTPException(404, "image not found")
+        return {"ok": True}
 
     @router.post("/caption")
     async def caption(body: dict = Body(...)):
