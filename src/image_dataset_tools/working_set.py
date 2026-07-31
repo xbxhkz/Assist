@@ -16,7 +16,10 @@ def _default_dir():
 
 
 def _safe_id(value):
-    s = re.sub(r"[^A-Za-z0-9_-]+", "", str(value or ""))
+    try:
+        s = re.sub(r"[^A-Za-z0-9_-]+", "", str(value or ""))
+    except Exception:  # noqa: BLE001
+        return ""
     return s
 
 
@@ -47,8 +50,9 @@ def _write_state(ws_dir, state):
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(state, f)
         os.replace(tmp, _state_path(ws_dir))
+        return True
     except Exception:  # noqa: BLE001
-        pass
+        return False
 
 
 def new_working_set() -> str:
@@ -83,8 +87,8 @@ def add_images(working_set_id, images) -> list:
                 added.append({"id": image_id, "caption": caption})
             except Exception:  # noqa: BLE001
                 continue
-        _write_state(ws_dir, state)
-        return added
+        wrote = _write_state(ws_dir, state)
+        return added if wrote else []
     except Exception:  # noqa: BLE001
         return []
 
@@ -124,8 +128,8 @@ def set_caption(working_set_id, image_id, caption) -> bool:
             found = True
             break
     if found:
-        _write_state(ws_dir, state)
-    return found
+        return _write_state(ws_dir, state)
+    return False
 
 
 def delete_working_set(working_set_id) -> bool:

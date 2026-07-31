@@ -54,3 +54,38 @@ def test_never_raises_on_hostile_input(tmp_path, monkeypatch):
     assert ws.list_images("does-not-exist") == []
     assert ws.set_caption("does-not-exist", "x", "c") is False
     assert ws.delete_working_set("does-not-exist") is False
+
+
+def test_safe_id_never_raises_on_hostile_object(tmp_path, monkeypatch):
+    monkeypatch.setattr(ws, "_default_dir", lambda: str(tmp_path))
+    class Hostile:
+        def __str__(self): raise RuntimeError("str() blew up")
+        def __bool__(self): raise RuntimeError("bool() blew up")
+    assert ws.get_image_path(Hostile(), "x") is None
+    assert ws.list_images(Hostile()) == []
+    assert ws.set_caption(Hostile(), "x", "c") is False
+    assert ws.delete_working_set(Hostile()) is False
+    assert ws.add_images(Hostile(), [("a.png", b"A")]) == []
+
+
+def test_add_images_and_set_caption_report_failure_when_write_fails(tmp_path, monkeypatch):
+    monkeypatch.setattr(ws, "_default_dir", lambda: str(tmp_path))
+    wid = ws.new_working_set()
+
+    real_replace = ws.os.replace
+    def flaky_replace(*a, **k):
+        raise OSError("simulated state-write failure")
+    monkeypatch.setattr(ws.os, "replace", flaky_replace)
+
+    added = ws.add_images(wid, [("a.png", b"AAA")])
+    assert added == []  # must NOT claim success when the state write failed
+    assert ws.list_images(wid) == []
+
+    monkeypatch.setattr(ws.os, "replace", real_replace)
+    added2 = ws.add_images(wid, [("b.png", b"BBB")])
+    assert len(added2) == 1
+    iid = added2[0]["id"]
+
+    monkeypatch.setattr(ws.os, "replace", flaky_replace)
+    assert ws.set_caption(wid, iid, "new caption") is False  # must NOT claim success
+    assert ws.list_images(wid)[0]["caption"] == ""  # unchanged
