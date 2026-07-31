@@ -47,6 +47,9 @@ datas = [
     # The training sidecar script, run inside the training venv (never imported
     # by the Py3.14 app). Bundled so the frozen build can launch it.
     ('training_sidecar', 'training_sidecar'),
+    # The image-training sidecar script (SDXL LoRA), run inside the SAME
+    # training venv extended with diffusers. Never imported by the Py3.14 app.
+    ('image_training_sidecar', 'image_training_sidecar'),
 ] + _collected_datas
 
 hiddenimports = [
