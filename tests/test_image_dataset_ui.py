@@ -27,3 +27,8 @@ def test_image_dataset_js_syntax(tmp_path):
     mjs = tmp_path / "imageDataset.mjs"; mjs.write_text(src, encoding="utf-8")
     p = subprocess.run(["node", "--check", str(mjs)], capture_output=True, text=True, encoding="utf-8")
     assert p.returncode == 0, p.stderr
+
+
+def test_help_manual_has_image_dataset_section():
+    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    assert "caption and validate an image dataset for LoRA training" in html

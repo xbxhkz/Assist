@@ -1809,6 +1809,10 @@
             <p><b>Ground it in your documents.</b> Under the Generate <b>Source</b> selector, pick <b>Uploaded document</b> to upload a PDF or text file, or <b>Manual library</b> to pull from your ingested equipment manuals by topic — rows are then <b>grounded in a document or your manuals</b>, and each staged row shows the page it came from so you can check it. Saved rows stay clean (no citation text).</p>
           </details>
           <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Image Dataset (Image AI Studio)</summary>
+            <p>Open <b>Image Dataset</b> from the sidebar (admin) to caption and validate an image dataset for LoRA training. Upload a batch of images, or pull them from your Gallery. Click <b>Caption all (AI)</b> to auto-describe each image with the vision model, then edit any caption by hand. Set a <b>trigger word</b> (the activation phrase your trained LoRA will respond to) and <b>Validate</b> to check for corrupt files, missing captions, duplicates, and low-resolution images. <b>Save</b> writes the set as an image + caption-file pair per photo — the standard format most LoRA trainers expect.</p>
+          </details>
+          <details>
             <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Industrial Assistant (maintenance &amp; equipment)</summary>
             <p>Assist has tools aimed at maintenance technicians and engineers (all <b>admin-only</b>, used from chat in Agent mode):</p>
             <p><b>Diagnose from a photo.</b> Attach a picture — a fault-code display, a wiring or ladder schematic, a VFD/drive screen, a nameplate/component, or a thermal image — and ask what's wrong. A vision model gives maintenance-expert, <i>safety-first</i> guidance (it always reminds you to follow lockout/t/tagout and use a qualified person). Just drop in the photo and ask.</p>
