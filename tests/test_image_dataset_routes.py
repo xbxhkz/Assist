@@ -67,7 +67,7 @@ def test_from_gallery_is_owner_scoped(monkeypatch, tmp_path):
 
     class _FakeQuery:
         def __init__(self, rows): self._rows = rows
-        def filter(self, *a, **k): return self
+        def filter(self, *a, **k): return self  # id.in_(...) filter -- accept-all in this fake
         def all(self): return self._rows
 
     class _FakeDb:
@@ -79,8 +79,35 @@ def test_from_gallery_is_owner_scoped(monkeypatch, tmp_path):
     other = _FakeRow("g2", "other.png", "someone-else", "")
     monkeypatch.setattr(idr, "SessionLocal", lambda: _FakeDb([owned, other]))
     monkeypatch.setattr(idr, "_gallery_image_path", lambda filename: str(img_path))
+    # owner_filter runs the REAL filtering logic against the fake rows (in-memory,
+    # since the fake query's .filter() is a no-op passthrough) -- simulate its
+    # effect by monkeypatching it directly, since the fake DB has no real SQLAlchemy
+    # column expressions to filter on.
+    def fake_owner_filter(query, model_cls, user, *, include_shared=True):
+        class _Filtered:
+            def all(self_inner):
+                return [r for r in query.all() if r.owner == user or (include_shared and r.owner is None)]
+        return _Filtered()
+    monkeypatch.setattr(idr, "owner_filter", fake_owner_filter)
 
-    c = _client(monkeypatch)
-    r = c.post("/api/image-datasets/from-gallery", json={"ids": ["g1", "g2"], "owner": "admin"})
+    monkeypatch.setattr(idr, "require_admin", lambda: None)
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def _set_user(request, call_next):
+        request.state.current_user = "admin"  # the REAL authenticated identity
+        return await call_next(request)
+
+    app.include_router(idr.setup_image_dataset_routes())
+    c = TestClient(app)
+
+    # Even though the client tries to claim a different owner in the body, the
+    # route must use the REAL authenticated identity (request.state), not this.
+    r = c.post("/api/image-datasets/from-gallery", json={"ids": ["g1", "g2"], "owner": "someone-else"})
     assert r.status_code == 200
-    assert len(r.json()["images"]) == 1  # only the admin-owned row copied in
+    assert len(r.json()["images"]) == 1  # only the admin-owned row, regardless of the spoofed body field
+
+    # Omitting the body owner field entirely must ALSO stay scoped to the real user.
+    r2 = c.post("/api/image-datasets/from-gallery", json={"ids": ["g1", "g2"]})
+    assert r2.status_code == 200
+    assert len(r2.json()["images"]) == 1

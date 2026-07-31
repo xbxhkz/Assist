@@ -1,8 +1,9 @@
 """Admin-gated Image Dataset prep API (Image AI Studio, sub-project 1)."""
-from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Request, UploadFile
 
 from core.middleware import require_admin
 from core.database import SessionLocal, GalleryImage
+from src.auth_helpers import get_current_user, owner_filter
 from src.image_dataset_tools import working_set
 from src.image_dataset_tools.caption import caption_image
 from src.image_dataset_tools.validate import validate_image_set
@@ -32,23 +33,23 @@ def setup_image_dataset_routes() -> APIRouter:
         return {"working_set_id": wid, "images": added}
 
     @router.post("/from-gallery")
-    async def from_gallery(body: dict = Body(...)):
+    async def from_gallery(request: Request, body: dict = Body(...)):
         ids = body.get("ids")
-        owner = body.get("owner")
+        owner = get_current_user(request)  # NEVER trust body.get("owner") for this
         wid = body.get("working_set_id") or working_set.new_working_set()
         if not isinstance(ids, list) or not ids:
             return {"working_set_id": wid, "images": []}
         db = SessionLocal()
         try:
-            rows = db.query(GalleryImage).filter(GalleryImage.id.in_(ids)).all()
+            q = db.query(GalleryImage).filter(GalleryImage.id.in_(ids))
+            q = owner_filter(q, GalleryImage, owner, include_shared=True)
+            rows = q.all()
         except Exception:  # noqa: BLE001
             rows = []
         finally:
             db.close()
         pairs = []
         for row in rows:
-            if owner is not None and getattr(row, "owner", None) != owner:
-                continue  # owner-scoped: never pull another user's images
             try:
                 path = _gallery_image_path(row.filename)
                 with open(path, "rb") as f:
