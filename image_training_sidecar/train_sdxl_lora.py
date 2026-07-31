@@ -38,10 +38,10 @@ def main():
         sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
     except Exception:
         pass
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--config", required=True)
-    args = ap.parse_args()
     try:
+        ap = argparse.ArgumentParser()
+        ap.add_argument("--config", required=True)
+        args = ap.parse_args()
         with open(args.config, "r", encoding="utf-8") as f:
             cfg = json.load(f)
 
@@ -55,7 +55,7 @@ def main():
         disable_progress_bars()
 
         import torch
-        from diffusers import StableDiffusionXLPipeline
+        from diffusers import StableDiffusionXLPipeline, DDPMScheduler
         from peft import LoraConfig
         from peft.utils import get_peft_model_state_dict
         import bitsandbytes as bnb
@@ -75,6 +75,7 @@ def main():
         device = "cuda"
         pipe = StableDiffusionXLPipeline.from_pretrained(
             base_model, torch_dtype=torch.float16, use_safetensors=True, variant="fp16")
+        noise_scheduler = DDPMScheduler.from_pretrained(base_model, subfolder="scheduler")
 
         # --- Phase 1: precompute every image's latents + text embedding ONCE,
         # while the text encoders + VAE are still resident. ---
@@ -124,9 +125,9 @@ def main():
             latents, prompt_embeds, pooled_prompt_embeds = random.choice(examples)
 
             noise = torch.randn_like(latents)
-            timesteps = torch.randint(0, pipe.scheduler.config.num_train_timesteps,
+            timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps,
                                       (1,), device=device).long()
-            noisy_latents = pipe.scheduler.add_noise(latents, noise, timesteps)
+            noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
 
             added_cond_kwargs = {"text_embeds": pooled_prompt_embeds, "time_ids": add_time_ids}
             model_pred = pipe.unet(
