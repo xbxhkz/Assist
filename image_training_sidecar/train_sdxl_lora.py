@@ -58,6 +58,7 @@ def main():
         from diffusers import StableDiffusionXLPipeline, DDPMScheduler
         from diffusers.utils.logging import disable_progress_bar as _disable_diffusers_progress_bar
         _disable_diffusers_progress_bar()
+        from diffusers.training_utils import cast_training_params
         from peft import LoraConfig
         from peft.utils import get_peft_model_state_dict
         import bitsandbytes as bnb
@@ -116,8 +117,20 @@ def main():
         lora_config = LoraConfig(r=rank, lora_alpha=lora_alpha,
                                  target_modules=["to_k", "to_q", "to_v", "to_out.0"])
         pipe.unet.add_adapter(lora_config)
+        # Rank-4 LoRA gradients commonly land below fp16's representable range
+        # (~1e-5 to 1e-7) and silently flush to zero if the trainable params
+        # themselves stay fp16 -- a training run can then "succeed" (loss
+        # reported, .safetensors written) while never actually learning
+        # anything. Matching diffusers' own official SDXL LoRA training
+        # script: keep the frozen base UNet weights in fp16 (memory-cheap)
+        # but upcast ONLY the trainable LoRA params to fp32 master weights,
+        # run the forward pass under fp16 autocast, and scale the loss via
+        # GradScaler so fp16-range gradients don't underflow before the
+        # fp32 params receive them.
+        cast_training_params(pipe.unet, dtype=torch.float32)
         lora_params = [p for p in pipe.unet.parameters() if p.requires_grad]
         optimizer = bnb.optim.AdamW8bit(lora_params, lr=learning_rate)
+        scaler = torch.amp.GradScaler(device="cuda")
 
         add_time_ids = torch.tensor(
             [[resolution, resolution, 0, 0, resolution, resolution]],
@@ -135,14 +148,16 @@ def main():
                                       (1,), device=device).long()
             noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
 
-            added_cond_kwargs = {"text_embeds": pooled_prompt_embeds, "time_ids": add_time_ids}
-            model_pred = pipe.unet(
-                noisy_latents, timesteps, encoder_hidden_states=prompt_embeds,
-                added_cond_kwargs=added_cond_kwargs).sample
+            with torch.autocast(device_type="cuda", dtype=torch.float16):
+                added_cond_kwargs = {"text_embeds": pooled_prompt_embeds, "time_ids": add_time_ids}
+                model_pred = pipe.unet(
+                    noisy_latents, timesteps, encoder_hidden_states=prompt_embeds,
+                    added_cond_kwargs=added_cond_kwargs).sample
+                loss = torch.nn.functional.mse_loss(model_pred.float(), noise.float())
 
-            loss = torch.nn.functional.mse_loss(model_pred.float(), noise.float())
-            loss.backward()
-            optimizer.step()
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
             optimizer.zero_grad()
 
             vram = round(torch.cuda.max_memory_allocated() / 1e9, 2)
