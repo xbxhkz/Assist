@@ -56,6 +56,8 @@ def main():
 
         import torch
         from diffusers import StableDiffusionXLPipeline, DDPMScheduler
+        from diffusers.utils.logging import disable_progress_bar as _disable_diffusers_progress_bar
+        _disable_diffusers_progress_bar()
         from peft import LoraConfig
         from peft.utils import get_peft_model_state_dict
         import bitsandbytes as bnb
@@ -97,7 +99,8 @@ def main():
                 (prompt_embeds, _, pooled_prompt_embeds, _) = pipe.encode_prompt(
                     prompt=item.get("caption") or "", device=device, num_images_per_prompt=1,
                     do_classifier_free_guidance=False)
-            examples.append((latents.detach(), prompt_embeds.detach(), pooled_prompt_embeds.detach()))
+            examples.append((latents.detach().to("cpu"), prompt_embeds.detach().to("cpu"),
+                             pooled_prompt_embeds.detach().to("cpu")))
 
         # --- Phase 2: offload text encoders + VAE, keep only the UNet resident. ---
         pipe.vae.to("cpu")
@@ -123,6 +126,9 @@ def main():
         emit({"event": "start", "total_steps": steps})
         for step in range(1, steps + 1):
             latents, prompt_embeds, pooled_prompt_embeds = random.choice(examples)
+            latents = latents.to(device)
+            prompt_embeds = prompt_embeds.to(device)
+            pooled_prompt_embeds = pooled_prompt_embeds.to(device)
 
             noise = torch.randn_like(latents)
             timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps,
@@ -142,7 +148,8 @@ def main():
             vram = round(torch.cuda.max_memory_allocated() / 1e9, 2)
             emit({"event": "step", "step": step, "loss": round(float(loss.item()), 4), "vram_gb": vram})
 
-        unet_lora_state_dict = get_peft_model_state_dict(pipe.unet)
+        from diffusers.utils import convert_state_dict_to_diffusers
+        unet_lora_state_dict = convert_state_dict_to_diffusers(get_peft_model_state_dict(pipe.unet))
         StableDiffusionXLPipeline.save_lora_weights(
             save_directory=run_dir, unet_lora_layers=unet_lora_state_dict)
         produced = os.path.join(run_dir, "pytorch_lora_weights.safetensors")
@@ -153,7 +160,11 @@ def main():
     except (Exception, SystemExit) as e:  # noqa: BLE001
         import traceback
         try:
-            emit({"event": "error", "message": f"{e}", "trace": traceback.format_exc()[-1500:]})
+            msg = str(e)
+            if "out of memory" in msg.lower():
+                msg = ("ran out of VRAM -- try a lower LoRA rank, smaller batch size, "
+                       "or lower resolution")
+            emit({"event": "error", "message": msg, "trace": traceback.format_exc()[-1500:]})
         except Exception:
             pass
         sys.exit(1)

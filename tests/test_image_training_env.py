@@ -38,7 +38,8 @@ def test_ensure_ready_installs_diffusers_and_marks_ready(tmp_path):
                            uv_binary="uv.exe", run=fake_run)
     out = env.ensure_ready()
     assert out == {"ready": True, "error": None}
-    assert calls and calls[0][:2] == ["uv.exe", "pip"] and "diffusers" in calls[0]
+    assert calls and calls[0][:2] == ["uv.exe", "pip"]
+    assert any(a.startswith("diffusers") for a in calls[0])
     assert env.status() == "ready"
 
 

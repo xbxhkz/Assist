@@ -6,7 +6,7 @@ CUDA venv -- diffusers is the only package this needs on top. Never
 raises."""
 import os
 
-STACK = ["diffusers"]
+STACK = ["diffusers==0.39.0"]
 
 
 def _default_run(argv):

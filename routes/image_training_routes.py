@@ -39,7 +39,7 @@ def setup_image_training_routes() -> APIRouter:
                 steps=int(body.get("steps", 1000)),
                 resolution=int(body.get("resolution", 1024)),
             )
-        except (TypeError, ValueError) as e:
+        except Exception as e:
             raise HTTPException(400, f"invalid config: {e}")
         out = get_image_training_manager().start(cfg)
         if "error" in out:
