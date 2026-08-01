@@ -150,7 +150,7 @@ def main():
 
         peak = round(torch.cuda.max_memory_allocated() / 1e9, 2)
         emit({"event": "done", "lora_path": lora_path, "peak_vram_gb": peak})
-    except Exception as e:  # noqa: BLE001
+    except (Exception, SystemExit) as e:  # noqa: BLE001
         import traceback
         try:
             emit({"event": "error", "message": f"{e}", "trace": traceback.format_exc()[-1500:]})
