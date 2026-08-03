@@ -18,6 +18,7 @@ from core.database import SessionLocal, CrewMember, ScheduledTask
 from src.auth_helpers import get_current_user
 from core.auth import RESERVED_USERNAMES
 from src.task_scheduler import compute_next_run
+from src.crew_helpers import crew_to_dict
 
 
 class CheckInUpdate(BaseModel):
@@ -41,27 +42,6 @@ class AssistantSettingsUpdate(BaseModel):
 
 
 _EMAIL_TOOLS = {"send_email", "reply_to_email"}
-
-
-def _crew_to_dict(c: CrewMember) -> dict:
-    try:
-        tools = json.loads(c.enabled_tools) if c.enabled_tools else []
-    except Exception:
-        tools = []
-    return {
-        "id": c.id,
-        "name": c.name,
-        "avatar": c.avatar,
-        "personality": c.personality,
-        "model": c.model,
-        "endpoint_url": c.endpoint_url,
-        "greeting": c.greeting,
-        "enabled_tools": tools,
-        "session_id": c.session_id,
-        "is_default_assistant": bool(c.is_default_assistant),
-        "timezone": c.timezone,
-        "allow_autonomous_email": any(t in _EMAIL_TOOLS for t in tools),
-    }
 
 
 def _task_to_checkin_dict(t: ScheduledTask) -> dict:
@@ -146,7 +126,7 @@ def setup_assistant_routes(task_scheduler) -> APIRouter:
                 ScheduledTask.crew_member_id == crew.id,
             ).order_by(ScheduledTask.scheduled_time.asc()).all()
             return {
-                "crew": _crew_to_dict(crew),
+                "crew": crew_to_dict(crew),
                 "check_ins": [_task_to_checkin_dict(t) for t in tasks],
                 "task_ids": [t.id for t in tasks],
             }
@@ -258,7 +238,7 @@ def setup_assistant_routes(task_scheduler) -> APIRouter:
                 ScheduledTask.crew_member_id == crew.id,
             ).order_by(ScheduledTask.scheduled_time.asc()).all()
             return {
-                "crew": _crew_to_dict(crew_out),
+                "crew": crew_to_dict(crew_out),
                 "check_ins": [_task_to_checkin_dict(t) for t in tasks_out],
                 "task_ids": [t.id for t in tasks_out],
             }
