@@ -500,6 +500,38 @@
     </div>
   </div>
 
+  <!-- Image AI Studio: LoRA Training GUI — admin -->
+  <div id="image-training-modal" class="modal hidden">
+    <div class="modal-content admin-modal-content" role="dialog" aria-label="Image LoRA training">
+      <div class="modal-header">
+        <h4>Image LoRA Training</h4>
+        <button class="close-btn" id="imgtrain-close" aria-label="Close">&#x2716;</button>
+      </div>
+      <div class="admin-card" id="imgtrain-env-card">
+        <div>Environment: <b id="imgtrain-env-status">checking…</b></div>
+        <button id="imgtrain-env-setup" class="btn">Set up training environment (reuses the text-training venv; adds diffusers)</button>
+        <div id="imgtrain-env-progress" style="font-size:12px;opacity:0.75;white-space:pre-wrap;"></div>
+      </div>
+      <div class="admin-card" id="imgtrain-run-card">
+        <label>Dataset<br><input id="imgtrain-dataset" list="imgtrain-dataset-suggestions" placeholder="my-image-dataset" style="width:100%"><datalist id="imgtrain-dataset-suggestions"></datalist></label>
+        <label>Output name<br><input id="imgtrain-output-name" placeholder="my-lora" style="width:100%"></label>
+        <details><summary>Advanced</summary>
+          <label>LoRA rank <input id="imgtrain-rank" type="number" value="4" style="width:70px"></label>
+          <label>LoRA alpha <input id="imgtrain-alpha" type="number" value="4" style="width:70px"></label>
+          <label>Learning rate <input id="imgtrain-lr" type="number" value="0.0001" step="0.0001" style="width:90px"></label>
+          <label>Steps <input id="imgtrain-steps" type="number" value="1000" style="width:90px"></label>
+          <label>Resolution <input id="imgtrain-resolution" type="number" value="1024" style="width:90px"></label>
+        </details>
+        <div style="font-size:12px;opacity:0.75;margin-top:6px">Results save only when the run finishes — stopping or closing the app mid-run does not keep partial progress.</div>
+        <div style="margin-top:8px">
+          <button id="imgtrain-start" class="btn">Start training</button>
+          <button id="imgtrain-stop" class="btn">Stop</button>
+        </div>
+        <div id="imgtrain-progress" style="font-size:13px;margin-top:8px"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- AI Studio: Dataset builder/validator — admin -->
   <div id="dataset-modal" class="modal hidden">
     <div class="modal-content admin-modal-content" role="dialog" aria-label="Dataset builder">
@@ -874,6 +906,7 @@
     <button class="icon-rail-btn" id="rail-training" title="Training" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/><circle cx="12" cy="12" r="4"/></svg></button>
     <button class="icon-rail-btn" id="rail-dataset" title="Dataset" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg></button>
     <button class="icon-rail-btn" id="rail-imagedataset" title="Image Dataset" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></button>
+    <button class="icon-rail-btn" id="rail-imagetraining" title="Image Training" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/><circle cx="12" cy="12" r="4"/></svg></button>
     <div style="flex:1"></div>
     <!-- Static: bottom -->
     <button class="icon-rail-btn" id="rail-settings" title="Settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
@@ -1211,6 +1244,11 @@
         <div class="list-item" id="tool-imagedataset-btn" style="display:none">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.5;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
           <span class="grow">Image Dataset</span>
+        </div>
+
+        <div class="list-item" id="tool-imagetraining-btn" style="display:none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.5;"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/><circle cx="12" cy="12" r="4"/></svg>
+          <span class="grow">Image Training</span>
         </div>
       </div>
     </div>
@@ -1811,6 +1849,10 @@
           <details>
             <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Image Dataset (Image AI Studio)</summary>
             <p>Open <b>Image Dataset</b> from the sidebar (admin) to caption and validate an image dataset for LoRA training. Upload a batch of images, or pull them from your Gallery. Click <b>Caption all (AI)</b> to auto-describe each image with the vision model, then edit any caption by hand. Set a <b>trigger word</b> (the activation phrase your trained LoRA will respond to) and <b>Validate</b> to check for corrupt files, missing captions, duplicates, and low-resolution images. <b>Save</b> writes the set as an image + caption-file pair per photo — the standard format most LoRA trainers expect.</p>
+          </details>
+          <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Image LoRA Training (Image AI Studio)</summary>
+            <p>Open <b>Image Training</b> from the sidebar (admin) to train an SDXL LoRA from a prepared image dataset. Pick a dataset saved from the <b>Image Dataset</b> panel, give it an <b>output name</b>, and click <b>Start training</b> — the first run also needs a one-time <b>environment setup</b> (adds the <code>diffusers</code> library to the training venv). Watch live step/loss/VRAM in the progress line. Results only save when the run finishes; once it's done, find your new LoRA in the <b>LoRA manager</b> (Image models card) to use it in image generation.</p>
           </details>
           <details>
             <summary style="cursor:pointer;font-weight:600;padding:6px 0;">Industrial Assistant (maintenance &amp; equipment)</summary>
@@ -3133,6 +3175,7 @@
 <script type="module" src="/static/js/training.js"></script>
 <script type="module" src="/static/js/dataset.js"></script>
 <script type="module" src="/static/js/imageDataset.js"></script>
+<script type="module" src="/static/js/imageTraining.js"></script>
 <script src="/static/js/cookbookSchedule.js"></script>
 <script src="/static/js/localModels.js"></script>
 <script src="/static/js/imageModels.js"></script>
