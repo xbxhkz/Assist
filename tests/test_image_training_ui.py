@@ -10,16 +10,18 @@ def test_index_has_image_training_modal_and_entries():
                'id="imgtrain-dataset"', 'id="imgtrain-dataset-suggestions"',
                'id="imgtrain-output-name"', 'id="imgtrain-rank"', 'id="imgtrain-alpha"',
                'id="imgtrain-lr"', 'id="imgtrain-steps"', 'id="imgtrain-resolution"',
-               'id="imgtrain-start"', 'id="imgtrain-stop"', 'id="imgtrain-progress"'):
+               'id="imgtrain-start"', 'id="imgtrain-stop"', 'id="imgtrain-progress"',
+               'id="imgtrain-close"', 'id="imgtrain-run-card"', 'id="imgtrain-env-progress"'):
         assert el in html, f"{el} missing from index.html"
 
 
 def test_image_training_js_wires_admin_and_routes():
     src = (ROOT / "static" / "js" / "imageTraining.js").read_text(encoding="utf-8")
     for s in ('rail-imagetraining', 'tool-imagetraining-btn', 'isAdmin', 'Modals.register',
-              '/api/image-training/env', '/api/image-training/env/setup',
-              '/api/image-training/runs', '/api/image-training/runs/current',
-              '/api/image-training/runs/stop', '/api/image-datasets'):
+              "api('/api/image-training/env')", '/api/image-training/env/setup',
+              "api('/api/image-training/runs',", '/api/image-training/runs/current',
+              '/api/image-training/runs/stop', '/api/image-datasets',
+              "from './imageTrainingCore.js'", 'formToConfig('):
         assert s in src, f"{s} missing from imageTraining.js"
 
 
