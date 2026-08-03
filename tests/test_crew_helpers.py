@@ -137,3 +137,36 @@ def test_crew_disabled_tools_never_raises_on_dangling_reference():
         assert crew_disabled_tools(db, s.id, "alice") == set()
     finally:
         db.close()
+
+
+def test_crew_to_dict_includes_timezone():
+    """Regression test for static/js/assistant.js:190-192 reading crew.timezone.
+    The Timezone dropdown in Assistant Settings UI must read this key from
+    crew_to_dict() response, or it will always show the default instead of the
+    user's saved value."""
+    db = SessionLocal()
+    try:
+        c = _make_crew(db, owner="alice")
+        c.timezone = "America/New_York"
+        db.commit()
+        d = crew_to_dict(c)
+        assert d["timezone"] == "America/New_York"
+    finally:
+        db.close()
+
+
+def test_crew_disabled_tools_includes_shell_tools_in_known_set():
+    """Regression test for the agent_tools circular-import workaround: without
+    it, known_tool_names()'s first call in a fresh process silently omits
+    cmd/powershell (a real circular import between tool_schemas/agent_tools
+    that's fixed by importing agent_tools first inside crew_disabled_tools).
+    """
+    db = SessionLocal()
+    try:
+        c = _make_crew(db, owner="alice", enabled_tools=["web_search"])
+        s = _make_session(db, owner="alice", crew_member_id=c.id)
+        disabled = crew_disabled_tools(db, s.id, "alice")
+        assert "cmd" in disabled
+        assert "powershell" in disabled
+    finally:
+        db.close()
