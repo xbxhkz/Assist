@@ -326,6 +326,7 @@ def setup_session_routes(session_manager: SessionManager, config: dict, webhook_
         skip_validation: str = Form(None),
         api_key: str = Form(""),
         endpoint_id: str = Form(""),
+        crew_member_id: str = Form(""),
     ):
         skip_val = str(skip_validation).lower() == "true"
         user = effective_user(request)
@@ -352,6 +353,31 @@ def setup_session_routes(session_manager: SessionManager, config: dict, webhook_
                 endpoint_url = build_chat_url(normalize_base(endpoint_base_url))
             finally:
                 _db.close()
+
+        crew_model = None
+        crew_endpoint_url = None
+        if crew_member_id and crew_member_id.strip():
+            from core.database import CrewMember
+            _db = SessionLocal()
+            try:
+                _crew = _db.query(CrewMember).filter(
+                    CrewMember.id == crew_member_id.strip(),
+                ).first()
+                if not _crew:
+                    raise HTTPException(400, "Persona not found")
+                from src.auth_helpers import owner_filter as _owner_filter
+                _owned = _db.query(CrewMember).filter(CrewMember.id == crew_member_id.strip())
+                _owned = _owner_filter(_owned, CrewMember, user, include_shared=False)
+                if not _owned.first():
+                    raise HTTPException(400, "Persona not found")
+                crew_model = _crew.model
+                crew_endpoint_url = _crew.endpoint_url
+            finally:
+                _db.close()
+        if not endpoint_url and crew_endpoint_url:
+            endpoint_url = crew_endpoint_url
+        if not model and crew_model:
+            model = crew_model
 
         if not endpoint_url and not skip_val:
             raise HTTPException(400, "endpoint_url is required (choose from /api/models)")
@@ -413,7 +439,6 @@ def setup_session_routes(session_manager: SessionManager, config: dict, webhook_
                 model_to_use = found
         
         sid = str(uuid.uuid4())
-        user = effective_user(request)
         session = session_manager.create_session(
             session_id=sid,
             name=name or "",
@@ -421,6 +446,7 @@ def setup_session_routes(session_manager: SessionManager, config: dict, webhook_
             model=model_to_use,
             rag=str(rag).lower() == "true" if rag else False,
             owner=user,
+            crew_member_id=crew_member_id.strip() if crew_member_id and crew_member_id.strip() else None,
         )
         # Set auth headers for custom API-key endpoints
         resolved_key = request_api_key

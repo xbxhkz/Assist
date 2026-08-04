@@ -474,7 +474,8 @@ class SessionManager:
         endpoint_url: str,
         model: str,
         rag: bool = False,
-        owner: str = None
+        owner: str = None,
+        crew_member_id: str = None,
     ) -> Session:
         """Create a new session and save to database."""
         db = SessionLocal()
@@ -487,6 +488,7 @@ class SessionManager:
                 rag=rag,
                 headers={},
                 owner=owner,
+                crew_member_id=crew_member_id,
                 created_at=datetime.now(timezone.utc),
                 updated_at=datetime.now(timezone.utc)
             )
