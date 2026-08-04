@@ -42,6 +42,7 @@ from routes.chat_helpers import (
 )
 from src.action_intents import classify_tool_intent as _classify_tool_intent
 from src.tool_policy import build_effective_tool_policy
+from src.crew_helpers import crew_disabled_tools
 
 logger = logging.getLogger(__name__)
 
@@ -382,7 +383,15 @@ def setup_chat_routes(
         # non-streaming path can't be used to bypass).
         _enforce_chat_privileges(request, sess)
 
-        tool_policy = build_effective_tool_policy(last_user_message=message)
+        from core.database import SessionLocal as _SessionLocal
+        _db = _SessionLocal()
+        try:
+            _crew_extra = crew_disabled_tools(_db, session, owner)
+        finally:
+            _db.close()
+        tool_policy = build_effective_tool_policy(
+            disabled_tools=_crew_extra, last_user_message=message,
+        )
         allow_tool_preprocessing = not tool_policy.block_all_tool_calls
 
         # Inline memory command
@@ -654,7 +663,14 @@ def setup_chat_routes(
                 logger.warning("Failed to parse attachments JSON, ignoring attachments", exc_info=e)
 
         no_memory = str(form_data.get("no_memory", "")).lower() == "true"
+        from core.database import SessionLocal as _SessionLocal
+        _db = _SessionLocal()
+        try:
+            _crew_extra = crew_disabled_tools(_db, session, owner)
+        finally:
+            _db.close()
         pre_context_tool_policy = build_effective_tool_policy(
+            disabled_tools=_crew_extra,
             last_user_message=message,
         )
         allow_tool_preprocessing = not pre_context_tool_policy.block_all_tool_calls
@@ -877,6 +893,13 @@ def setup_chat_routes(
         if plan_mode:
             from src.tool_security import plan_mode_disabled_tools
             disabled_tools.update(plan_mode_disabled_tools())
+
+        from core.database import SessionLocal as _SessionLocal
+        _db = _SessionLocal()
+        try:
+            disabled_tools.update(crew_disabled_tools(_db, session, owner))
+        finally:
+            _db.close()
 
         tool_policy = build_effective_tool_policy(
             disabled_tools=disabled_tools,
