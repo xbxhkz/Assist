@@ -47,15 +47,28 @@ def _use_test_db(monkeypatch):
     monkeypatch.setattr(sr, "SessionLocal", _TS)
 
 
-def _make_crew(owner="alice", model="gpt-x", endpoint_url="http://persona-endpoint"):
+def _make_crew(owner="alice", model="gpt-x", endpoint_url=None, endpoint_id=None):
     from core.database import SessionLocal, CrewMember
     db = SessionLocal()
     try:
         c = CrewMember(id=str(uuid.uuid4()), owner=owner, name="Nav",
-                       model=model, endpoint_url=endpoint_url)
+                       model=model, endpoint_url=endpoint_url, endpoint_id=endpoint_id)
         db.add(c)
         db.commit()
         return c.id
+    finally:
+        db.close()
+
+
+def _make_endpoint(owner="alice", is_enabled=True, base_url="http://persona-endpoint/v1"):
+    from core.database import SessionLocal, ModelEndpoint
+    db = SessionLocal()
+    try:
+        ep = ModelEndpoint(id=str(uuid.uuid4()), name="Persona EP", base_url=base_url,
+                            owner=owner, is_enabled=is_enabled)
+        db.add(ep)
+        db.commit()
+        return ep.id
     finally:
         db.close()
 
@@ -73,7 +86,15 @@ class _AllowAllAdmin:
         return True
 
 
-def _client(monkeypatch):
+class _DenyAllAdmin:
+    """Auth_manager stub reporting every user as non-admin -- used by the
+    Critical-3 regression tests below to prove a non-admin never picks up a
+    persona's raw endpoint_url."""
+    def is_admin(self, user):
+        return False
+
+
+def _client(monkeypatch, admin=True):
     monkeypatch.setattr(sr, "effective_user", lambda request: "alice")
     # routes/session_routes.py declares `router` as a module-level singleton
     # that setup_session_routes() re-decorates onto on every call, without
@@ -98,14 +119,15 @@ def _client(monkeypatch):
     # either direction.
     monkeypatch.setattr(sr, "router", APIRouter(prefix="/api", tags=["sessions"]))
     app = FastAPI()
-    app.state.auth_manager = _AllowAllAdmin()
+    app.state.auth_manager = _AllowAllAdmin() if admin else _DenyAllAdmin()
     app.include_router(sr.setup_session_routes(sm.SessionManager(), {}, webhook_manager=None))
     return TestClient(app)
 
 
 def test_create_session_with_crew_member_id_defaults_model_and_endpoint(monkeypatch):
     from core.database import SessionLocal, Session as DbSession
-    crew_id = _make_crew()
+    eid = _make_endpoint(owner="alice", base_url="http://persona-endpoint/v1")
+    crew_id = _make_crew(endpoint_id=eid)
     client = _client(monkeypatch)
     resp = client.post("/api/session", data={"crew_member_id": crew_id, "skip_validation": "true"})
     assert resp.status_code == 200
@@ -115,6 +137,7 @@ def test_create_session_with_crew_member_id_defaults_model_and_endpoint(monkeypa
     try:
         row = db.query(DbSession).filter(DbSession.id == body["id"]).first()
         assert row.crew_member_id == crew_id
+        assert "persona-endpoint" in (row.endpoint_url or "")
     finally:
         db.close()
 
@@ -134,3 +157,41 @@ def test_create_session_explicit_model_overrides_persona_default(monkeypatch):
     })
     assert resp.status_code == 200
     assert resp.json()["model"] == "explicit-model"
+
+
+def test_create_session_non_admin_persona_raw_endpoint_url_not_applied(monkeypatch):
+    """Critical 3 regression: a persona with a raw endpoint_url and no
+    endpoint_id, created by a non-admin, must NOT have that raw URL applied
+    to a session created by a non-admin -- the app's own registered-endpoint
+    guard exists specifically to prevent a client from dialing an arbitrary
+    host, and the crew branch used to inject the raw URL *after* that guard
+    had already run against the client's (empty) fields. With no endpoint_id
+    and no other endpoint_url supplied, this must surface as the normal
+    "endpoint_url is required" 400, not a silently-wrong-but-200 session."""
+    # Deliberately NOT passing skip_validation=true here: with it set, the
+    # "endpoint_url is required" check is bypassed entirely regardless of
+    # what the crew branch resolves, which would mask the very regression
+    # this test exists to catch.
+    crew_id = _make_crew(endpoint_url="http://attacker.example/v1")
+    client = _client(monkeypatch, admin=False)
+    resp = client.post("/api/session", data={"crew_member_id": crew_id})
+    assert resp.status_code == 400
+    assert "attacker" not in resp.text
+
+
+def test_create_session_admin_persona_raw_endpoint_url_still_applies(monkeypatch):
+    """Don't regress the admin/Assistant path: an admin's own persona with a
+    raw endpoint_url (e.g. the Assistant's endpoint_url set via the separate
+    assistant_routes.py path) must keep working exactly as before."""
+    from core.database import SessionLocal, Session as DbSession
+    crew_id = _make_crew(endpoint_url="http://persona-endpoint/v1")
+    client = _client(monkeypatch, admin=True)
+    resp = client.post("/api/session", data={"crew_member_id": crew_id, "skip_validation": "true"})
+    assert resp.status_code == 200
+    body = resp.json()
+    db = SessionLocal()
+    try:
+        row = db.query(DbSession).filter(DbSession.id == body["id"]).first()
+        assert row.endpoint_url == "http://persona-endpoint/v1"
+    finally:
+        db.close()

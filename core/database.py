@@ -555,6 +555,7 @@ class CrewMember(TimestampMixin, Base):
     personality   = Column(Text, nullable=True)             # system prompt
     model         = Column(String, nullable=True)
     endpoint_url  = Column(String, nullable=True)
+    endpoint_id   = Column(String, nullable=True)          # registered ModelEndpoint.id (non-admin personas bind here, not to a raw URL)
     greeting      = Column(Text, nullable=True)
     enabled_tools = Column(Text, nullable=True)             # JSON array or "all"
     session_id    = Column(String, ForeignKey("sessions.id", ondelete="SET NULL"), nullable=True)
@@ -1608,6 +1609,29 @@ def _migrate_add_crew_member_id():
     except Exception as e:
         logging.getLogger(__name__).warning(f"crew_member_id migration: {e}")
 
+def _migrate_add_crew_endpoint_id_column():
+    """Add endpoint_id column to crew_members table if it doesn't exist."""
+    import sqlite3
+    db_path = DATABASE_URL.replace("sqlite:///", "")
+    if not os.path.exists(db_path):
+        return
+    conn = None
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.execute("PRAGMA table_info(crew_members)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if "endpoint_id" not in columns:
+            conn.execute("ALTER TABLE crew_members ADD COLUMN endpoint_id TEXT")
+            conn.commit()
+            logging.getLogger(__name__).info("Migrated: added 'endpoint_id' column to crew_members")
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Migration check failed: {e}")
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
 def _migrate_add_assistant_columns():
     """Add is_default_assistant + timezone columns to crew_members for the personal-assistant feature."""
     try:
@@ -1850,6 +1874,7 @@ def init_db():
     _migrate_add_notifications_enabled()
     _migrate_drop_ping_notes_tasks()
     _migrate_add_crew_member_id()
+    _migrate_add_crew_endpoint_id_column()
     _migrate_add_assistant_columns()
     _migrate_add_email_smtp_security()
     _migrate_seed_email_account()

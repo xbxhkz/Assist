@@ -4,7 +4,7 @@ import routes.crew_routes as cr
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from core.database import Base, CrewMember
+from core.database import Base, CrewMember, ModelEndpoint
 import uuid
 
 # Set up test database at module level
@@ -23,14 +23,29 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def clear_db():
-    """Clear the crew_members table before each test."""
+    """Clear the crew_members and model_endpoints tables before each test."""
     db = _TS()
     try:
         db.query(CrewMember).delete()
+        db.query(ModelEndpoint).delete()
         db.commit()
     finally:
         db.close()
     yield
+
+
+def _make_endpoint(owner="alice", is_enabled=True):
+    eid = str(uuid.uuid4())
+    db = _TS()
+    try:
+        db.add(ModelEndpoint(
+            id=eid, name="Local", base_url="http://localhost:8002/v1",
+            owner=owner, is_enabled=is_enabled,
+        ))
+        db.commit()
+    finally:
+        db.close()
+    return eid
 
 
 def _client(monkeypatch, user="alice"):
@@ -130,3 +145,95 @@ def test_update_avatar_coerces_non_string_instead_of_crashing(monkeypatch):
     r = c.patch(f"/api/crew/{created['id']}", json={"avatar": {"nested": "object"}})
     assert r.status_code == 200
     assert isinstance(r.json()["avatar"], str)
+
+
+def test_create_coerces_non_string_fields_instead_of_crashing(monkeypatch):
+    c = _client(monkeypatch)
+    r = c.post("/api/crew", json={"name": "Nav", "personality": {"a": 1}, "avatar": 42})
+    assert r.status_code == 200
+    body = r.json()
+    assert isinstance(body["personality"], str)
+    assert isinstance(body["avatar"], str)
+
+
+def test_create_no_longer_accepts_raw_endpoint_url(monkeypatch):
+    """The general Crew CRUD stops persisting a client-supplied raw endpoint_url
+    (Critical 2/3 fix) -- the column stays None even if the client sends it."""
+    c = _client(monkeypatch)
+    r = c.post("/api/crew", json={"name": "Nav", "endpoint_url": "http://attacker.example/v1"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["endpoint_url"] is None
+    assert body.get("endpoint_id") is None
+
+
+def test_create_with_valid_owner_scoped_endpoint_id_succeeds(monkeypatch):
+    eid = _make_endpoint(owner="alice")
+    c = _client(monkeypatch, user="alice")
+    r = c.post("/api/crew", json={"name": "Nav", "endpoint_id": eid})
+    assert r.status_code == 200
+    assert r.json()["endpoint_id"] == eid
+
+
+def test_create_with_shared_endpoint_id_succeeds(monkeypatch):
+    """owner=None ModelEndpoint rows are shared/visible to every user."""
+    eid = _make_endpoint(owner=None)
+    c = _client(monkeypatch, user="alice")
+    r = c.post("/api/crew", json={"name": "Nav", "endpoint_id": eid})
+    assert r.status_code == 200
+    assert r.json()["endpoint_id"] == eid
+
+
+def test_create_with_nonexistent_endpoint_id_400s(monkeypatch):
+    c = _client(monkeypatch, user="alice")
+    r = c.post("/api/crew", json={"name": "Nav", "endpoint_id": "no-such-endpoint"})
+    assert r.status_code == 400
+
+
+def test_create_with_another_owners_endpoint_id_400s(monkeypatch):
+    eid = _make_endpoint(owner="bob")
+    c = _client(monkeypatch, user="alice")
+    r = c.post("/api/crew", json={"name": "Nav", "endpoint_id": eid})
+    assert r.status_code == 400
+
+
+def test_create_with_disabled_endpoint_id_400s(monkeypatch):
+    eid = _make_endpoint(owner="alice", is_enabled=False)
+    c = _client(monkeypatch, user="alice")
+    r = c.post("/api/crew", json={"name": "Nav", "endpoint_id": eid})
+    assert r.status_code == 400
+
+
+def test_update_with_valid_owner_scoped_endpoint_id_succeeds(monkeypatch):
+    eid = _make_endpoint(owner="alice")
+    c = _client(monkeypatch, user="alice")
+    created = c.post("/api/crew", json={"name": "Nav"}).json()
+    r = c.patch(f"/api/crew/{created['id']}", json={"endpoint_id": eid})
+    assert r.status_code == 200
+    assert r.json()["endpoint_id"] == eid
+
+
+def test_update_with_another_owners_endpoint_id_400s(monkeypatch):
+    eid = _make_endpoint(owner="bob")
+    c = _client(monkeypatch, user="alice")
+    created = c.post("/api/crew", json={"name": "Nav"}).json()
+    r = c.patch(f"/api/crew/{created['id']}", json={"endpoint_id": eid})
+    assert r.status_code == 400
+
+
+def test_update_no_longer_accepts_raw_endpoint_url(monkeypatch):
+    c = _client(monkeypatch, user="alice")
+    created = c.post("/api/crew", json={"name": "Nav"}).json()
+    r = c.patch(f"/api/crew/{created['id']}", json={"endpoint_url": "http://attacker.example/v1"})
+    assert r.status_code == 200
+    assert r.json()["endpoint_url"] is None
+
+
+def test_update_endpoint_id_to_null_clears_it(monkeypatch):
+    eid = _make_endpoint(owner="alice")
+    c = _client(monkeypatch, user="alice")
+    created = c.post("/api/crew", json={"name": "Nav", "endpoint_id": eid}).json()
+    assert created["endpoint_id"] == eid
+    r = c.patch(f"/api/crew/{created['id']}", json={"endpoint_id": None})
+    assert r.status_code == 200
+    assert r.json()["endpoint_id"] is None

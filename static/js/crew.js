@@ -87,11 +87,47 @@ async function newChatWithPersona(crewId) {
     // Both functions are extended (this task) to carry crew_member_id
     // through that same lazy path -- see sessions.js changes below.
     const { createDirectChat } = await import('./sessions.js');
-    createDirectChat(persona.endpoint_url || '', persona.model || '', null, crewId);
+    let url = '';
+    let model = persona.model || '';
+    let endpointId = persona.endpoint_id || null;
+    if (!endpointId) {
+      // Persona has no registered-endpoint override -- fall back to the
+      // app's default chat endpoint (same pattern as sessions.js's own
+      // auto-create-first-session flow) so the first message doesn't 400
+      // for a missing endpoint_url. Never forward persona.endpoint_url
+      // directly here -- it is a raw URL and would 403 non-admin users
+      // under the server's registered-endpoint guard.
+      try {
+        const dc = await (await fetch('/api/default-chat', { credentials: 'same-origin' })).json();
+        if (dc && dc.endpoint_url) {
+          endpointId = dc.endpoint_id || null;
+          url = dc.endpoint_url;
+          if (!model) model = dc.model || '';
+        }
+      } catch (e) { /* best-effort fallback */ }
+    }
+    createDirectChat(url, model, endpointId, crewId);
     closeCrew();
   } catch (e) {
     console.error('newChatWithPersona failed:', e);
   }
+}
+
+let _endpointOptions = [];
+async function loadEndpointOptions() {
+  if (_endpointOptions.length) return _endpointOptions;
+  try {
+    const j = await api('/api/models');
+    const opts = [];
+    (j.items || []).forEach(function (item) {
+      if (!item.endpoint_id) return;
+      (item.models || []).forEach(function (m) {
+        opts.push({ endpointId: item.endpoint_id, model: m, label: (item.endpoint_name || item.endpoint_id) + ' — ' + m });
+      });
+    });
+    _endpointOptions = opts;
+  } catch (e) { _endpointOptions = []; }
+  return _endpointOptions;
 }
 
 let _toolNames = [];
@@ -110,16 +146,29 @@ async function openEditForm(crewId) {
   $('crew-form-name').value = existing ? existing.name : '';
   $('crew-form-avatar').value = existing ? (existing.avatar || '') : '';
   $('crew-form-personality').value = existing ? (existing.personality || '') : '';
-  $('crew-form-model').value = existing ? (existing.model || '') : '';
-  $('crew-form-endpoint').value = existing ? (existing.endpoint_url || '') : '';
   $('crew-form-greeting').value = existing ? (existing.greeting || '') : '';
 
+  const opts = await loadEndpointOptions();
+  const sel = $('crew-form-endpoint');
+  if (sel) {
+    sel.innerHTML = '<option value="">(use default — no override)</option>' +
+      opts.map(function (o) {
+        return '<option value="' + esc(o.endpointId) + '::' + esc(o.model) + '">' + esc(o.label) + '</option>';
+      }).join('');
+    if (existing && existing.endpoint_id && existing.model) {
+      sel.value = existing.endpoint_id + '::' + existing.model;
+    } else {
+      sel.value = '';
+    }
+  }
+
   const names = await loadToolNames();
+  const allOn = !!(existing && existing.enabled_tools_all);
   const enabled = new Set(existing ? (existing.enabled_tools || []) : []);
   const host = $('crew-form-tools');
   if (host) {
     host.innerHTML = names.map(function (t) {
-      const checked = enabled.has(t) ? 'checked' : '';
+      const checked = (allOn || enabled.has(t)) ? 'checked' : '';
       return '<label style="display:block"><input type="checkbox" value="' + esc(t) + '" ' + checked + '> ' + esc(t) + '</label>';
     }).join('');
   }
@@ -133,15 +182,19 @@ function collectFormToolList() {
 }
 
 async function saveForm() {
+  const endpointVal = $('crew-form-endpoint').value;
+  const [endpointId, model] = endpointVal ? endpointVal.split('::') : [null, ''];
   const payload = {
     name: $('crew-form-name').value,
     avatar: $('crew-form-avatar').value,
     personality: $('crew-form-personality').value,
-    model: $('crew-form-model').value,
-    endpoint_url: $('crew-form-endpoint').value,
+    model: model,
+    endpoint_id: endpointId,
     greeting: $('crew-form-greeting').value,
-    enabled_tools: collectFormToolList(),
   };
+  if (_toolNames.length) {
+    payload.enabled_tools = collectFormToolList();
+  }
   try {
     if (_editingId) {
       await api('/api/crew/' + encodeURIComponent(_editingId), {

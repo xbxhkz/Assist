@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import src.agent_loop as al
 from src.agent_tools import ToolBlock
 from src.tool_execution import execute_tool_block
-from src.tool_policy import build_effective_tool_policy, detect_guide_only_turn
+from src.tool_policy import build_effective_tool_policy, detect_guide_only_turn, known_tool_names
 
 
 def _collect(gen):
@@ -35,6 +35,18 @@ def _patch_loop_basics(monkeypatch):
     monkeypatch.setattr(al, "get_setting", lambda key, default=None: default, raising=False)
     monkeypatch.setattr(al, "get_mcp_manager", lambda: None, raising=False)
     monkeypatch.setattr(al, "estimate_tokens", lambda *a, **k: 10, raising=False)
+
+
+def test_known_tool_names_includes_shell_tools_directly():
+    """Important 6 regression: the agent_tools/tool_schemas circular-import
+    workaround must live in known_tool_names() itself (src/tool_policy.py),
+    not just in the crew-specific callers that used to carry it -- every
+    caller of known_tool_names() benefits, not only crew_disabled_tools().
+    This calls known_tool_names() directly (not through the crew wrapper)
+    and asserts cmd/powershell are present."""
+    names = known_tool_names()
+    assert "cmd" in names
+    assert "powershell" in names
 
 
 def test_detects_strong_guide_only_turns():

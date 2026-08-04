@@ -45,6 +45,93 @@ def test_crew_to_dict_malformed_json_tools_becomes_empty_list():
         db.close()
 
 
+def test_crew_to_dict_endpoint_id_round_trips():
+    db = SessionLocal()
+    try:
+        c = _make_crew(db)
+        c.endpoint_id = "ep-123"
+        db.commit()
+        d = crew_to_dict(c)
+        assert d["endpoint_id"] == "ep-123"
+    finally:
+        db.close()
+
+
+def test_crew_to_dict_endpoint_id_defaults_to_none():
+    db = SessionLocal()
+    try:
+        c = _make_crew(db)
+        d = crew_to_dict(c)
+        assert d["endpoint_id"] is None
+    finally:
+        db.close()
+
+
+def test_crew_to_dict_all_sentinel_reports_enabled_tools_all():
+    db = SessionLocal()
+    try:
+        c = _make_crew(db)
+        c.enabled_tools = "all"
+        db.commit()
+        d = crew_to_dict(c)
+        assert d["enabled_tools_all"] is True
+        assert d["enabled_tools"] == []
+    finally:
+        db.close()
+
+
+def test_crew_to_dict_enabled_tools_all_false_for_normal_list():
+    db = SessionLocal()
+    try:
+        c = _make_crew(db, enabled_tools=["web_search"])
+        d = crew_to_dict(c)
+        assert d["enabled_tools_all"] is False
+    finally:
+        db.close()
+
+
+def test_crew_to_dict_allow_autonomous_email_true_when_send_email_enabled():
+    db = SessionLocal()
+    try:
+        c = _make_crew(db, enabled_tools=["send_email"])
+        d = crew_to_dict(c)
+        assert d["allow_autonomous_email"] is True
+    finally:
+        db.close()
+
+
+def test_crew_to_dict_allow_autonomous_email_true_when_reply_to_email_enabled():
+    db = SessionLocal()
+    try:
+        c = _make_crew(db, enabled_tools=["reply_to_email"])
+        d = crew_to_dict(c)
+        assert d["allow_autonomous_email"] is True
+    finally:
+        db.close()
+
+
+def test_crew_to_dict_allow_autonomous_email_true_when_tools_all():
+    db = SessionLocal()
+    try:
+        c = _make_crew(db)
+        c.enabled_tools = "all"
+        db.commit()
+        d = crew_to_dict(c)
+        assert d["allow_autonomous_email"] is True
+    finally:
+        db.close()
+
+
+def test_crew_to_dict_allow_autonomous_email_false_otherwise():
+    db = SessionLocal()
+    try:
+        c = _make_crew(db, enabled_tools=["web_search"])
+        d = crew_to_dict(c)
+        assert d["allow_autonomous_email"] is False
+    finally:
+        db.close()
+
+
 def test_resolve_crew_binding_returns_none_when_session_unbound():
     db = SessionLocal()
     try:
@@ -158,8 +245,9 @@ def test_crew_to_dict_includes_timezone():
 def test_crew_disabled_tools_includes_shell_tools_in_known_set():
     """Regression test for the agent_tools circular-import workaround: without
     it, known_tool_names()'s first call in a fresh process silently omits
-    cmd/powershell (a real circular import between tool_schemas/agent_tools
-    that's fixed by importing agent_tools first inside crew_disabled_tools).
+    cmd/powershell (a real circular import between tool_schemas/agent_tools).
+    The fix now lives in known_tool_names() itself (src/tool_policy.py), so
+    this proves it still holds end-to-end through crew_disabled_tools.
     """
     db = SessionLocal()
     try:

@@ -145,6 +145,16 @@ def detect_guide_only_turn(message: object) -> Optional[str]:
 def known_tool_names() -> Set[str]:
     """Best-effort set of native tool names for prompt hiding and denylisting."""
 
+    # Importing agent_tools first resolves a circular import with tool_schemas
+    # (agent_tools imports tool_schemas, which — on a fresh process's first
+    # call here — hasn't finished registering everything tool_schemas expects
+    # yet). Without this, a cold process silently loses cmd/powershell from
+    # the result until something else imports agent_tools first.
+    try:
+        import src.agent_tools  # noqa: F401
+    except Exception:
+        pass
+
     names = set(_COMMON_TOOL_NAMES)
     try:
         from src.tool_schemas import FUNCTION_TOOL_SCHEMAS

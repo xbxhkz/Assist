@@ -10,9 +10,14 @@ import json
 from core.database import CrewMember, Session as DbSession
 
 
+_EMAIL_TOOLS = {"send_email", "reply_to_email"}
+
+
 def crew_to_dict(c: CrewMember) -> dict:
+    raw = c.enabled_tools
+    tools_all = (raw == "all")
     try:
-        tools = json.loads(c.enabled_tools) if c.enabled_tools else []
+        tools = json.loads(raw) if raw and not tools_all else []
     except Exception:
         tools = []
     return {
@@ -22,8 +27,11 @@ def crew_to_dict(c: CrewMember) -> dict:
         "personality": c.personality,
         "model": c.model,
         "endpoint_url": c.endpoint_url,
+        "endpoint_id": c.endpoint_id,
         "greeting": c.greeting,
         "enabled_tools": tools,
+        "enabled_tools_all": tools_all,
+        "allow_autonomous_email": any(t in _EMAIL_TOOLS for t in tools) or tools_all,
         "session_id": c.session_id,
         "is_default_assistant": bool(c.is_default_assistant),
         "is_active": bool(c.is_active),
@@ -55,13 +63,6 @@ def crew_disabled_tools(db, session_id: str, owner: str) -> set:
     (no extra restriction) when unbound, "all", empty, missing, or
     unparseable -- fail-open, never raises."""
     try:
-        # Import agent_tools early to resolve the circular import between tool_schemas
-        # and agent_tools, ensuring that known_tool_names() can successfully import all
-        # tools including cmd/powershell. Only done here since only this function needs it.
-        try:
-            import src.agent_tools  # noqa: F401
-        except Exception:
-            pass
         from src.tool_policy import known_tool_names
         crew = resolve_crew_binding(db, session_id, owner)
         if not crew or not crew.enabled_tools or crew.enabled_tools == "all":

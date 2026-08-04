@@ -2603,7 +2603,13 @@ function _initAllDropdowns() {
     getCurrentSessionId: () => currentSessionId,
     getSessions: () => sessions,
     getPendingChat: () => _pendingChat,
-    setPendingChat: (v) => { _pendingChat = v; },
+    // Merge onto the existing pending-chat object (so e.g. picking a model
+    // after starting a persona chat doesn't erase its crewMemberId) -- but
+    // an explicit null/undefined (used elsewhere to CLEAR the pending chat,
+    // e.g. modelPicker.js's stale-model cleanup and admin.js's
+    // deleted-endpoint cleanup) must still clear it outright rather than
+    // being merged away by Object.assign silently ignoring null sources.
+    setPendingChat: (v) => { _pendingChat = (v && _pendingChat) ? Object.assign({}, _pendingChat, v) : v; },
     createDirectChat,
   });
   _initDropdownDismiss();

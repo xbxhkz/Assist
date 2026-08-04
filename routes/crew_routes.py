@@ -25,12 +25,6 @@ def setup_crew_routes() -> APIRouter:
 
     @router.get("/tool-names")
     async def tool_names():
-        # Import agent_tools early to resolve the circular import between tool_schemas
-        # and agent_tools, ensuring that known_tool_names() includes cmd/powershell.
-        try:
-            import src.agent_tools  # noqa: F401
-        except Exception:
-            pass
         return {"tools": sorted(known_tool_names())}
 
     @router.get("")
@@ -51,19 +45,36 @@ def setup_crew_routes() -> APIRouter:
         name = str(body.get("name", "")).strip()
         if not name:
             raise HTTPException(400, "name is required")
+        endpoint_id = body.get("endpoint_id")
+        if endpoint_id is not None:
+            endpoint_id = str(endpoint_id).strip() or None
         db = SessionLocal()
         try:
+            if endpoint_id:
+                from core.database import ModelEndpoint
+                q = db.query(ModelEndpoint).filter(
+                    ModelEndpoint.id == endpoint_id,
+                    ModelEndpoint.is_enabled == True,
+                )
+                q = owner_filter(q, ModelEndpoint, owner)
+                if not q.first():
+                    raise HTTPException(400, "Model endpoint no longer exists")
             import json
             enabled_tools = body.get("enabled_tools")
+
+            def _s(key):
+                v = body.get(key)
+                return v if v is None or isinstance(v, str) else str(v)
+
             c = CrewMember(
                 id=str(uuid.uuid4()),
                 owner=owner,
                 name=name,
-                avatar=body.get("avatar"),
-                personality=body.get("personality"),
-                model=body.get("model"),
-                endpoint_url=body.get("endpoint_url"),
-                greeting=body.get("greeting"),
+                avatar=_s("avatar"),
+                personality=_s("personality"),
+                model=_s("model"),
+                endpoint_id=endpoint_id,
+                greeting=_s("greeting"),
                 enabled_tools=json.dumps(enabled_tools) if enabled_tools is not None else None,
             )
             db.add(c)
@@ -94,8 +105,19 @@ def setup_crew_routes() -> APIRouter:
                 c.personality = body["personality"] if body["personality"] is None or isinstance(body["personality"], str) else str(body["personality"])
             if "model" in body:
                 c.model = body["model"] if body["model"] is None or isinstance(body["model"], str) else str(body["model"])
-            if "endpoint_url" in body:
-                c.endpoint_url = body["endpoint_url"] if body["endpoint_url"] is None or isinstance(body["endpoint_url"], str) else str(body["endpoint_url"])
+            if "endpoint_id" in body:
+                new_eid = body["endpoint_id"]
+                new_eid = str(new_eid).strip() if new_eid else None
+                if new_eid:
+                    from core.database import ModelEndpoint
+                    q = db.query(ModelEndpoint).filter(
+                        ModelEndpoint.id == new_eid,
+                        ModelEndpoint.is_enabled == True,
+                    )
+                    q = owner_filter(q, ModelEndpoint, owner)
+                    if not q.first():
+                        raise HTTPException(400, "Model endpoint no longer exists")
+                c.endpoint_id = new_eid
             if "greeting" in body:
                 c.greeting = body["greeting"] if body["greeting"] is None or isinstance(body["greeting"], str) else str(body["greeting"])
             if "enabled_tools" in body:

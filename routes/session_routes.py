@@ -371,7 +371,22 @@ def setup_session_routes(session_manager: SessionManager, config: dict, webhook_
                 if not _owned.first():
                     raise HTTPException(400, "Persona not found")
                 crew_model = _crew.model
-                crew_endpoint_url = _crew.endpoint_url
+                if _crew.endpoint_id:
+                    from core.database import ModelEndpoint
+                    from src.endpoint_resolver import build_chat_url, normalize_base
+                    _ep = _db.query(ModelEndpoint).filter(
+                        ModelEndpoint.id == _crew.endpoint_id,
+                        ModelEndpoint.is_enabled == True,
+                    )
+                    _ep = _owner_filter(_ep, ModelEndpoint, user)
+                    _ep_row = _ep.first()
+                    if _ep_row:
+                        crew_endpoint_url = build_chat_url(normalize_base(_ep_row.base_url or ""))
+                if not crew_endpoint_url and _crew.endpoint_url and _current_user_is_admin(request, user):
+                    # Raw-URL personas (e.g. an admin-set Assistant endpoint via the
+                    # separate assistant_routes.py path) only apply for admins --
+                    # mirrors _reject_raw_endpoint_url_for_non_admin's own rule.
+                    crew_endpoint_url = _crew.endpoint_url
             finally:
                 _db.close()
         if not endpoint_url and crew_endpoint_url:
