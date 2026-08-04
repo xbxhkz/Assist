@@ -461,7 +461,7 @@ async def _build_context_owner_probe(monkeypatch, request_state):
             attachment_meta=[],
         )
 
-    def fake_extract_preset(chat_handler, preset_id):
+    def fake_extract_preset(chat_handler, preset_id, sess=None, owner=None):
         return PresetInfo(
             temperature=0.7,
             max_tokens=1024,
