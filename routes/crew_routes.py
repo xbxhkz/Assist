@@ -89,21 +89,24 @@ def setup_crew_routes() -> APIRouter:
             if "name" in body and str(body["name"]).strip():
                 c.name = str(body["name"]).strip()
             if "avatar" in body:
-                c.avatar = body["avatar"]
+                c.avatar = body["avatar"] if body["avatar"] is None or isinstance(body["avatar"], str) else str(body["avatar"])
             if "personality" in body:
-                c.personality = body["personality"]
+                c.personality = body["personality"] if body["personality"] is None or isinstance(body["personality"], str) else str(body["personality"])
             if "model" in body:
-                c.model = body["model"]
+                c.model = body["model"] if body["model"] is None or isinstance(body["model"], str) else str(body["model"])
             if "endpoint_url" in body:
-                c.endpoint_url = body["endpoint_url"]
+                c.endpoint_url = body["endpoint_url"] if body["endpoint_url"] is None or isinstance(body["endpoint_url"], str) else str(body["endpoint_url"])
             if "greeting" in body:
-                c.greeting = body["greeting"]
+                c.greeting = body["greeting"] if body["greeting"] is None or isinstance(body["greeting"], str) else str(body["greeting"])
             if "enabled_tools" in body:
                 c.enabled_tools = json.dumps(body["enabled_tools"]) if body["enabled_tools"] is not None else None
             if "is_active" in body:
                 c.is_active = bool(body["is_active"])
             if "sort_order" in body:
-                c.sort_order = int(body["sort_order"])
+                try:
+                    c.sort_order = int(body["sort_order"])
+                except (TypeError, ValueError):
+                    raise HTTPException(400, "sort_order must be an integer")
             db.commit()
             return crew_to_dict(c)
         finally:

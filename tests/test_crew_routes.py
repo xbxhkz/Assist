@@ -115,3 +115,18 @@ def test_tool_names_endpoint(monkeypatch):
     # The endpoint calls known_tool_names() fresh, which may load additional modules
     # So we compare against what the endpoint would have seen (call it again after app init)
     assert tools == sorted(known_tool_names())
+
+
+def test_update_sort_order_rejects_non_numeric(monkeypatch):
+    c = _client(monkeypatch)
+    created = c.post("/api/crew", json={"name": "Nav"}).json()
+    r = c.patch(f"/api/crew/{created['id']}", json={"sort_order": "abc"})
+    assert r.status_code == 400
+
+
+def test_update_avatar_coerces_non_string_instead_of_crashing(monkeypatch):
+    c = _client(monkeypatch)
+    created = c.post("/api/crew", json={"name": "Nav"}).json()
+    r = c.patch(f"/api/crew/{created['id']}", json={"avatar": {"nested": "object"}})
+    assert r.status_code == 200
+    assert isinstance(r.json()["avatar"], str)
