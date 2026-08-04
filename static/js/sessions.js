@@ -2095,9 +2095,9 @@ export async function selectSession(id, { keepSidebar = false, showLoading = tru
 }
 
 // Pending session — stored locally until the first message is sent
-let _pendingChat = null; // { url, modelId, endpointId }
+let _pendingChat = null; // { url, modelId, endpointId, crewMemberId }
 
-export function createDirectChat(url, modelId, endpointId) {
+export function createDirectChat(url, modelId, endpointId, crewMemberId) {
   _sessionNavToken++;
   // Detach any active stream so it doesn't interfere with the new chat
   if (window.chatModule && window.chatModule.detachCurrentStream) {
@@ -2111,7 +2111,7 @@ export function createDirectChat(url, modelId, endpointId) {
   }
 
   // Don't hit the API — just store the model info and prepare the UI
-  _pendingChat = { url, modelId, endpointId };
+  _pendingChat = { url, modelId, endpointId, crewMemberId };
   _skipAutoSelect = true;
   _suppressNextSessionLoading = true;
   currentSessionId = null;
@@ -2174,6 +2174,9 @@ export async function materializePendingSession() {
   }
   if (pending.endpointId) {
     fd.append('endpoint_id', pending.endpointId);
+  }
+  if (pending.crewMemberId) {
+    fd.append('crew_member_id', pending.crewMemberId);
   }
 
   let res;
