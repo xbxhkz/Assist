@@ -229,6 +229,31 @@ def test_update_no_longer_accepts_raw_endpoint_url(monkeypatch):
     assert r.json()["endpoint_url"] is None
 
 
+def test_create_with_non_list_enabled_tools_400s_and_does_not_commit(monkeypatch):
+    """Finding 9 write-side validation: a non-list enabled_tools (e.g. the
+    bare int 5, which json.dumps'd and reloaded is still not a list) must be
+    rejected with 400 rather than persisted -- persisting it would poison
+    every subsequent GET /api/crew for this owner (crew_to_dict crash),
+    since db.commit() happens before crew_to_dict(c) is called in the
+    create path."""
+    c = _client(monkeypatch, user="alice")
+    r = c.post("/api/crew", json={"name": "x", "enabled_tools": 5})
+    assert r.status_code == 400
+    # The row must not have been committed -- the list stays empty.
+    assert c.get("/api/crew").json()["crew"] == []
+
+
+def test_update_with_non_list_enabled_tools_400s_and_does_not_commit(monkeypatch):
+    c = _client(monkeypatch, user="alice")
+    created = c.post("/api/crew", json={"name": "Nav"}).json()
+    r = c.patch(f"/api/crew/{created['id']}", json={"enabled_tools": 5})
+    assert r.status_code == 400
+    # The existing row must be unaffected -- enabled_tools stays whatever it was before.
+    after = c.get("/api/crew").json()["crew"]
+    assert len(after) == 1
+    assert after[0]["enabled_tools"] == []
+
+
 def test_update_endpoint_id_to_null_clears_it(monkeypatch):
     eid = _make_endpoint(owner="alice")
     c = _client(monkeypatch, user="alice")

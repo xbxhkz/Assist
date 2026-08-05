@@ -242,6 +242,27 @@ def test_crew_to_dict_includes_timezone():
         db.close()
 
 
+def test_crew_to_dict_non_list_json_tools_becomes_empty_list():
+    """Regression for Finding 9: crew_to_dict must never raise when
+    enabled_tools is valid JSON but not a list (e.g. a row written by
+    POST /api/crew {"enabled_tools": 5} before write-side validation
+    existed, or any other path that predates this fix). Constructing the
+    row directly via the ORM -- bypassing the route entirely -- proves the
+    read-side guard alone is sufficient regardless of how the row got that
+    way."""
+    db = SessionLocal()
+    try:
+        for bad_value in ("5", "true", "{}"):
+            c = _make_crew(db)
+            c.enabled_tools = bad_value
+            db.commit()
+            d = crew_to_dict(c)
+            assert d["enabled_tools"] == []
+            assert d["allow_autonomous_email"] is False
+    finally:
+        db.close()
+
+
 def test_crew_disabled_tools_includes_shell_tools_in_known_set():
     """Regression test for the agent_tools circular-import workaround: without
     it, known_tool_names()'s first call in a fresh process silently omits

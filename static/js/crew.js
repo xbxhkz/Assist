@@ -121,7 +121,8 @@ async function loadEndpointOptions() {
     const opts = [];
     (j.items || []).forEach(function (item) {
       if (!item.endpoint_id) return;
-      (item.models || []).forEach(function (m) {
+      const models = (item.models || []).concat(item.models_extra || []);
+      models.forEach(function (m) {
         opts.push({ endpointId: item.endpoint_id, model: m, label: (item.endpoint_name || item.endpoint_id) + ' — ' + m });
       });
     });
@@ -129,6 +130,8 @@ async function loadEndpointOptions() {
   } catch (e) { _endpointOptions = []; }
   return _endpointOptions;
 }
+
+let _editingHadUnmatchedBinding = false;
 
 let _toolNames = [];
 async function loadToolNames() {
@@ -150,13 +153,21 @@ async function openEditForm(crewId) {
 
   const opts = await loadEndpointOptions();
   const sel = $('crew-form-endpoint');
+  _editingHadUnmatchedBinding = false;
   if (sel) {
     sel.innerHTML = '<option value="">(use default — no override)</option>' +
       opts.map(function (o) {
         return '<option value="' + esc(o.endpointId) + '::' + esc(o.model) + '">' + esc(o.label) + '</option>';
       }).join('');
     if (existing && existing.endpoint_id && existing.model) {
-      sel.value = existing.endpoint_id + '::' + existing.model;
+      const key = existing.endpoint_id + '::' + existing.model;
+      const hasMatch = opts.some(function (o) { return (o.endpointId + '::' + o.model) === key; });
+      if (hasMatch) {
+        sel.value = key;
+      } else {
+        sel.value = '';
+        _editingHadUnmatchedBinding = true;
+      }
     } else {
       sel.value = '';
     }
@@ -188,10 +199,12 @@ async function saveForm() {
     name: $('crew-form-name').value,
     avatar: $('crew-form-avatar').value,
     personality: $('crew-form-personality').value,
-    model: model,
-    endpoint_id: endpointId,
     greeting: $('crew-form-greeting').value,
   };
+  if (endpointVal || !_editingHadUnmatchedBinding) {
+    payload.model = model;
+    payload.endpoint_id = endpointId;
+  }
   if (_toolNames.length) {
     payload.enabled_tools = collectFormToolList();
   }
@@ -228,6 +241,8 @@ function init() {
   const newBtn = $('crew-new-btn'); if (newBtn) newBtn.addEventListener('click', function () { openEditForm(null); });
   const save = $('crew-form-save'); if (save) save.addEventListener('click', saveForm);
   const cancel = $('crew-form-cancel'); if (cancel) cancel.addEventListener('click', showListView);
+  const endpointSel = $('crew-form-endpoint');
+  if (endpointSel) endpointSel.addEventListener('change', function () { _editingHadUnmatchedBinding = false; });
   Modals.register('crew-modal', {
     railBtnId: 'rail-crew', sidebarBtnId: 'tool-crew-btn', closeFn: closeCrew,
   });

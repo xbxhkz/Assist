@@ -20,6 +20,8 @@ def crew_to_dict(c: CrewMember) -> dict:
         tools = json.loads(raw) if raw and not tools_all else []
     except Exception:
         tools = []
+    if not isinstance(tools, list):
+        tools = []
     return {
         "id": c.id,
         "name": c.name,

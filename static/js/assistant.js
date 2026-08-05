@@ -140,6 +140,7 @@ function _renderSettingsBody(body, data, tzList) {
   const crew = data.crew || {};
   const checkIns = data.check_ins || [];
   const enabledTools = new Set(crew.enabled_tools || []);
+  const allToolsOn = !!crew.enabled_tools_all;
   const tzOptions = tzList.map((z) =>
     `<option value="${_esc(z)}"${z === crew.timezone ? ' selected' : ''}>${_esc(z)}</option>`
   ).join('');
@@ -164,7 +165,7 @@ function _renderSettingsBody(body, data, tzList) {
   for (const [group, tools] of Object.entries(TOOL_GROUPS)) {
     toolsHTML += `<div class="assistant-tool-group"><span class="assistant-tool-group-label">${_esc(group)}</span>`;
     for (const t of tools) {
-      const checked = enabledTools.has(t) ? ' checked' : '';
+      const checked = (allToolsOn || enabledTools.has(t)) ? ' checked' : '';
       const label = t.replace(/_/g, ' ');
       toolsHTML += `<label class="assistant-tool-item"><input type="checkbox" class="assistant-tool-cb" value="${_esc(t)}"${checked} /><span>${_esc(label)}</span></label>`;
     }

@@ -162,20 +162,16 @@ def test_create_session_explicit_model_overrides_persona_default(monkeypatch):
 def test_create_session_non_admin_persona_raw_endpoint_url_not_applied(monkeypatch):
     """Critical 3 regression: a persona with a raw endpoint_url and no
     endpoint_id, created by a non-admin, must NOT have that raw URL applied
-    to a session created by a non-admin -- the app's own registered-endpoint
-    guard exists specifically to prevent a client from dialing an arbitrary
-    host, and the crew branch used to inject the raw URL *after* that guard
-    had already run against the client's (empty) fields. With no endpoint_id
-    and no other endpoint_url supplied, this must surface as the normal
-    "endpoint_url is required" 400, not a silently-wrong-but-200 session."""
-    # Deliberately NOT passing skip_validation=true here: with it set, the
-    # "endpoint_url is required" check is bypassed entirely regardless of
-    # what the crew branch resolves, which would mask the very regression
-    # this test exists to catch.
+    to a session created by a non-admin. Asserting the exact detail message
+    matters: with the fix reverted, the attacker URL WOULD be applied and
+    the request would still 400 (network probe against the fake host fails)
+    -- but with a different detail ("Cannot reach /v1/models"), not this
+    one. A bare status_code==400 check does not discriminate the two worlds."""
     crew_id = _make_crew(endpoint_url="http://attacker.example/v1")
     client = _client(monkeypatch, admin=False)
     resp = client.post("/api/session", data={"crew_member_id": crew_id})
     assert resp.status_code == 400
+    assert "endpoint_url is required" in resp.text
     assert "attacker" not in resp.text
 
 

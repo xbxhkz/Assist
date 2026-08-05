@@ -1,5 +1,7 @@
 import asyncio
 import json
+import os
+import subprocess
 import sys
 from types import SimpleNamespace
 
@@ -7,6 +9,8 @@ import src.agent_loop as al
 from src.agent_tools import ToolBlock
 from src.tool_execution import execute_tool_block
 from src.tool_policy import build_effective_tool_policy, detect_guide_only_turn, known_tool_names
+
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _collect(gen):
@@ -47,6 +51,27 @@ def test_known_tool_names_includes_shell_tools_directly():
     names = known_tool_names()
     assert "cmd" in names
     assert "powershell" in names
+
+
+def test_known_tool_names_includes_shell_tools_in_a_cold_process():
+    """Regression for the src.tool_schemas / src.agent_tools circular import:
+    a fresh process's first call to known_tool_names() used to silently drop
+    cmd/powershell unless something else had already imported src.agent_tools.
+    Runs in a clean subprocess -- this file's own module-level
+    `from src.agent_tools import ToolBlock` import would otherwise make the
+    bug unreproducible in-process."""
+    code = (
+        "from src.tool_policy import known_tool_names\n"
+        "names = known_tool_names()\n"
+        "assert 'cmd' in names, 'cmd missing: ' + repr(sorted(names))\n"
+        "assert 'powershell' in names, 'powershell missing: ' + repr(sorted(names))\n"
+        "print('COLD_IMPORT_OK')\n"
+    )
+    p = subprocess.run([sys.executable, "-c", code], cwd=_REPO_ROOT,
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    assert p.returncode == 0, (
+        f"cold known_tool_names() failed:\nSTDOUT:\n{p.stdout}\nSTDERR:\n{p.stderr}")
+    assert "COLD_IMPORT_OK" in p.stdout
 
 
 def test_detects_strong_guide_only_turns():

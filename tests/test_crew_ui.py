@@ -66,14 +66,19 @@ def test_new_chat_with_persona_falls_back_to_default_chat_endpoint():
 def test_save_form_sends_endpoint_id_not_raw_endpoint_url():
     """Critical 2/3 frontend fix: saveForm must never send a raw endpoint_url
     in the create/update payload -- personas bind to a registered endpoint_id
-    instead."""
+    instead. Finding 13 changed endpoint_id/model from unconditional object-
+    literal properties to a conditional `payload.endpoint_id = endpointId`
+    assignment (so an unmatched existing binding can be left out of the
+    payload entirely rather than sent as a wipe) -- assert on the assignment
+    form now used, same intent as before."""
     src = (ROOT / "static" / "js" / "crew.js").read_text(encoding="utf-8")
     import re
     save_form = re.search(r'async function saveForm\(\)\s*\{.*?\n\}', src, re.S)
     assert save_form is not None, "saveForm function not found"
     body = save_form.group(0)
-    assert "endpoint_id: endpointId" in body
+    assert "payload.endpoint_id = endpointId" in body
     assert "endpoint_url:" not in body
+    assert "endpoint_url =" not in body
 
 
 def test_sessions_js_thread_crew_member_id_through_pending_chat():
@@ -111,6 +116,54 @@ def test_set_pending_chat_merge_preserves_crew_member_id_and_still_clears_on_nul
     p = subprocess.run(["node", "-e", script], capture_output=True, text=True, encoding="utf-8")
     assert p.returncode == 0, p.stderr
     assert "OK" in p.stdout
+
+
+def test_crew_js_load_endpoint_options_reads_models_extra():
+    """Finding 13 part 1: loadEndpointOptions must include models_extra
+    (matching modelPicker.js's own `(item.models || []).concat(item.models_extra
+    || [])` idiom) -- otherwise a persona's model living only in models_extra
+    contributes zero options, and the edit form silently resets the endpoint
+    <select> to "" when opened, wiping the binding on the next save."""
+    src = (ROOT / "static" / "js" / "crew.js").read_text(encoding="utf-8")
+    m = re.search(r'async function loadEndpointOptions\(\)\s*\{.*?\n\}', src, re.S)
+    assert m is not None, "loadEndpointOptions function not found"
+    assert "models_extra" in m.group(0)
+
+
+def test_crew_js_preserves_unmatched_endpoint_binding_on_save():
+    """Finding 13 part 2: opening a persona whose endpoint/model binding has
+    no matching <option> (offline endpoint, or a model that only lives in
+    models_extra before part 1's fix applied) must not silently wipe that
+    binding when the form is saved without deliberately touching the
+    dropdown. _editingHadUnmatchedBinding must appear in both openEditForm
+    (where the unmatched case is detected) and saveForm (where it gates
+    whether endpoint_id/model are sent at all) -- a DOM test of the actual
+    preserve-on-save behavior would need a DOM test runner this codebase
+    doesn't have for crew.js yet, so this is a source-presence check."""
+    src = (ROOT / "static" / "js" / "crew.js").read_text(encoding="utf-8")
+    m_edit = re.search(r'async function openEditForm\([^)]*\)\s*\{.*?\n\}', src, re.S)
+    assert m_edit is not None, "openEditForm function not found"
+    assert "_editingHadUnmatchedBinding" in m_edit.group(0)
+
+    m_save = re.search(r'async function saveForm\(\)\s*\{.*?\n\}', src, re.S)
+    assert m_save is not None, "saveForm function not found"
+    assert "_editingHadUnmatchedBinding" in m_save.group(0)
+
+
+def test_assistant_js_reads_enabled_tools_all():
+    """Finding 10: assistant.js is a separate panel from crew.js (the
+    singleton Assistant settings modal) that renders the same
+    CrewMember.enabled_tools data through its own hardcoded TOOL_GROUPS
+    checklist. It must read crew.enabled_tools_all (mirroring crew.js's own
+    allOn check) in the same function that builds enabledTools -- otherwise
+    opening Assistant settings for an "all"-tools Assistant renders every
+    box unchecked, and a bare save silently converts "all" down to nothing."""
+    src = (ROOT / "static" / "js" / "assistant.js").read_text(encoding="utf-8")
+    m = re.search(r'function _renderSettingsBody\([^)]*\)\s*\{.*?\n\}', src, re.S)
+    assert m is not None, "_renderSettingsBody function not found"
+    body = m.group(0)
+    assert "crew.enabled_tools_all" in body
+    assert "allToolsOn" in body
 
 
 def test_crew_js_syntax(tmp_path):
