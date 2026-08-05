@@ -22,6 +22,7 @@ def crew_to_dict(c: CrewMember) -> dict:
         tools = []
     if not isinstance(tools, list):
         tools = []
+    tools = [t for t in tools if isinstance(t, str)]
     return {
         "id": c.id,
         "name": c.name,

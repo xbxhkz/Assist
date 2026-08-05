@@ -131,23 +131,34 @@ def test_crew_js_load_endpoint_options_reads_models_extra():
 
 
 def test_crew_js_preserves_unmatched_endpoint_binding_on_save():
-    """Finding 13 part 2: opening a persona whose endpoint/model binding has
-    no matching <option> (offline endpoint, or a model that only lives in
-    models_extra before part 1's fix applied) must not silently wipe that
-    binding when the form is saved without deliberately touching the
-    dropdown. _editingHadUnmatchedBinding must appear in both openEditForm
-    (where the unmatched case is detected) and saveForm (where it gates
-    whether endpoint_id/model are sent at all) -- a DOM test of the actual
-    preserve-on-save behavior would need a DOM test runner this codebase
-    doesn't have for crew.js yet, so this is a source-presence check."""
+    """Finding 13 part 2 (+ fix-wave-3 finding 2): opening a persona whose
+    endpoint/model binding has no matching <option> (offline endpoint, or a
+    model that only lives in models_extra before part 1's fix applied) must
+    not silently wipe that binding when the form is saved without
+    deliberately touching the dropdown. This must also cover personas with
+    only ONE of endpoint_id/model set (e.g. the default Assistant seeded by
+    src/task_scheduler.py, which predates the registered-endpoint
+    architecture and has model but no endpoint_id) -- those must still be
+    treated as having a binding worth preserving, not require both fields.
+    A DOM test of the actual preserve-on-save behavior would need a DOM test
+    runner this codebase doesn't have for crew.js yet, so this checks the
+    actual statements (not just identifier presence, which would stay green
+    even if the reset/guard statements were deleted)."""
     src = (ROOT / "static" / "js" / "crew.js").read_text(encoding="utf-8")
     m_edit = re.search(r'async function openEditForm\([^)]*\)\s*\{.*?\n\}', src, re.S)
     assert m_edit is not None, "openEditForm function not found"
-    assert "_editingHadUnmatchedBinding" in m_edit.group(0)
+    edit_src = m_edit.group(0)
+    assert "_editingHadUnmatchedBinding = false;" in edit_src
+    assert "_editingHadUnmatchedBinding = true;" in edit_src
+    # Finding 2: a persona with only ONE of endpoint_id/model set (e.g. the
+    # default Assistant, which has no endpoint_id) must still be treated as
+    # having a binding worth preserving -- not require both fields.
+    assert "existing.endpoint_id || existing.model" in edit_src
 
     m_save = re.search(r'async function saveForm\(\)\s*\{.*?\n\}', src, re.S)
     assert m_save is not None, "saveForm function not found"
-    assert "_editingHadUnmatchedBinding" in m_save.group(0)
+    save_src = m_save.group(0)
+    assert "!_editingHadUnmatchedBinding" in save_src
 
 
 def test_assistant_js_reads_enabled_tools_all():

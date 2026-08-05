@@ -254,6 +254,39 @@ def test_update_with_non_list_enabled_tools_400s_and_does_not_commit(monkeypatch
     assert after[0]["enabled_tools"] == []
 
 
+def test_create_with_list_of_unhashable_elements_enabled_tools_400s_and_does_not_commit(monkeypatch):
+    """Fix-wave-3 Finding 1: a list VALUE whose elements aren't strings
+    (e.g. [["web_search"]] or [{"a": 1}]) still passes a bare
+    isinstance(enabled_tools, list) check -- it's the elements that break
+    `any(t in _EMAIL_TOOLS for t in tools)` with an unhashable-type
+    TypeError. Must 400 and never commit the row (a committed poisoned row
+    would 500 every subsequent GET /api/crew for this owner, forever)."""
+    c = _client(monkeypatch, user="alice")
+    for bad_tools in ([["web_search"]], [{"a": 1}]):
+        r = c.post("/api/crew", json={"name": "x", "enabled_tools": bad_tools})
+        assert r.status_code == 400
+        # The row must not have been committed.
+        assert c.get("/api/crew").json()["crew"] == []
+        # And the owner's list endpoint must still work -- no poisoned row.
+        r2 = c.get("/api/crew")
+        assert r2.status_code == 200
+
+
+def test_update_with_list_of_unhashable_elements_enabled_tools_400s_and_does_not_commit(monkeypatch):
+    c = _client(monkeypatch, user="alice")
+    created = c.post("/api/crew", json={"name": "Nav"}).json()
+    for bad_tools in ([["web_search"]], [{"a": 1}]):
+        r = c.patch(f"/api/crew/{created['id']}", json={"enabled_tools": bad_tools})
+        assert r.status_code == 400
+        # The existing row must be unaffected -- enabled_tools stays empty.
+        after = c.get("/api/crew").json()["crew"]
+        assert len(after) == 1
+        assert after[0]["enabled_tools"] == []
+        # And the owner's list endpoint must still work -- no poisoned row.
+        r2 = c.get("/api/crew")
+        assert r2.status_code == 200
+
+
 def test_update_endpoint_id_to_null_clears_it(monkeypatch):
     eid = _make_endpoint(owner="alice")
     c = _client(monkeypatch, user="alice")

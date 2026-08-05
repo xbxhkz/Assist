@@ -159,7 +159,7 @@ async function openEditForm(crewId) {
       opts.map(function (o) {
         return '<option value="' + esc(o.endpointId) + '::' + esc(o.model) + '">' + esc(o.label) + '</option>';
       }).join('');
-    if (existing && existing.endpoint_id && existing.model) {
+    if (existing && (existing.endpoint_id || existing.model)) {
       const key = existing.endpoint_id + '::' + existing.model;
       const hasMatch = opts.some(function (o) { return (o.endpointId + '::' + o.model) === key; });
       if (hasMatch) {

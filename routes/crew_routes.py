@@ -61,8 +61,9 @@ def setup_crew_routes() -> APIRouter:
                     raise HTTPException(400, "Model endpoint no longer exists")
             import json
             enabled_tools = body.get("enabled_tools")
-            if enabled_tools is not None and not isinstance(enabled_tools, list):
-                raise HTTPException(400, "enabled_tools must be a list")
+            if enabled_tools is not None:
+                if not isinstance(enabled_tools, list) or not all(isinstance(t, str) for t in enabled_tools):
+                    raise HTTPException(400, "enabled_tools must be a list of strings")
 
             def _s(key):
                 v = body.get(key)
@@ -123,9 +124,10 @@ def setup_crew_routes() -> APIRouter:
             if "greeting" in body:
                 c.greeting = body["greeting"] if body["greeting"] is None or isinstance(body["greeting"], str) else str(body["greeting"])
             if "enabled_tools" in body:
-                if body["enabled_tools"] is not None and not isinstance(body["enabled_tools"], list):
-                    raise HTTPException(400, "enabled_tools must be a list")
-                c.enabled_tools = json.dumps(body["enabled_tools"]) if body["enabled_tools"] is not None else None
+                _et = body["enabled_tools"]
+                if _et is not None and (not isinstance(_et, list) or not all(isinstance(t, str) for t in _et)):
+                    raise HTTPException(400, "enabled_tools must be a list of strings")
+                c.enabled_tools = json.dumps(_et) if _et is not None else None
             if "is_active" in body:
                 c.is_active = bool(body["is_active"])
             if "sort_order" in body:

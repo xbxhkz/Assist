@@ -263,6 +263,48 @@ def test_crew_to_dict_non_list_json_tools_becomes_empty_list():
         db.close()
 
 
+def test_crew_to_dict_list_with_unhashable_elements_becomes_empty_list():
+    """Regression for fix-wave-3 Finding 1: a list whose *elements* aren't
+    hashable strings (e.g. [["web_search"]] or [{"a": 1}]) passes the
+    isinstance(tools, list) container check but must not reach
+    `any(t in _EMAIL_TOOLS for t in tools)` unfiltered -- hashing a list or
+    dict element raises TypeError there. Constructing the row directly via
+    the ORM -- bypassing the route entirely -- proves the read-side element
+    filter alone is sufficient regardless of how the row got that way."""
+    db = SessionLocal()
+    try:
+        for bad_value in (
+            json.dumps([["web_search"]]),
+            json.dumps([{"a": 1}]),
+            json.dumps([None]),
+        ):
+            c = _make_crew(db)
+            c.enabled_tools = bad_value
+            db.commit()
+            d = crew_to_dict(c)
+            assert d["enabled_tools"] == []
+            assert d["allow_autonomous_email"] is False
+    finally:
+        db.close()
+
+
+def test_crew_to_dict_mixed_list_filters_to_valid_string_elements():
+    """Same finding as above, mixed-shape case: non-string elements are
+    silently dropped (this module's own documented never-raises,
+    degrade-to-empty contract), but valid string elements among them must
+    still survive the filter -- this must not become an all-or-nothing
+    wipe of the whole list."""
+    db = SessionLocal()
+    try:
+        c = _make_crew(db)
+        c.enabled_tools = json.dumps(["web_search", 5, ["x"]])
+        db.commit()
+        d = crew_to_dict(c)
+        assert d["enabled_tools"] == ["web_search"]
+    finally:
+        db.close()
+
+
 def test_crew_disabled_tools_includes_shell_tools_in_known_set():
     """Regression test for the agent_tools circular-import workaround: without
     it, known_tool_names()'s first call in a fresh process silently omits
