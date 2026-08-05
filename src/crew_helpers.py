@@ -32,6 +32,7 @@ def crew_to_dict(c: CrewMember) -> dict:
         "endpoint_url": c.endpoint_url,
         "endpoint_id": c.endpoint_id,
         "greeting": c.greeting,
+        "tts_voice": c.tts_voice,
         "enabled_tools": tools,
         "enabled_tools_all": tools_all,
         "allow_autonomous_email": any(t in _EMAIL_TOOLS for t in tools) or tools_all,

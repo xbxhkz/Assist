@@ -321,3 +321,33 @@ def test_crew_disabled_tools_includes_shell_tools_in_known_set():
         assert "powershell" in disabled
     finally:
         db.close()
+
+
+def test_crew_to_dict_includes_tts_voice():
+    import uuid
+    from core.database import SessionLocal, CrewMember
+    db = SessionLocal()
+    try:
+        c = CrewMember(id=str(uuid.uuid4()), owner="alice", name="Nav", tts_voice="nova")
+        db.add(c)
+        db.commit()
+        from src.crew_helpers import crew_to_dict
+        d = crew_to_dict(c)
+        assert d["tts_voice"] == "nova"
+    finally:
+        db.close()
+
+
+def test_crew_to_dict_tts_voice_defaults_to_none():
+    import uuid
+    from core.database import SessionLocal, CrewMember
+    db = SessionLocal()
+    try:
+        c = CrewMember(id=str(uuid.uuid4()), owner="alice", name="Nav")
+        db.add(c)
+        db.commit()
+        from src.crew_helpers import crew_to_dict
+        d = crew_to_dict(c)
+        assert d["tts_voice"] is None
+    finally:
+        db.close()
