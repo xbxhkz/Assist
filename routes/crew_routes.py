@@ -78,6 +78,7 @@ def setup_crew_routes() -> APIRouter:
                 model=_s("model"),
                 endpoint_id=endpoint_id,
                 greeting=_s("greeting"),
+                tts_voice=_s("tts_voice"),
                 enabled_tools=json.dumps(enabled_tools) if enabled_tools is not None else None,
             )
             db.add(c)
@@ -123,6 +124,8 @@ def setup_crew_routes() -> APIRouter:
                 c.endpoint_id = new_eid
             if "greeting" in body:
                 c.greeting = body["greeting"] if body["greeting"] is None or isinstance(body["greeting"], str) else str(body["greeting"])
+            if "tts_voice" in body:
+                c.tts_voice = body["tts_voice"] if body["tts_voice"] is None or isinstance(body["tts_voice"], str) else str(body["tts_voice"])
             if "enabled_tools" in body:
                 _et = body["enabled_tools"]
                 if _et is not None and (not isinstance(_et, list) or not all(isinstance(t, str) for t in _et)):

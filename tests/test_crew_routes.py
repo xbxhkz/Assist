@@ -295,3 +295,33 @@ def test_update_endpoint_id_to_null_clears_it(monkeypatch):
     r = c.patch(f"/api/crew/{created['id']}", json={"endpoint_id": None})
     assert r.status_code == 200
     assert r.json()["endpoint_id"] is None
+
+
+def test_create_persona_with_tts_voice(monkeypatch):
+    c = _client(monkeypatch)
+    r = c.post("/api/crew", json={"name": "Nav", "tts_voice": "nova"})
+    assert r.status_code == 200
+    assert r.json()["tts_voice"] == "nova"
+
+
+def test_create_persona_without_tts_voice_defaults_to_none(monkeypatch):
+    c = _client(monkeypatch)
+    r = c.post("/api/crew", json={"name": "Nav"})
+    assert r.status_code == 200
+    assert r.json()["tts_voice"] is None
+
+
+def test_update_persona_tts_voice(monkeypatch):
+    c = _client(monkeypatch)
+    created = c.post("/api/crew", json={"name": "Nav"}).json()
+    r = c.patch(f"/api/crew/{created['id']}", json={"tts_voice": "af_heart"})
+    assert r.status_code == 200
+    assert r.json()["tts_voice"] == "af_heart"
+
+
+def test_update_persona_tts_voice_coerces_non_string_instead_of_crashing(monkeypatch):
+    c = _client(monkeypatch)
+    created = c.post("/api/crew", json={"name": "Nav"}).json()
+    r = c.patch(f"/api/crew/{created['id']}", json={"tts_voice": 12345})
+    assert r.status_code == 200
+    assert isinstance(r.json()["tts_voice"], str)
