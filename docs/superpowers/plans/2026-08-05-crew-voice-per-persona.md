@@ -1275,22 +1275,117 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Write the failing tests**
 
-First, find the existing test coverage for this route:
+No existing test file covers `PATCH /api/assistant/settings` at all (confirmed by
+`grep -rl "update_assistant_settings\|/api/assistant/settings" tests/` returning nothing) — this
+is new test infrastructure, not an extension of an existing file. Create
+`tests/test_assistant_tts_voice.py`, mirroring `tests/test_crew_routes.py`'s isolated-engine
+pattern (in-memory SQLite via `StaticPool`, `SessionLocal` monkeypatched onto the route module,
+autouse `clear_db` fixture) since `assistant_routes.py` is the same shape — owner-scoped, not
+admin-gated, module-level `from core.database import SessionLocal`.
 
-Run: `grep -rl "update_assistant_settings\|/api/assistant/settings" tests/`
-
-Add to whichever file that returns (or create `tests/test_assistant_tts_voice.py` if none covers this route yet — check first, do not assume):
+`setup_assistant_routes(task_scheduler)` takes a `task_scheduler` argument, used by
+`_get_or_create(owner)` only when no `is_default_assistant=True` row exists yet for that owner
+(it calls `await task_scheduler.ensure_assistant_defaults(owner)` and re-queries). Pre-seed the
+Assistant row directly via the ORM in each test (matching how `test_crew_routes.py`'s
+`test_delete_default_assistant_is_blocked` already pre-seeds an `is_default_assistant=True`
+row) so that branch is never reached — the stub `task_scheduler` then never needs a working
+`ensure_assistant_defaults`, it just needs to exist as an object.
 
 ```python
+import uuid
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+import routes.assistant_routes as ar
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+from core.database import Base, CrewMember
+import pytest
+
+_ENGINE = create_engine(
+    "sqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
+Base.metadata.create_all(_ENGINE)
+_TS = sessionmaker(bind=_ENGINE, autoflush=False, autocommit=False)
+ar.SessionLocal = _TS
+
+
+@pytest.fixture(autouse=True)
+def clear_db():
+    db = _TS()
+    try:
+        db.query(CrewMember).delete()
+        db.commit()
+    finally:
+        db.close()
+    yield
+
+
+class _StubTaskScheduler:
+    """Never actually called: every test pre-seeds the default-assistant row,
+    so _get_or_create's lazy-seed branch (the only caller of this) never
+    runs. Exists only so setup_assistant_routes has something to hold."""
+    async def ensure_assistant_defaults(self, owner):
+        raise AssertionError("should not be called — test pre-seeds the Assistant row")
+
+
+def _seed_assistant(owner="alice", tts_voice=None):
+    db = _TS()
+    try:
+        crew_id = str(uuid.uuid4())
+        db.add(CrewMember(id=crew_id, owner=owner, name="Assistant",
+                          is_default_assistant=True, tts_voice=tts_voice))
+        db.commit()
+        return crew_id
+    finally:
+        db.close()
+
+
+def _client(monkeypatch, user="alice"):
+    monkeypatch.setattr(ar, "get_current_user", lambda request: user)
+    app = FastAPI()
+    app.include_router(ar.setup_assistant_routes(_StubTaskScheduler()))
+    return TestClient(app)
+
+
+def test_get_assistant_settings_returns_tts_voice(monkeypatch):
+    _seed_assistant(tts_voice="nova")
+    c = _client(monkeypatch)
+    r = c.get("/api/assistant/settings")
+    assert r.status_code == 200
+    assert r.json()["crew"]["tts_voice"] == "nova"
+
+
 def test_update_assistant_settings_accepts_tts_voice(monkeypatch):
-    # Follow the exact fixture/client pattern already used by the file's
-    # other update_assistant_settings tests -- read a neighboring test in
-    # this file first and mirror its setup (owner, auth stub, TestClient
-    # construction) rather than inventing a new one.
-    ...
+    _seed_assistant(tts_voice=None)
+    c = _client(monkeypatch)
+    r = c.patch("/api/assistant/settings", json={"tts_voice": "af_heart"})
+    assert r.status_code == 200
+    assert r.json()["crew"]["tts_voice"] == "af_heart"
+
+
+def test_update_assistant_settings_tts_voice_absent_leaves_it_unchanged(monkeypatch):
+    _seed_assistant(tts_voice="nova")
+    c = _client(monkeypatch)
+    r = c.patch("/api/assistant/settings", json={"name": "Assistant"})
+    assert r.status_code == 200
+    assert r.json()["crew"]["tts_voice"] == "nova"
+
+
+def test_update_assistant_settings_tts_voice_empty_string_clears_it(monkeypatch):
+    _seed_assistant(tts_voice="nova")
+    c = _client(monkeypatch)
+    r = c.patch("/api/assistant/settings", json={"tts_voice": ""})
+    assert r.status_code == 200
+    assert r.json()["crew"]["tts_voice"] is None
 ```
 
-(This step deliberately does not hand you literal fixture code: `assistant_routes.py`'s test setup is untouched by any prior Crew task, so its exact test-client construction pattern must be copied from a sibling test in whatever file `grep` finds — writing a fresh, disconnected fixture here risks not matching the route's actual auth/DB wiring.)
+(Note: `PATCH /api/assistant/settings`'s response shape is `{"crew": crew_to_dict(...), ...}` —
+confirmed from `get_assistant_settings`'s existing return shape; `update_assistant_settings`'s
+handler builds its response the same way. Read the live handler before assuming the exact
+return statement if it's changed since this plan was written.)
 
 `tests/test_crew_ui.py` additions (these follow the same source-presence pattern as every other test in that file, so the code is exact):
 
