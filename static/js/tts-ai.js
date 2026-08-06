@@ -11,6 +11,7 @@ class AITTSManager {
         this.browserVoice = '';
         this._voiceCacheSessionId = null;
         this._voiceCacheValue = null;
+        this._playGeneration = 0; // invalidates an in-flight _playBrowser() after stop()
         this.playbackSpeed = 1;
         this._provider = 'disabled';
         this.autoPlay = false;
@@ -228,7 +229,12 @@ class AITTSManager {
     }
 
     async _playBrowser(plainText) {
+        const myGeneration = this._playGeneration;
         const voiceName = await this._resolveBrowserVoice();
+        // stop() ran while we were awaiting the voice resolution (e.g. the
+        // user clicked Stop during the /api/tts/stats fetch) -- bail out
+        // silently instead of speaking audio after playback was cancelled.
+        if (myGeneration !== this._playGeneration) return;
         return new Promise((resolve, reject) => {
             const utterance = new SpeechSynthesisUtterance(plainText);
             const voice = this._findBrowserVoice(voiceName);
@@ -250,6 +256,12 @@ class AITTSManager {
     }
 
     stop() {
+        // Invalidate any in-flight _playBrowser() call that's still awaiting
+        // _resolveBrowserVoice() -- without this, a Stop click during that
+        // await window is a no-op (nothing has reached speechSynthesis.speak()
+        // yet) and audio starts playing anyway once the fetch resolves.
+        this._playGeneration++;
+
         // Cancel streaming TTS
         this._streamActive = false;
         if (this._streamDebounceTimer) {
