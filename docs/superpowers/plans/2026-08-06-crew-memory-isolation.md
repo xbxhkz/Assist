@@ -427,18 +427,15 @@ async def do_manage_memory(content: str, session_id: Optional[str] = None, owner
 
     persona_id = None
     if session_id is not None and owner is not None:
+        from core.database import SessionLocal
+        from src.crew_helpers import resolve_crew_binding
+        db = SessionLocal()
         try:
-            from core.database import SessionLocal
-            from src.crew_helpers import resolve_crew_binding
-            db = SessionLocal()
-            try:
-                crew = resolve_crew_binding(db, session_id, owner)
-                if crew:
-                    persona_id = crew.id
-            finally:
-                db.close()
-        except Exception:
-            persona_id = None
+            crew = resolve_crew_binding(db, session_id, owner)
+            if crew:
+                persona_id = crew.id
+        finally:
+            db.close()
 
     lines = content.strip().split("\n")
     if not lines:
@@ -447,9 +444,13 @@ async def do_manage_memory(content: str, session_id: Optional[str] = None, owner
     action = lines[0].strip().lower()
 ```
 
-(The outer `try/except` around the DB work is defense-in-depth beyond what `extract_preset`
-has — `resolve_crew_binding` itself already never raises, but `SessionLocal()` failing to
-construct, however unlikely, must not break the memory tool.)
+(No outer `try/except` around the DB work — this is now a true mirror of `extract_preset`'s
+exact shape, not just "the same pattern plus extra wrapping." `resolve_crew_binding` itself
+already never raises, and `SessionLocal()` is a plain `sessionmaker` call that doesn't open a
+connection, so it doesn't fail in practice either — the sub-project 2 final review already
+confirmed this exact reasoning for the identical seam in `routes/tts_routes.py` and recommended
+against adding defensive wrapping there. Adding it here would be inconsistent with that
+established, review-confirmed precedent.)
 
 - [ ] **Step 4: Apply `persona_id` to the `list` action**
 
