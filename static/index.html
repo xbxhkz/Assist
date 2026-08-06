@@ -647,6 +647,21 @@
         <label>Avatar URL<br><input id="crew-form-avatar" style="width:100%"></label>
         <label>Personality (system prompt)<br><textarea id="crew-form-personality" rows="6" style="width:100%"></textarea></label>
         <label>Model / Endpoint<br><select id="crew-form-endpoint" style="width:100%"><option value="">(use default — no override)</option></select>
+        <label>Voice<br>
+          <select id="crew-form-voice-select" style="width:100%;display:none">
+            <option value="">(use default — no override)</option>
+            <option value="alloy">Alloy</option>
+            <option value="ash">Ash</option>
+            <option value="coral">Coral</option>
+            <option value="echo">Echo</option>
+            <option value="fable">Fable</option>
+            <option value="nova">Nova</option>
+            <option value="onyx">Onyx</option>
+            <option value="sage">Sage</option>
+            <option value="shimmer">Shimmer</option>
+          </select>
+          <input id="crew-form-voice-input" type="text" placeholder="af_heart (leave blank to use default)" style="width:100%">
+        </label>
         <label>Greeting<br><input id="crew-form-greeting" style="width:100%"></label>
         <div>Tools<div id="crew-form-tools" style="max-height:160px;overflow:auto"></div></div>
         <div style="margin-top:8px">

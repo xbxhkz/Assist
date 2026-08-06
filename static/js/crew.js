@@ -131,6 +131,30 @@ async function loadEndpointOptions() {
   return _endpointOptions;
 }
 
+let _ttsProviderIsEndpoint = null;
+async function loadTtsProviderMode() {
+  if (_ttsProviderIsEndpoint !== null) return _ttsProviderIsEndpoint;
+  try {
+    const stats = await api('/api/tts/stats');
+    _ttsProviderIsEndpoint = !!(stats.provider && stats.provider.startsWith('endpoint:'));
+  } catch (e) { _ttsProviderIsEndpoint = false; }
+  return _ttsProviderIsEndpoint;
+}
+
+function _getVoiceFormValue() {
+  const sel = $('crew-form-voice-select');
+  const inp = $('crew-form-voice-input');
+  if (sel && sel.style.display !== 'none') return sel.value;
+  return inp ? inp.value : '';
+}
+
+function _setVoiceFormValue(value) {
+  const sel = $('crew-form-voice-select');
+  const inp = $('crew-form-voice-input');
+  if (sel) sel.value = value || '';
+  if (inp) inp.value = value || '';
+}
+
 let _editingHadUnmatchedBinding = false;
 
 let _toolNames = [];
@@ -173,6 +197,15 @@ async function openEditForm(crewId) {
     }
   }
 
+  const isEndpointProvider = await loadTtsProviderMode();
+  const voiceSel = $('crew-form-voice-select');
+  const voiceInp = $('crew-form-voice-input');
+  if (voiceSel && voiceInp) {
+    voiceSel.style.display = isEndpointProvider ? '' : 'none';
+    voiceInp.style.display = isEndpointProvider ? 'none' : '';
+  }
+  _setVoiceFormValue(existing ? existing.tts_voice : '');
+
   const names = await loadToolNames();
   const allOn = !!(existing && existing.enabled_tools_all);
   const enabled = new Set(existing ? (existing.enabled_tools || []) : []);
@@ -200,6 +233,7 @@ async function saveForm() {
     avatar: $('crew-form-avatar').value,
     personality: $('crew-form-personality').value,
     greeting: $('crew-form-greeting').value,
+    tts_voice: _getVoiceFormValue() || null,
   };
   if (endpointVal || !_editingHadUnmatchedBinding) {
     payload.model = model;

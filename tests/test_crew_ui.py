@@ -182,3 +182,28 @@ def test_crew_js_syntax(tmp_path):
     mjs = tmp_path / "crew.mjs"; mjs.write_text(src, encoding="utf-8")
     p = subprocess.run(["node", "--check", str(mjs)], capture_output=True, text=True, encoding="utf-8")
     assert p.returncode == 0, p.stderr
+
+
+def test_crew_modal_has_voice_field():
+    src = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    assert 'id="crew-form-voice-select"' in src
+    assert 'id="crew-form-voice-input"' in src
+
+
+def test_crew_js_loads_tts_provider_for_voice_picker():
+    src = (ROOT / "static" / "js" / "crew.js").read_text(encoding="utf-8")
+    assert "/api/tts/stats" in src
+
+
+def test_crew_js_save_form_includes_tts_voice():
+    src = (ROOT / "static" / "js" / "crew.js").read_text(encoding="utf-8")
+    m = re.search(r'async function saveForm\(\)\s*\{.*?\n\}', src, re.S)
+    assert m is not None, "saveForm function not found"
+    assert "tts_voice" in m.group(0)
+
+
+def test_crew_js_open_edit_form_populates_voice_field():
+    src = (ROOT / "static" / "js" / "crew.js").read_text(encoding="utf-8")
+    m = re.search(r'async function openEditForm\([^)]*\)\s*\{.*?\n\}', src, re.S)
+    assert m is not None, "openEditForm function not found"
+    assert "tts_voice" in m.group(0)
