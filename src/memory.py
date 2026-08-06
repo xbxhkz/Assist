@@ -126,12 +126,18 @@ class MemoryManager:
 
         return []
 
-    def load(self, owner: str = None) -> List[Dict]:
-        """Load memory entries, optionally filtered by owner."""
+    def load(self, owner: str = None, persona_id: str = None) -> List[Dict]:
+        """Load memory entries, optionally filtered by owner and/or persona.
+        persona_id filtering is additive: an entry is visible when it has no
+        persona_id (the shared pool) OR its persona_id matches exactly --
+        never a different persona's entries. Hard isolation, fail-open when
+        persona_id is not given (today's exact owner-only behavior)."""
         entries = self.load_all()
-        if owner is None:
-            return entries
-        return [e for e in entries if e.get("owner") == owner]
+        if owner is not None:
+            entries = [e for e in entries if e.get("owner") == owner]
+        if persona_id is not None:
+            entries = [e for e in entries if e.get("persona_id") in (None, persona_id)]
+        return entries
 
     def claim_ownerless(self, owner: str):
         """Assign all ownerless memory entries to the given owner."""
@@ -212,7 +218,7 @@ class MemoryManager:
             json.dump(entries, f, ensure_ascii=False, indent=2)
         os.replace(tmp_file, self.memory_file)
     
-    def add_entry(self, text: str, source: str = "user", category: str = "fact", owner: str = None) -> Dict:
+    def add_entry(self, text: str, source: str = "user", category: str = "fact", owner: str = None, persona_id: str = None) -> Dict:
         """Add a new memory entry."""
         if not text.strip():
             raise ValueError("Memory text cannot be empty")
@@ -227,6 +233,8 @@ class MemoryManager:
         }
         if owner:
             entry["owner"] = owner
+        if persona_id:
+            entry["persona_id"] = persona_id
         return entry
 
     def increment_uses(self, ids: List[str]) -> None:
