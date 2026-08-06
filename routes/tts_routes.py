@@ -64,17 +64,10 @@ def setup_tts_routes(tts_service):
                     detail={"message": "TTS service not available"}
                 )
 
-            voice_override = None
-            if request_body.session_id:
-                from core.database import SessionLocal
-                owner = effective_user(request)
-                db = SessionLocal()
-                try:
-                    voice_override = _resolve_effective_voice(db, request_body.session_id, owner)
-                finally:
-                    db.close()
-
             if request_body.format == "base64":
+                # base64 responses are used only by the admin TTS preview and
+                # the /tts slash command, neither of which is session-scoped
+                # -- persona voice resolution intentionally doesn't apply here.
                 audio_b64 = tts_service.synthesize_to_base64(request_body.text)
                 if not audio_b64:
                     raise HTTPException(
@@ -84,6 +77,15 @@ def setup_tts_routes(tts_service):
                 return {"audio": audio_b64}
 
             else:  # audio format
+                voice_override = None
+                if request_body.session_id:
+                    from core.database import SessionLocal
+                    owner = effective_user(request)
+                    db = SessionLocal()
+                    try:
+                        voice_override = _resolve_effective_voice(db, request_body.session_id, owner)
+                    finally:
+                        db.close()
                 audio_data = tts_service.synthesize(request_body.text, voice_override=voice_override)
                 if not audio_data:
                     raise HTTPException(

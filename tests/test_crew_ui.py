@@ -223,3 +223,15 @@ def test_assistant_js_save_includes_tts_voice():
     )
     assert m is not None, "assistant-settings-save click handler not found"
     assert "tts_voice" in m.group(0)
+
+
+def test_assistant_js_voice_payload_sends_empty_string_not_null():
+    """Important-1 regression: a blank voice field must send tts_voice: ""
+    (which the backend's `payload.tts_voice or None` correctly clears), not
+    `null` (which `payload.tts_voice is not None` treats as "field not
+    sent" and silently leaves the old value in place -- the voice could
+    never be cleared from this panel)."""
+    src = (ROOT / "static" / "js" / "assistant.js").read_text(encoding="utf-8")
+    m = re.search(r"tts_voice:\s*\(function \(\)\s*\{.*?\n      \}\)\(\),", src, re.S)
+    assert m is not None, "tts_voice payload IIFE not found"
+    assert "|| null" not in m.group(0), "must not fall back to null on a blank value"

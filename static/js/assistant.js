@@ -366,8 +366,7 @@ function _renderSettingsBody(body, data, tzList, isEndpointProvider) {
       tts_voice: (function () {
         const sel = body.querySelector('#assistant-voice-select');
         const inp = body.querySelector('#assistant-voice-input');
-        const val = (sel && sel.style.display !== 'none') ? sel.value : (inp ? inp.value : '');
-        return val || null;
+        return (sel && sel.style.display !== 'none') ? sel.value : (inp ? inp.value : '');
       })(),
       enabled_tools: selectedTools,
       check_ins: Array.from(body.querySelectorAll('.assistant-checkin-row')).map((row) => ({

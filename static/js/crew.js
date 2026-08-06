@@ -131,14 +131,11 @@ async function loadEndpointOptions() {
   return _endpointOptions;
 }
 
-let _ttsProviderIsEndpoint = null;
 async function loadTtsProviderMode() {
-  if (_ttsProviderIsEndpoint !== null) return _ttsProviderIsEndpoint;
   try {
     const stats = await api('/api/tts/stats');
-    _ttsProviderIsEndpoint = !!(stats.provider && stats.provider.startsWith('endpoint:'));
-  } catch (e) { _ttsProviderIsEndpoint = false; }
-  return _ttsProviderIsEndpoint;
+    return !!(stats.provider && stats.provider.startsWith('endpoint:'));
+  } catch (e) { return false; }
 }
 
 function _getVoiceFormValue() {

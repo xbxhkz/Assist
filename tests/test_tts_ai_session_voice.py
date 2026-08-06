@@ -158,3 +158,17 @@ def test_stop_invalidates_inflight_playbrowser_before_speak():
     p = subprocess.run(["node", "-e", script], capture_output=True, text=True, encoding="utf-8")
     assert p.returncode == 0, p.stdout + p.stderr
     assert "OK" in p.stdout
+
+
+def test_check_availability_resets_voice_cache():
+    """Important-3 regression: checkAvailability() (called after an admin
+    saves new global TTS settings, specifically so the change takes effect
+    without a reload) must reset the per-session browser-voice cache --
+    otherwise a session that already spoke once keeps using a stale voice
+    even after the global setting or a persona's voice changes."""
+    src = (ROOT / "static" / "js" / "tts-ai.js").read_text(encoding="utf-8")
+    m = re.search(r"async checkAvailability\(\)\s*\{.*?\n    \}", src, re.S)
+    assert m is not None, "checkAvailability method not found"
+    body = m.group(0)
+    assert "_voiceCacheSessionId = null" in body
+    assert "_voiceCacheValue = null" in body

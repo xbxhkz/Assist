@@ -33,6 +33,8 @@ class AITTSManager {
     }
 
     async checkAvailability() {
+        this._voiceCacheSessionId = null;
+        this._voiceCacheValue = null;
         try {
             // Check user setting first — if TTS is disabled in settings, don't show buttons
             try {
@@ -182,6 +184,7 @@ class AITTSManager {
         if (this._voiceCacheSessionId === sessionId) return this._voiceCacheValue;
         try {
             const res = await fetch(`/api/tts/stats?session_id=${encodeURIComponent(sessionId)}`, { credentials: 'same-origin' });
+            if (!res.ok) return this.browserVoice;
             const stats = await res.json();
             const voice = stats.voice || this.browserVoice;
             this._voiceCacheSessionId = sessionId;
