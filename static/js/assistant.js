@@ -209,6 +209,24 @@ function _renderSettingsBody(body, data, tzList) {
           </select>
         </label>
       </div>
+      <div class="assistant-field-row">
+        <label class="assistant-field" style="flex:1;">
+          <span>Voice</span>
+          <select id="assistant-voice-select" style="width:100%;display:none">
+            <option value="">(use default)</option>
+            <option value="alloy">Alloy</option>
+            <option value="ash">Ash</option>
+            <option value="coral">Coral</option>
+            <option value="echo">Echo</option>
+            <option value="fable">Fable</option>
+            <option value="nova">Nova</option>
+            <option value="onyx">Onyx</option>
+            <option value="sage">Sage</option>
+            <option value="shimmer">Shimmer</option>
+          </select>
+          <input id="assistant-voice-input" type="text" placeholder="af_heart (leave blank to use default)" style="width:100%;" value="${_esc(crew.tts_voice || '')}">
+        </label>
+      </div>
       <div class="assistant-field">
         <span style="display:flex;align-items:center;gap:8px;">Tools
           <button type="button" id="assistant-tools-all" class="assistant-tools-toggle" style="font-size:10px;opacity:0.5;cursor:pointer;background:none;border:1px solid var(--border);border-radius:3px;padding:1px 6px;">all</button>
@@ -263,6 +281,21 @@ function _renderSettingsBody(body, data, tzList) {
     // Trigger initial model load if endpoint is pre-selected
     if (epSelect.value) epSelect.dispatchEvent(new Event('change'));
   });
+
+  // ── Voice picker mode (dropdown vs free-text, mirrors crew.js) ──
+  (async () => {
+    try {
+      const stats = await _fetchJSON('/api/tts/stats');
+      const isEndpoint = !!(stats.provider && stats.provider.startsWith('endpoint:'));
+      const voiceSel = body.querySelector('#assistant-voice-select');
+      const voiceInp = body.querySelector('#assistant-voice-input');
+      if (voiceSel && voiceInp) {
+        voiceSel.style.display = isEndpoint ? '' : 'none';
+        voiceInp.style.display = isEndpoint ? 'none' : '';
+        if (isEndpoint) voiceSel.value = crew.tts_voice || '';
+      }
+    } catch (e) {}
+  })();
 
   // ── Tool toggle buttons ──
   body.querySelector('#assistant-tools-all')?.addEventListener('click', () => {
@@ -349,6 +382,12 @@ function _renderSettingsBody(body, data, tzList) {
       timezone: body.querySelector('#assistant-timezone').value || null,
       model: body.querySelector('#assistant-model').value || null,
       endpoint_url: body.querySelector('#assistant-endpoint').value || null,
+      tts_voice: (function () {
+        const sel = body.querySelector('#assistant-voice-select');
+        const inp = body.querySelector('#assistant-voice-input');
+        const val = (sel && sel.style.display !== 'none') ? sel.value : (inp ? inp.value : '');
+        return val || null;
+      })(),
       enabled_tools: selectedTools,
       check_ins: Array.from(body.querySelectorAll('.assistant-checkin-row')).map((row) => ({
         id: row.dataset.taskId,

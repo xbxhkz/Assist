@@ -35,6 +35,7 @@ class AssistantSettingsUpdate(BaseModel):
     personality: Optional[str] = None
     model: Optional[str] = None
     endpoint_url: Optional[str] = None
+    tts_voice: Optional[str] = None
     enabled_tools: Optional[list[str]] = None
     allow_autonomous_email: Optional[bool] = None  # convenience toggle
     timezone: Optional[str] = None
@@ -158,6 +159,8 @@ def setup_assistant_routes(task_scheduler) -> APIRouter:
                 crew_db.model = payload.model or None
             if payload.endpoint_url is not None:
                 crew_db.endpoint_url = payload.endpoint_url or None
+            if payload.tts_voice is not None:
+                crew_db.tts_voice = payload.tts_voice or None
             if payload.timezone is not None:
                 crew_db.timezone = payload.timezone or None
 

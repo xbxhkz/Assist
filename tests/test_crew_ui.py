@@ -207,3 +207,14 @@ def test_crew_js_open_edit_form_populates_voice_field():
     m = re.search(r'async function openEditForm\([^)]*\)\s*\{.*?\n\}', src, re.S)
     assert m is not None, "openEditForm function not found"
     assert "tts_voice" in m.group(0)
+
+
+def test_assistant_js_has_voice_field():
+    src = (ROOT / "static" / "js" / "assistant.js").read_text(encoding="utf-8")
+    assert "assistant-voice-select" in src
+    assert "assistant-voice-input" in src
+
+
+def test_assistant_js_save_includes_tts_voice():
+    src = (ROOT / "static" / "js" / "assistant.js").read_text(encoding="utf-8")
+    assert "tts_voice" in src
