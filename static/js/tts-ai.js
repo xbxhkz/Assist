@@ -1,5 +1,6 @@
 // static/js/tts-ai.js
 // AI Text-to-Speech Module — supports server TTS and browser Web Speech API
+import { getCurrentSessionId } from './sessions.js';
 
 class AITTSManager {
     constructor() {
@@ -8,6 +9,8 @@ class AITTSManager {
         this.available = false;
         this.useBrowserTTS = false;
         this.browserVoice = '';
+        this._voiceCacheSessionId = null;
+        this._voiceCacheValue = null;
         this.playbackSpeed = 1;
         this._provider = 'disabled';
         this.autoPlay = false;
@@ -92,11 +95,14 @@ class AITTSManager {
         return text;
     }
 
-    getCacheKey(text) {
-        // Simple hash function for cache key
+    getCacheKey(text, sessionId) {
+        // Simple hash function for cache key — includes sessionId so two
+        // personas with different voices don't collide on the same short
+        // reply text in the client-side cache.
+        const raw = text + '|' + (sessionId || '');
         let hash = 0;
-        for (let i = 0; i < text.length; i++) {
-            const char = text.charCodeAt(i);
+        for (let i = 0; i < raw.length; i++) {
+            const char = raw.charCodeAt(i);
             hash = ((hash << 5) - hash) + char;
             hash = hash & hash;
         }
@@ -119,7 +125,8 @@ class AITTSManager {
             return '__browser_tts__';
         }
 
-        const cacheKey = this.getCacheKey(plainText);
+        const sessionId = getCurrentSessionId();
+        const cacheKey = this.getCacheKey(plainText, sessionId);
 
         // Check cache first
         if (this.cache.has(cacheKey)) {
@@ -136,7 +143,8 @@ class AITTSManager {
                 },
                 body: JSON.stringify({
                     text: plainText,
-                    format: 'audio'
+                    format: 'audio',
+                    session_id: sessionId || undefined
                 })
             });
 
@@ -161,10 +169,32 @@ class AITTSManager {
         }
     }
 
-    _findBrowserVoice() {
-        if (!this.browserVoice) return null;
+    /** Resolve the voice NAME to use for the browser Web Speech API for the
+     * CURRENT session — re-fetches per session (not per utterance) since a
+     * page can have multiple chats open across a browsing session, each
+     * possibly bound to a different persona. Falls back to the page-load
+     * global `browserVoice` on any failure or when there's no active
+     * session. */
+    async _resolveBrowserVoice() {
+        const sessionId = getCurrentSessionId();
+        if (!sessionId) return this.browserVoice;
+        if (this._voiceCacheSessionId === sessionId) return this._voiceCacheValue;
+        try {
+            const res = await fetch(`/api/tts/stats?session_id=${encodeURIComponent(sessionId)}`, { credentials: 'same-origin' });
+            const stats = await res.json();
+            const voice = stats.voice || this.browserVoice;
+            this._voiceCacheSessionId = sessionId;
+            this._voiceCacheValue = voice;
+            return voice;
+        } catch (e) {
+            return this.browserVoice;
+        }
+    }
+
+    _findBrowserVoice(voiceName) {
+        if (!voiceName) return null;
         const voices = window.speechSynthesis.getVoices();
-        const target = this.browserVoice.toLowerCase();
+        const target = voiceName.toLowerCase();
         // Try exact match first, then partial
         return voices.find(v => v.name.toLowerCase() === target) ||
                voices.find(v => v.name.toLowerCase().includes(target)) ||
@@ -197,10 +227,11 @@ class AITTSManager {
         }
     }
 
-    _playBrowser(plainText) {
+    async _playBrowser(plainText) {
+        const voiceName = await this._resolveBrowserVoice();
         return new Promise((resolve, reject) => {
             const utterance = new SpeechSynthesisUtterance(plainText);
-            const voice = this._findBrowserVoice();
+            const voice = this._findBrowserVoice(voiceName);
             if (voice) utterance.voice = voice;
             utterance.rate = this.playbackSpeed;
 
