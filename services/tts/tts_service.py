@@ -143,13 +143,13 @@ class TTSService:
 
     # ── Public interface ──
 
-    def synthesize(self, text: str, use_cache: bool = True) -> Optional[bytes]:
+    def synthesize(self, text: str, use_cache: bool = True, voice_override: Optional[str] = None) -> Optional[bytes]:
         settings = self._load_settings()
         if settings.get("tts_enabled") is False:
             return None
         provider = settings["tts_provider"]
         model = settings["tts_model"]
-        voice = settings["tts_voice"]
+        voice = voice_override or settings["tts_voice"]
         speed = _safe_speed(settings.get("tts_speed", "1"))
 
         if provider in ("disabled", "browser"):
@@ -197,7 +197,7 @@ class TTSService:
     def set_voice(self, voice: str):
         """Legacy no-op — voice is now managed via admin settings."""
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self, voice_override: Optional[str] = None) -> Dict[str, Any]:
         settings = self._load_settings()
         provider = settings["tts_provider"]
         tts_enabled = settings.get("tts_enabled", True)
@@ -211,7 +211,7 @@ class TTSService:
             "ready": is_available,
             "provider": provider,
             "model": settings["tts_model"],
-            "voice": settings["tts_voice"],
+            "voice": voice_override or settings["tts_voice"],
             "speed": _safe_speed(settings.get("tts_speed", "1")),
             "cache_entries": len(cache_files),
             "cache_size_mb": round(cache_size / (1024 * 1024), 2),
