@@ -296,6 +296,12 @@ async def do_pipeline(content: str, session_id: Optional[str] = None, owner: Opt
 async def do_manage_memory(content: str, session_id: Optional[str] = None, owner: Optional[str] = None) -> Dict:
     """Manage memories: list, add, edit, delete, search.
 
+    If session_id/owner resolve to a persona-bound session, every action is
+    scoped to that persona's memories plus the shared (unscoped) pool --
+    never another persona's memories. An unbound session, a dangling
+    binding, or a lookup failure all fall back to today's exact
+    owner-only behavior.
+
     Content format:
       Line 1: action (list|add|edit|delete|search)
       Line 2+: action-specific params
@@ -310,6 +316,18 @@ async def do_manage_memory(content: str, session_id: Optional[str] = None, owner
     if not _memory_manager:
         return {"error": "Memory manager not available"}
 
+    persona_id = None
+    if session_id is not None and owner is not None:
+        from core.database import SessionLocal
+        from src.crew_helpers import resolve_crew_binding
+        db = SessionLocal()
+        try:
+            crew = resolve_crew_binding(db, session_id, owner)
+            if crew:
+                persona_id = crew.id
+        finally:
+            db.close()
+
     lines = content.strip().split("\n")
     if not lines:
         return {"error": "Need at least 1 line: action"}
@@ -318,7 +336,7 @@ async def do_manage_memory(content: str, session_id: Optional[str] = None, owner
 
     if action == "list":
         category_filter = lines[1].strip().lower() if len(lines) > 1 and lines[1].strip() else None
-        memories = _memory_manager.load(owner=owner)
+        memories = _memory_manager.load(owner=owner, persona_id=persona_id)
         if category_filter:
             memories = [m for m in memories if m.get("category", "").lower() == category_filter]
         if not memories:
@@ -342,7 +360,7 @@ async def do_manage_memory(content: str, session_id: Optional[str] = None, owner
         if not text:
             return {"error": "Memory text cannot be empty"}
 
-        entry = _memory_manager.add_entry(text, source="ai_agent", category=category, owner=owner)
+        entry = _memory_manager.add_entry(text, source="ai_agent", category=category, owner=owner, persona_id=persona_id)
         memories = _memory_manager.load_all()
         memories.append(entry)
         _memory_manager.save(memories)
@@ -377,6 +395,10 @@ async def do_manage_memory(content: str, session_id: Optional[str] = None, owner
                 # Verify ownership
                 if owner and m.get("owner") != owner:
                     return {"error": f"Memory '{memory_id}' not found"}
+                # Verify persona scope: a different persona's memory is invisible,
+                # same as a different owner's -- not a permission error, just "not found".
+                if persona_id is not None and m.get("persona_id") not in (None, persona_id):
+                    return {"error": f"Memory '{memory_id}' not found"}
                 m["text"] = new_text
                 m["timestamp"] = int(time.time())
                 found = True
@@ -410,6 +432,9 @@ async def do_manage_memory(content: str, session_id: Optional[str] = None, owner
                 # Verify ownership
                 if owner and m.get("owner") != owner:
                     return {"error": f"Memory '{memory_id}' not found"}
+                # Verify persona scope -- same "not found" shape as the ownership check above.
+                if persona_id is not None and m.get("persona_id") not in (None, persona_id):
+                    return {"error": f"Memory '{memory_id}' not found"}
                 full_id = m["id"]
                 delete_id = m["id"]
                 break
@@ -432,7 +457,7 @@ async def do_manage_memory(content: str, session_id: Optional[str] = None, owner
         if len(lines) < 2:
             return {"error": "Search needs line 2: query"}
         query = lines[1].strip()
-        memories = _memory_manager.load(owner=owner)
+        memories = _memory_manager.load(owner=owner, persona_id=persona_id)
         query_lower = query.lower()
         exact_results = [m for m in memories if query_lower in (m.get("text", "").lower())]
 
