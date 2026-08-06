@@ -217,4 +217,9 @@ def test_assistant_js_has_voice_field():
 
 def test_assistant_js_save_includes_tts_voice():
     src = (ROOT / "static" / "js" / "assistant.js").read_text(encoding="utf-8")
-    assert "tts_voice" in src
+    m = re.search(
+        r"assistant-settings-save'\)\.addEventListener\('click',\s*async\s*\(\)\s*=>\s*\{.*?\n  \}\);",
+        src, re.S,
+    )
+    assert m is not None, "assistant-settings-save click handler not found"
+    assert "tts_voice" in m.group(0)

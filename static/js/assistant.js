@@ -136,7 +136,7 @@ async function _fetchEndpoints() {
   } catch { return []; }
 }
 
-function _renderSettingsBody(body, data, tzList) {
+function _renderSettingsBody(body, data, tzList, isEndpointProvider) {
   const crew = data.crew || {};
   const checkIns = data.check_ins || [];
   const enabledTools = new Set(crew.enabled_tools || []);
@@ -171,6 +171,11 @@ function _renderSettingsBody(body, data, tzList) {
     }
     toolsHTML += '</div>';
   }
+
+  const VOICE_OPTIONS = ['alloy', 'ash', 'coral', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer'];
+  const voiceOptionsHTML = '<option value="">(use default)</option>' + VOICE_OPTIONS.map((v) =>
+    `<option value="${v}"${crew.tts_voice === v ? ' selected' : ''}>${v.charAt(0).toUpperCase() + v.slice(1)}</option>`
+  ).join('');
 
   body.innerHTML = `
     <div class="assistant-settings-form">
@@ -212,19 +217,10 @@ function _renderSettingsBody(body, data, tzList) {
       <div class="assistant-field-row">
         <label class="assistant-field" style="flex:1;">
           <span>Voice</span>
-          <select id="assistant-voice-select" style="width:100%;display:none">
-            <option value="">(use default)</option>
-            <option value="alloy">Alloy</option>
-            <option value="ash">Ash</option>
-            <option value="coral">Coral</option>
-            <option value="echo">Echo</option>
-            <option value="fable">Fable</option>
-            <option value="nova">Nova</option>
-            <option value="onyx">Onyx</option>
-            <option value="sage">Sage</option>
-            <option value="shimmer">Shimmer</option>
+          <select id="assistant-voice-select" style="width:100%;display:${isEndpointProvider ? '' : 'none'}">
+            ${voiceOptionsHTML}
           </select>
-          <input id="assistant-voice-input" type="text" placeholder="af_heart (leave blank to use default)" style="width:100%;" value="${_esc(crew.tts_voice || '')}">
+          <input id="assistant-voice-input" type="text" placeholder="af_heart (leave blank to use default)" style="width:100%;display:${isEndpointProvider ? 'none' : ''}" value="${_esc(crew.tts_voice || '')}">
         </label>
       </div>
       <div class="assistant-field">
@@ -281,21 +277,6 @@ function _renderSettingsBody(body, data, tzList) {
     // Trigger initial model load if endpoint is pre-selected
     if (epSelect.value) epSelect.dispatchEvent(new Event('change'));
   });
-
-  // ── Voice picker mode (dropdown vs free-text, mirrors crew.js) ──
-  (async () => {
-    try {
-      const stats = await _fetchJSON('/api/tts/stats');
-      const isEndpoint = !!(stats.provider && stats.provider.startsWith('endpoint:'));
-      const voiceSel = body.querySelector('#assistant-voice-select');
-      const voiceInp = body.querySelector('#assistant-voice-input');
-      if (voiceSel && voiceInp) {
-        voiceSel.style.display = isEndpoint ? '' : 'none';
-        voiceInp.style.display = isEndpoint ? 'none' : '';
-        if (isEndpoint) voiceSel.value = crew.tts_voice || '';
-      }
-    } catch (e) {}
-  })();
 
   // ── Tool toggle buttons ──
   body.querySelector('#assistant-tools-all')?.addEventListener('click', () => {
@@ -445,8 +426,11 @@ export async function openAssistantSettings() {
   const body = modal.querySelector('#assistant-settings-body');
   body.innerHTML = '<div class="hwfit-loading">Loading…</div>';
   try {
-    const [data, tzList] = await Promise.all([_getSettings(true), _listTimezones()]);
-    _renderSettingsBody(body, data, tzList);
+    const [data, tzList, ttsStats] = await Promise.all([
+      _getSettings(true), _listTimezones(), _fetchJSON('/api/tts/stats').catch(() => ({})),
+    ]);
+    const isEndpointProvider = !!(ttsStats.provider && ttsStats.provider.startsWith('endpoint:'));
+    _renderSettingsBody(body, data, tzList, isEndpointProvider);
   } catch (e) {
     console.error(e);
     body.innerHTML = '<div style="padding:12px;opacity:0.6;">Could not load assistant settings.</div>';
