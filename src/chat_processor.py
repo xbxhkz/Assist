@@ -205,6 +205,7 @@ class ChatProcessor:
         time_filter: Optional[str] = None,
         preset_system_prompt: Optional[str] = None,
         owner: Optional[str] = None,
+        persona_id: Optional[str] = None,
         character_name: Optional[str] = None,
         agent_mode: bool = False,
         incognito: bool = False,
@@ -245,7 +246,7 @@ class ChatProcessor:
         # Memory: pinned (always included) + extended (RAG-retrieved when relevant)
         self._last_used_memories = []  # track what was injected
         if use_memory:
-            mem_entries = self.memory_manager.load(owner=owner)
+            mem_entries = self.memory_manager.load(owner=owner, persona_id=persona_id)
 
             pinned = [m for m in mem_entries if m.get("pinned")]
             extended = [m for m in mem_entries if not m.get("pinned")]
