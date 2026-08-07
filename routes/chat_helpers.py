@@ -73,6 +73,7 @@ class PresetInfo:
     max_tokens: Optional[int]
     system_prompt: Optional[str]
     character_name: Optional[str]
+    persona_id: Optional[str] = None
 
 
 @dataclass
@@ -334,23 +335,27 @@ def try_fallback_endpoint(sess, session_id: str) -> dict | None:
 
 def extract_preset(chat_handler, preset_id, sess=None, owner=None) -> PresetInfo:
     """Extract preset parameters via chat_handler. If `sess`/`owner` are given
-    and the session is bound to a persona (CrewMember) with a non-empty
-    personality, the persona's personality/name REPLACE the preset's
-    system_prompt/character_name for this turn -- the persona already
-    defines the assistant's voice for a persona-bound conversation. A
-    missing/dangling binding falls back to normal preset-only behavior."""
+    and the session is bound to a persona (CrewMember), its id is returned
+    as persona_id (used for memory isolation, regardless of whether it has
+    a custom personality) and -- when it has a non-empty personality -- the
+    persona's personality/name REPLACE the preset's system_prompt/
+    character_name for this turn. A missing/dangling binding falls back to
+    normal preset-only behavior with persona_id=None."""
     temperature, max_tokens, system_prompt, char_name = (
         chat_handler.validate_and_extract_preset(preset_id)
     )
+    persona_id = None
     if sess is not None and owner is not None:
         from core.database import SessionLocal
         from src.crew_helpers import resolve_crew_binding
         db = SessionLocal()
         try:
             crew = resolve_crew_binding(db, sess.id, owner)
-            if crew and crew.personality:
-                system_prompt = crew.personality
-                char_name = crew.name
+            if crew:
+                persona_id = crew.id
+                if crew.personality:
+                    system_prompt = crew.personality
+                    char_name = crew.name
         finally:
             db.close()
     return PresetInfo(
@@ -358,6 +363,7 @@ def extract_preset(chat_handler, preset_id, sess=None, owner=None) -> PresetInfo
         max_tokens=max_tokens,
         system_prompt=system_prompt,
         character_name=char_name,
+        persona_id=persona_id,
     )
 
 
@@ -737,6 +743,7 @@ async def build_chat_context(
         time_filter=time_filter,
         preset_system_prompt=preset.system_prompt,
         owner=user,
+        persona_id=preset.persona_id,
         character_name=preset.character_name,
         agent_mode=agent_mode,
         incognito=incognito,

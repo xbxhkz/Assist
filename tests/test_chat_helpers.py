@@ -560,3 +560,65 @@ async def test_build_chat_context_keeps_cookie_user_owner_scope(monkeypatch):
         "preface_owner": "bob",
         "compact_owner": "bob",
     }
+
+
+def test_extract_preset_returns_persona_id_when_session_bound_to_a_persona(monkeypatch):
+    import uuid
+    from core.database import SessionLocal, CrewMember, Session as DbSession
+    from routes.chat_helpers import extract_preset
+
+    db = SessionLocal()
+    try:
+        crew_id = str(uuid.uuid4())
+        db.add(CrewMember(id=crew_id, owner="alice", name="Nav", personality="Be terse."))
+        sess_id = str(uuid.uuid4())
+        db.add(DbSession(id=sess_id, name="s", endpoint_url="http://x", model="m",
+                         owner="alice", crew_member_id=crew_id))
+        db.commit()
+    finally:
+        db.close()
+
+    class _FakeSess:
+        id = sess_id
+
+    class _FakeHandler:
+        def validate_and_extract_preset(self, preset_id):
+            return (0.7, 2000, "default prompt", "Default")
+
+    preset = extract_preset(_FakeHandler(), "default", sess=_FakeSess(), owner="alice")
+    assert preset.persona_id == crew_id
+
+
+def test_extract_preset_persona_id_none_for_unbound_session(monkeypatch):
+    import uuid
+    from core.database import SessionLocal, Session as DbSession
+    from routes.chat_helpers import extract_preset
+
+    db = SessionLocal()
+    try:
+        sess_id = str(uuid.uuid4())
+        db.add(DbSession(id=sess_id, name="s", endpoint_url="http://x", model="m", owner="alice"))
+        db.commit()
+    finally:
+        db.close()
+
+    class _FakeSess:
+        id = sess_id
+
+    class _FakeHandler:
+        def validate_and_extract_preset(self, preset_id):
+            return (0.7, 2000, "default prompt", "Default")
+
+    preset = extract_preset(_FakeHandler(), "default", sess=_FakeSess(), owner="alice")
+    assert preset.persona_id is None
+
+
+def test_extract_preset_persona_id_none_when_sess_or_owner_missing():
+    from routes.chat_helpers import extract_preset
+
+    class _FakeHandler:
+        def validate_and_extract_preset(self, preset_id):
+            return (0.7, 2000, "default prompt", "Default")
+
+    preset = extract_preset(_FakeHandler(), "default")
+    assert preset.persona_id is None
