@@ -387,6 +387,26 @@ async def extract_and_store(
         # Get owner from session
         _owner = getattr(session, 'owner', None)
 
+        # Resolve the session's bound persona, if any -- mirrors do_manage_memory
+        # (src/ai_interaction.py) and extract_preset (routes/chat_helpers.py)
+        # exactly: same SessionLocal + resolve_crew_binding shape, no outer
+        # try/except (resolve_crew_binding never raises, SessionLocal() doesn't
+        # fail in practice). Fail-open: no session id or no owner -> persona_id
+        # stays None, auto-extracted facts land in the shared pool exactly like
+        # today.
+        _persona_id = None
+        _sid = getattr(session, "id", None)
+        if _sid is not None and _owner is not None:
+            from core.database import SessionLocal
+            from src.crew_helpers import resolve_crew_binding
+            db = SessionLocal()
+            try:
+                crew = resolve_crew_binding(db, _sid, _owner)
+                if crew:
+                    _persona_id = crew.id
+            finally:
+                db.close()
+
         existing = memory_manager.load_all()
         added = 0
 
@@ -417,19 +437,22 @@ async def extract_and_store(
                     existing_id = None
                 if existing_id:
                     # The vector store is a single shared collection with no
-                    # owner metadata, so find_similar can return ANOTHER
-                    # tenant's memory. Only treat it as a duplicate when the
-                    # match is this user's own (or a legacy unowned) memory —
-                    # otherwise the user's freshly-extracted fact would be
-                    # silently dropped. Mirror the owner predicate used by the
-                    # text dedup below; cross-tenant/stale matches fall through.
+                    # owner/persona metadata, so find_similar can return
+                    # ANOTHER tenant's or ANOTHER persona's memory. Only treat
+                    # it as a duplicate when the match is visible to this
+                    # owner+persona (own, or the shared/unowned pool) --
+                    # otherwise the freshly-extracted fact would be silently
+                    # dropped as a false "duplicate" of an entry this
+                    # persona can't even see. Mirror the predicate used by
+                    # the text dedup below; cross-tenant/cross-persona/stale
+                    # matches fall through.
                     _match = next((e for e in existing if e.get("id") == existing_id), None)
-                    if _match is not None and (_match.get("owner") == _owner or _match.get("owner") is None):
+                    if _match is not None and (_match.get("owner") == _owner or _match.get("owner") is None) and (_match.get("persona_id") in (None, _persona_id)):
                         logger.debug(f"Memory dedup (vector): '{fact_text[:50]}' matches {existing_id}")
                         continue
 
             # Text dedup fallback: exact match + fuzzy similarity
-            user_existing = [e for e in existing if e.get("owner") == _owner or e.get("owner") is None] if _owner else existing
+            user_existing = [e for e in existing if (e.get("owner") == _owner or e.get("owner") is None) and (e.get("persona_id") in (None, _persona_id))] if _owner else existing
             if memory_manager.find_duplicates(fact_text, user_existing):
                 continue
             # Fuzzy text similarity check (catches rephrased duplicates when vector index is unavailable)
@@ -437,12 +460,12 @@ async def extract_and_store(
                 logger.debug(f"Memory dedup (fuzzy): '{fact_text[:50]}' too similar to existing")
                 continue
 
-            entry = memory_manager.add_entry(fact_text, source="auto", category=category, owner=_owner)
+            entry = memory_manager.add_entry(fact_text, source="auto", category=category, owner=_owner, persona_id=_persona_id)
             # Auto-pin identity facts (name, job, location) — core context
             if category == "identity":
                 entry["pinned"] = True
-            if hasattr(session, "session_id"):
-                entry["session_id"] = session.session_id
+            if hasattr(session, "id") and session.id:
+                entry["session_id"] = session.id
             elif hasattr(session, "name"):
                 entry["session_id"] = session.name
 

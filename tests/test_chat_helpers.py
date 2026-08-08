@@ -562,6 +562,87 @@ async def test_build_chat_context_keeps_cookie_user_owner_scope(monkeypatch):
     }
 
 
+@pytest.mark.asyncio
+async def test_build_chat_context_passes_persona_id_from_preset_to_preface(monkeypatch):
+    """The seam connecting extract_preset's persona resolution to
+    build_context_preface's memory filtering -- if this one line
+    (persona_id=preset.persona_id in _preface_kwargs) were ever deleted,
+    every other test in this plan would still pass. This is the test that
+    catches it."""
+    captured = {}
+
+    async def fake_preprocess(chat_handler, message, att_ids, sess, **kwargs):
+        return PreprocessedMessage(
+            enhanced_message=message,
+            user_content=message,
+            text_for_context=message,
+            youtube_transcripts=[],
+            attachment_meta=[],
+        )
+
+    def fake_extract_preset(chat_handler, preset_id, sess=None, owner=None):
+        return PresetInfo(
+            temperature=0.7,
+            max_tokens=1024,
+            system_prompt=None,
+            character_name=None,
+            persona_id="persona-a",
+        )
+
+    def fake_add_user_message(sess, chat_handler, preprocessed, incognito=False):
+        sess.messages.append({"role": "user", "content": preprocessed.user_content})
+
+    def fake_load_prefs(owner):
+        return {"memory_enabled": True, "skills_enabled": True}
+
+    def fake_build_context_preface(**kwargs):
+        captured.update(kwargs)
+        return [], [], []
+
+    async def fake_maybe_compact(sess, endpoint_url, model, messages, headers, owner=None):
+        return messages, 8192, False
+
+    monkeypatch.setattr(chat_helpers, "preprocess", fake_preprocess)
+    monkeypatch.setattr(chat_helpers, "extract_preset", fake_extract_preset)
+    monkeypatch.setattr(chat_helpers, "add_user_message", fake_add_user_message)
+    monkeypatch.setattr(chat_helpers, "load_prefs_for_user", fake_load_prefs)
+    monkeypatch.setattr(chat_helpers, "_normalize_model_id_from_cache", lambda sess: None)
+    monkeypatch.setattr(chat_helpers, "normalize_model_id", lambda endpoint_url, model, **kwargs: None)
+    monkeypatch.setattr(chat_helpers, "maybe_compact", fake_maybe_compact)
+    monkeypatch.setattr(chat_helpers, "trim_for_context", lambda messages, context_length: messages)
+
+    import src.user_time as user_time
+
+    monkeypatch.setattr(
+        user_time,
+        "current_datetime_context_message",
+        lambda now_utc=None: {"role": "user", "content": "[Context - current date/time]"},
+        raising=False,
+    )
+
+    sess = SimpleNamespace(
+        endpoint_url="http://model.local/v1/chat/completions",
+        model="test-model",
+        headers={},
+        history=[],
+        messages=[],
+    )
+    sess.get_context_messages = lambda: list(sess.messages)
+
+    request = SimpleNamespace(state=SimpleNamespace(current_user="alice", api_token=False))
+    await build_chat_context(
+        sess=sess,
+        request=request,
+        chat_handler=SimpleNamespace(),
+        chat_processor=SimpleNamespace(build_context_preface=fake_build_context_preface),
+        message="hello",
+        session_id="session-1",
+        incognito=True,
+    )
+
+    assert captured.get("persona_id") == "persona-a"
+
+
 def test_extract_preset_returns_persona_id_when_session_bound_to_a_persona(monkeypatch):
     import uuid
     from core.database import SessionLocal, CrewMember, Session as DbSession

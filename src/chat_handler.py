@@ -331,9 +331,23 @@ class ChatHandler:
             message
         )
         if is_memory_cmd and memory_text:
-            mem = self.memory_manager.load()
+            _owner = getattr(session, "owner", None)
+            _persona_id = None
+            _sid = getattr(session, "id", None)
+            if _sid is not None and _owner is not None:
+                from core.database import SessionLocal
+                from src.crew_helpers import resolve_crew_binding
+                db = SessionLocal()
+                try:
+                    crew = resolve_crew_binding(db, _sid, _owner)
+                    if crew:
+                        _persona_id = crew.id
+                finally:
+                    db.close()
+
+            mem = self.memory_manager.load(owner=_owner, persona_id=_persona_id)
             if not self.memory_manager.find_duplicates(memory_text, mem):
-                new_entry = self.memory_manager.add_entry(memory_text)
+                new_entry = self.memory_manager.add_entry(memory_text, owner=_owner, persona_id=_persona_id)
                 mem.append(new_entry)
                 self.memory_manager.save(mem)
 
