@@ -39,3 +39,13 @@ def test_mission_control_has_hardware_widget():
     src = (ROOT / "static" / "js" / "missionControl.js").read_text(encoding="utf-8")
     assert "loadHardwareWidget" in src
     assert "/api/hwfit/usage" in src
+
+
+def test_mission_control_has_tasks_widget():
+    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    assert 'data-widget="tasks"' in html
+    assert 'id="mc-body-tasks"' in html
+
+    src = (ROOT / "static" / "js" / "missionControl.js").read_text(encoding="utf-8")
+    assert "loadTasksWidget" in src
+    assert "/api/tasks" in src

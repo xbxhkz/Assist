@@ -69,14 +69,37 @@ async function loadHardwareWidget() {
   }
 }
 
+async function loadTasksWidget() {
+  const body = $('mc-body-tasks');
+  if (body) body.classList.remove('mc-error');
+  try {
+    const data = await api('/api/tasks');
+    const tasks = data.tasks || [];
+    const active = tasks.filter(function (t) { return t.status === 'active'; }).length;
+    const paused = tasks.filter(function (t) { return t.status === 'paused'; }).length;
+    const recent = tasks
+      .filter(function (t) { return t.last_run; })
+      .sort(function (a, b) { return (b.last_run || '').localeCompare(a.last_run || ''); })
+      .slice(0, 3);
+    const recentHtml = recent.map(function (t) {
+      return '<div>' + esc(t.name) + ' — ' + esc(t.status) + '</div>';
+    }).join('') || '<div>No recent runs</div>';
+    setCardBody('tasks', esc(active) + ' active, ' + esc(paused) + ' paused, ' + esc(tasks.length) + ' total<br>' + recentHtml);
+  } catch (e) {
+    setCardError('tasks', e.message);
+  }
+}
+
 function refreshWidget(widgetId) {
   if (widgetId === 'models') loadModelsWidget();
   if (widgetId === 'hardware') loadHardwareWidget();
+  if (widgetId === 'tasks') loadTasksWidget();
 }
 
 function loadAllWidgets() {
   loadModelsWidget();
   loadHardwareWidget();
+  loadTasksWidget();
 }
 
 function openMissionControl() {
@@ -106,6 +129,12 @@ function init() {
       hwmon.open = true;
       hwmon.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
+  });
+  const openTasks = $('mc-open-tasks');
+  if (openTasks) openTasks.addEventListener('click', function () {
+    closeMissionControl();
+    const tasksBtn = $('rail-tasks');
+    if (tasksBtn) tasksBtn.click();
   });
   Modals.register('mission-control-modal', {
     railBtnId: 'rail-mission-control', sidebarBtnId: 'tool-mission-control-btn', closeFn: closeMissionControl,
