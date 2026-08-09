@@ -17756,6 +17756,42 @@ body:not(.email-doc-split-active) #email-lib-modal.email-lib-fullscreen:not(.mod
   max-height: 92vh;
   font-size: 12px;
 }
+.mission-control-content {
+  width: min(1100px, 94vw);
+  max-height: 90vh;
+}
+.mission-control-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+  padding: 8px 0;
+}
+.mission-control-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 140px;
+}
+.mission-control-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.mission-control-card-header h5 {
+  margin: 0;
+}
+.mission-control-card-body {
+  flex: 1;
+  font-size: 12px;
+  opacity: 0.9;
+}
+.mission-control-card-body.mc-error {
+  color: var(--red, #c0392b);
+  opacity: 1;
+}
 /* While the Edit tab is active the editor needs a *definite* height so
    the right-side tool panel (`.ge-right-panel { overflow-y:auto }`)
    scrolls INTERNALLY. Without this the modal only has `max-height`, so
