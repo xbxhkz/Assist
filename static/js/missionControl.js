@@ -90,16 +90,34 @@ async function loadTasksWidget() {
   }
 }
 
+async function loadMemoryWidget() {
+  const body = $('mc-body-memory');
+  if (body) body.classList.remove('mc-error');
+  try {
+    const data = await api('/api/memory/timeline');
+    const items = (data.timeline || []).slice(0, 3);
+    const itemsHtml = items.map(function (m) {
+      const text = (m.text || '').slice(0, 60);
+      return '<div>' + esc(text) + (m.text && m.text.length > 60 ? '…' : '') + '</div>';
+    }).join('') || '<div>No memories yet</div>';
+    setCardBody('memory', esc(data.total || 0) + ' memories total<br>' + itemsHtml);
+  } catch (e) {
+    setCardError('memory', e.message);
+  }
+}
+
 function refreshWidget(widgetId) {
   if (widgetId === 'models') loadModelsWidget();
   if (widgetId === 'hardware') loadHardwareWidget();
   if (widgetId === 'tasks') loadTasksWidget();
+  if (widgetId === 'memory') loadMemoryWidget();
 }
 
 function loadAllWidgets() {
   loadModelsWidget();
   loadHardwareWidget();
   loadTasksWidget();
+  loadMemoryWidget();
 }
 
 function openMissionControl() {
@@ -135,6 +153,12 @@ function init() {
     closeMissionControl();
     const tasksBtn = $('rail-tasks');
     if (tasksBtn) tasksBtn.click();
+  });
+  const openMemory = $('mc-open-memory');
+  if (openMemory) openMemory.addEventListener('click', function () {
+    closeMissionControl();
+    const memoryBtn = $('tool-memory-btn');
+    if (memoryBtn) memoryBtn.click();
   });
   Modals.register('mission-control-modal', {
     railBtnId: 'rail-mission-control', sidebarBtnId: 'tool-mission-control-btn', closeFn: closeMissionControl,
