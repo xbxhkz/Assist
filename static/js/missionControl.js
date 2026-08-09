@@ -106,11 +106,28 @@ async function loadMemoryWidget() {
   }
 }
 
+async function loadIntegrationsWidget() {
+  const body = $('mc-body-integrations');
+  if (body) body.classList.remove('mc-error');
+  try {
+    const data = await api('/api/auth/integrations');
+    const items = data.integrations || [];
+    const enabled = items.filter(function (i) { return i.enabled; }).length;
+    const listHtml = items.slice(0, 5).map(function (i) {
+      return '<div>' + esc(i.name) + ' — ' + (i.enabled ? 'enabled' : 'disabled') + '</div>';
+    }).join('') || '<div>No integrations configured</div>';
+    setCardBody('integrations', esc(enabled) + ' / ' + esc(items.length) + ' enabled<br>' + listHtml);
+  } catch (e) {
+    setCardError('integrations', e.message);
+  }
+}
+
 function refreshWidget(widgetId) {
   if (widgetId === 'models') loadModelsWidget();
   if (widgetId === 'hardware') loadHardwareWidget();
   if (widgetId === 'tasks') loadTasksWidget();
   if (widgetId === 'memory') loadMemoryWidget();
+  if (widgetId === 'integrations') loadIntegrationsWidget();
 }
 
 function loadAllWidgets() {
@@ -118,6 +135,7 @@ function loadAllWidgets() {
   loadHardwareWidget();
   loadTasksWidget();
   loadMemoryWidget();
+  loadIntegrationsWidget();
 }
 
 function openMissionControl() {
@@ -159,6 +177,12 @@ function init() {
     closeMissionControl();
     const memoryBtn = $('tool-memory-btn');
     if (memoryBtn) memoryBtn.click();
+  });
+  const openIntegrations = $('mc-open-integrations');
+  if (openIntegrations) openIntegrations.addEventListener('click', function () {
+    closeMissionControl();
+    const pluginsBtn = $('tool-plugins-btn');
+    if (pluginsBtn) pluginsBtn.click();
   });
   Modals.register('mission-control-modal', {
     railBtnId: 'rail-mission-control', sidebarBtnId: 'tool-mission-control-btn', closeFn: closeMissionControl,

@@ -59,3 +59,13 @@ def test_mission_control_has_memory_widget():
     src = (ROOT / "static" / "js" / "missionControl.js").read_text(encoding="utf-8")
     assert "loadMemoryWidget" in src
     assert "/api/memory/timeline" in src
+
+
+def test_mission_control_has_integrations_widget():
+    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    assert 'data-widget="integrations"' in html
+    assert 'id="mc-body-integrations"' in html
+
+    src = (ROOT / "static" / "js" / "missionControl.js").read_text(encoding="utf-8")
+    assert "loadIntegrationsWidget" in src
+    assert "/api/auth/integrations" in src
