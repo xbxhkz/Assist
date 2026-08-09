@@ -29,3 +29,13 @@ def test_mission_control_js_syntax():
         capture_output=True, text=True,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_mission_control_has_hardware_widget():
+    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    assert 'data-widget="hardware"' in html
+    assert 'id="mc-body-hardware"' in html
+
+    src = (ROOT / "static" / "js" / "missionControl.js").read_text(encoding="utf-8")
+    assert "loadHardwareWidget" in src
+    assert "/api/hwfit/usage" in src

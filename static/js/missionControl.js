@@ -52,12 +52,31 @@ async function loadModelsWidget() {
   }
 }
 
+async function loadHardwareWidget() {
+  const body = $('mc-body-hardware');
+  if (body) body.classList.remove('mc-error');
+  try {
+    const data = await api('/api/hwfit/usage');
+    const gpuLine = (data.gpus || []).map(function (g) {
+      return esc(g.name || 'GPU') + ': ' + esc(Math.round(g.util_percent || 0)) + '%';
+    }).join(', ') || 'No GPU detected';
+    setCardBody('hardware',
+      'CPU ' + esc(Math.round(data.cpu_percent || 0)) + '% · ' +
+      'RAM ' + esc(data.ram_used_gb || 0) + '/' + esc(data.ram_total_gb || 0) + ' GB<br>' +
+      gpuLine);
+  } catch (e) {
+    setCardError('hardware', e.message);
+  }
+}
+
 function refreshWidget(widgetId) {
   if (widgetId === 'models') loadModelsWidget();
+  if (widgetId === 'hardware') loadHardwareWidget();
 }
 
 function loadAllWidgets() {
   loadModelsWidget();
+  loadHardwareWidget();
 }
 
 function openMissionControl() {
@@ -78,6 +97,15 @@ function init() {
     closeMissionControl();
     const modelBtn = $('model-picker-btn');
     if (modelBtn) modelBtn.click();
+  });
+  const openHardware = $('mc-open-hardware');
+  if (openHardware) openHardware.addEventListener('click', function () {
+    closeMissionControl();
+    const hwmon = $('hwmon');
+    if (hwmon) {
+      hwmon.open = true;
+      hwmon.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   });
   Modals.register('mission-control-modal', {
     railBtnId: 'rail-mission-control', sidebarBtnId: 'tool-mission-control-btn', closeFn: closeMissionControl,
