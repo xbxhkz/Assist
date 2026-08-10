@@ -122,12 +122,30 @@ async function loadIntegrationsWidget() {
   }
 }
 
+async function loadToolCallsWidget() {
+  const body = $('mc-body-tool-calls');
+  if (body) body.classList.remove('mc-error');
+  try {
+    const data = await api('/api/tool-calls?limit=3');
+    const items = data.tool_calls || [];
+    const listHtml = items.map(function (c) {
+      const cmd = (c.command || '').slice(0, 40);
+      return '<div>' + esc(c.tool || '?') + ': ' + esc(cmd) + '</div>';
+    }).join('') || '<div>No tool calls yet</div>';
+    const suffix = data.has_more ? '+' : '';
+    setCardBody('tool-calls', esc(items.length) + suffix + ' recent<br>' + listHtml);
+  } catch (e) {
+    setCardError('tool-calls', e.message);
+  }
+}
+
 function refreshWidget(widgetId) {
   if (widgetId === 'models') loadModelsWidget();
   if (widgetId === 'hardware') loadHardwareWidget();
   if (widgetId === 'tasks') loadTasksWidget();
   if (widgetId === 'memory') loadMemoryWidget();
   if (widgetId === 'integrations') loadIntegrationsWidget();
+  if (widgetId === 'tool-calls') loadToolCallsWidget();
 }
 
 function loadAllWidgets() {
@@ -136,6 +154,7 @@ function loadAllWidgets() {
   loadTasksWidget();
   loadMemoryWidget();
   loadIntegrationsWidget();
+  loadToolCallsWidget();
 }
 
 function openMissionControl() {
@@ -183,6 +202,12 @@ function init() {
     closeMissionControl();
     const pluginsBtn = $('tool-plugins-btn');
     if (pluginsBtn) pluginsBtn.click();
+  });
+  const openToolCalls = $('mc-open-tool-calls');
+  if (openToolCalls) openToolCalls.addEventListener('click', function () {
+    closeMissionControl();
+    const toolCallsBtn = $('tool-tool-calls-btn');
+    if (toolCallsBtn) toolCallsBtn.click();
   });
   Modals.register('mission-control-modal', {
     railBtnId: 'rail-mission-control', sidebarBtnId: 'tool-mission-control-btn', closeFn: closeMissionControl,

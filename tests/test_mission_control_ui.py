@@ -72,7 +72,7 @@ def test_mission_control_has_integrations_widget():
 
 
 def test_mission_control_loadAllWidgets_wires_all_loaders():
-    """Verify that loadAllWidgets() actually calls all 5 loader functions.
+    """Verify that loadAllWidgets() actually calls all 6 loader functions.
 
     This guards against a future change that removes a loader call but
     forgets to update loadAllWidgets(), which would leave that widget
@@ -94,13 +94,14 @@ def test_mission_control_loadAllWidgets_wires_all_loaders():
 
     body = match.group(1)
 
-    # All 5 loaders must be called within the function body
+    # All 6 loaders must be called within the function body
     expected_calls = [
         'loadModelsWidget()',
         'loadHardwareWidget()',
         'loadTasksWidget()',
         'loadMemoryWidget()',
         'loadIntegrationsWidget()',
+        'loadToolCallsWidget()',
     ]
     for call in expected_calls:
         assert call in body, f"loadAllWidgets() does not call {call}"
@@ -123,12 +124,14 @@ def test_mission_control_link_targets_exist_in_html():
     # mc-open-tasks -> rail-tasks
     # mc-open-memory -> tool-memory-btn
     # mc-open-integrations -> tool-plugins-btn
+    # mc-open-tool-calls -> tool-tool-calls-btn
     targets = {
         'model-picker-btn': 'models',
         'hwmon': 'hardware',
         'rail-tasks': 'tasks',
         'tool-memory-btn': 'memory',
         'tool-plugins-btn': 'integrations',
+        'tool-tool-calls-btn': 'tool-calls',
     }
 
     for target_id, widget_name in targets.items():
@@ -140,3 +143,13 @@ def test_mission_control_link_targets_exist_in_html():
         # Verify the target element exists in HTML
         assert f'id="{target_id}"' in html, \
             f"HTML does not contain element with id '{target_id}' (target of mc-open-{widget_name})"
+
+
+def test_mission_control_has_tool_calls_widget():
+    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    assert 'data-widget="tool-calls"' in html
+    assert 'id="mc-body-tool-calls"' in html
+
+    src = (ROOT / "static" / "js" / "missionControl.js").read_text(encoding="utf-8")
+    assert "loadToolCallsWidget" in src
+    assert "/api/tool-calls" in src
