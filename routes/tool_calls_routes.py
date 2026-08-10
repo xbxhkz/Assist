@@ -93,3 +93,52 @@ def list_tool_calls(
             break
 
     return records, has_more
+
+
+from fastapi import APIRouter, HTTPException, Request
+
+from src.auth_helpers import get_current_user
+
+
+def setup_tool_calls_routes() -> APIRouter:
+    router = APIRouter(prefix="/api/tool-calls", tags=["tool-calls"])
+
+    @router.get("")
+    async def get_tool_calls(
+        request: Request,
+        session_id: Optional[str] = None,
+        tool_name: Optional[str] = None,
+        since: Optional[str] = None,
+        until: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ):
+        user = get_current_user(request)
+
+        since_dt = None
+        if since:
+            try:
+                since_dt = datetime.fromisoformat(since)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="invalid 'since' -- expected ISO 8601")
+        until_dt = None
+        if until:
+            try:
+                until_dt = datetime.fromisoformat(until)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="invalid 'until' -- expected ISO 8601")
+
+        safe_limit = max(1, min(limit, 200))
+        safe_offset = max(0, offset)
+
+        db = SessionLocal()
+        try:
+            records, has_more = list_tool_calls(
+                db, owner=user, session_id=session_id, tool_name=tool_name,
+                since=since_dt, until=until_dt, limit=safe_limit, offset=safe_offset,
+            )
+        finally:
+            db.close()
+        return {"tool_calls": records, "has_more": has_more}
+
+    return router
