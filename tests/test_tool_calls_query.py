@@ -191,3 +191,33 @@ def test_owner_isolation():
         db.close()
 
     assert [r["tool"] for r in records] == ["alice_tool"]
+
+
+def test_tool_events_non_list_is_skipped():
+    owner = _unique_owner()
+    sid = _make_session(owner)
+    _add_message(sid, json.dumps({"tool_events": "not-a-list"}), datetime(2026, 1, 1))
+    _add_tool_events(sid, [{"round": 1, "tool": "ok_tool", "command": "c", "output": "o", "exit_code": 0}], datetime(2026, 1, 2))
+
+    db = SessionLocal()
+    try:
+        records, _ = tcr.list_tool_calls(db, owner=owner)
+    finally:
+        db.close()
+
+    assert [r["tool"] for r in records] == ["ok_tool"]
+
+
+def test_tool_events_list_with_non_dict_elements_is_skipped():
+    owner = _unique_owner()
+    sid = _make_session(owner)
+    _add_message(sid, json.dumps({"tool_events": ["not-a-dict", 42]}), datetime(2026, 1, 1))
+    _add_tool_events(sid, [{"round": 1, "tool": "ok_tool", "command": "c", "output": "o", "exit_code": 0}], datetime(2026, 1, 2))
+
+    db = SessionLocal()
+    try:
+        records, _ = tcr.list_tool_calls(db, owner=owner)
+    finally:
+        db.close()
+
+    assert [r["tool"] for r in records] == ["ok_tool"]
