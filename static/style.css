@@ -17756,6 +17756,50 @@ body:not(.email-doc-split-active) #email-lib-modal.email-lib-fullscreen:not(.mod
   max-height: 92vh;
   font-size: 12px;
 }
+.tool-call-log-content {
+  width: min(900px, 92vw);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+.tool-call-log-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.tool-call-log-filters input {
+  flex: 1;
+  min-width: 140px;
+}
+.tool-call-log-list {
+  overflow-y: auto;
+  max-height: 60vh;
+}
+.tool-call-log-list.tool-call-log-error {
+  color: var(--red, #c0392b);
+}
+.tool-call-log-entry {
+  border-bottom: 1px solid var(--border);
+  padding: 8px 0;
+}
+.tool-call-log-meta {
+  font-size: 12px;
+  opacity: 0.75;
+  margin-bottom: 4px;
+}
+.tool-call-log-command {
+  font-family: monospace;
+  font-size: 12px;
+}
+.tool-call-log-output {
+  font-family: monospace;
+  font-size: 12px;
+  opacity: 0.8;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .mission-control-content {
   width: min(1100px, 94vw);
   max-height: 90vh;
