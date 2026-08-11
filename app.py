@@ -669,6 +669,10 @@ app.include_router(setup_diagnostics_routes(rag_manager, rag_available, research
 from routes.cleanup_routes import setup_cleanup_routes
 app.include_router(setup_cleanup_routes(session_manager))
 
+# Active agents (Mission Control sub-project 2b)
+from routes.agent_runs_routes import setup_agent_runs_routes
+app.include_router(setup_agent_runs_routes(session_manager))
+
 # Personal docs
 from routes.personal_routes import setup_personal_routes
 app.include_router(setup_personal_routes(personal_docs_mgr, rag_manager, rag_available))

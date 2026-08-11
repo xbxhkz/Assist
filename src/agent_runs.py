@@ -17,7 +17,7 @@ close / navigation / refresh). It does NOT survive a server restart.
 import asyncio
 import json
 import logging
-from typing import AsyncGenerator, Dict, Optional
+from typing import AsyncGenerator, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +83,16 @@ def is_active(session_id: str) -> bool:
 def get_status(session_id: str) -> Optional[str]:
     r = _RUNS.get(session_id)
     return r.status if r else None
+
+
+def list_active() -> List[str]:
+    """Session ids currently mid-run ("running" status).
+
+    Read-only -- does not touch the run registry's write path
+    (start/stop/eviction). Used by Mission Control's Active Agents widget;
+    see docs/superpowers/specs/2026-08-11-mission-control-active-agents-design.md.
+    """
+    return [sid for sid, run in _RUNS.items() if run.status == "running"]
 
 
 async def _drain(session_id: str, agen: AsyncGenerator[str, None],
