@@ -5,6 +5,7 @@ tests/test_memory_routes_session_owner.py -- no HTTP layer needed, the route
 function is called directly with a fake request.
 """
 import asyncio
+from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
@@ -95,3 +96,23 @@ def test_filters_are_forwarded(monkeypatch):
 
     assert captured["session_id"] == "s1"
     assert captured["tool_name"] == "web_search"
+
+
+def test_since_offset_aware_iso_is_converted_to_naive_utc(monkeypatch):
+    """ChatMessage.timestamp is naive UTC. An offset-aware 'since' must be
+    converted to naive UTC before being handed to list_tool_calls, not
+    compared as if the offset weren't there."""
+    captured = {}
+
+    def fake_list_tool_calls(db, owner, **kwargs):
+        captured.update(kwargs)
+        return [], False
+
+    monkeypatch.setattr(tcr, "list_tool_calls", fake_list_tool_calls)
+    router = tcr.setup_tool_calls_routes()
+    handler = _route(router, "/api/tool-calls", "GET")
+
+    asyncio.run(handler(request=_request("alice"), since="2026-03-01T12:00:00+05:00"))
+
+    assert captured["since"] == datetime(2026, 3, 1, 7, 0, 0)
+    assert captured["since"].tzinfo is None

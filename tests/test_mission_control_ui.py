@@ -145,6 +145,50 @@ def test_mission_control_link_targets_exist_in_html():
             f"HTML does not contain element with id '{target_id}' (target of mc-open-{widget_name})"
 
 
+def test_mission_control_open_handlers_wire_to_correct_targets():
+    """Verify each mc-open-* handler's own block references its correct
+    target id -- not just that both strings independently appear somewhere
+    in missionControl.js.
+
+    test_mission_control_link_targets_exist_in_html only proves co-presence:
+    it would still pass even if a handler were accidentally wired to the
+    wrong target id, as long as the correct id existed somewhere else in the
+    file (e.g. copy-paste of a sibling handler's body). This test extracts
+    each `mc-open-<name>` handler's own block -- bounded by consecutive
+    `const open... = $('mc-open-...')` declarations, mirroring the
+    extraction-based approach test_mission_control_loadAllWidgets_wires_all_loaders
+    uses for loadAllWidgets() -- and asserts the target id string appears
+    specifically within THAT block.
+    """
+    src = (ROOT / "static" / "js" / "missionControl.js").read_text(encoding="utf-8")
+
+    # Each handler starts with "const open<Name> = $('mc-open-<name>');".
+    # A block runs from one such declaration up to the next (or EOF for the
+    # last one).
+    starts = list(re.finditer(r"const\s+open\w+\s*=\s*\$\('(mc-open-[\w-]+)'\);", src))
+    assert len(starts) == 6, "expected 6 mc-open-* handlers, found %d" % len(starts)
+
+    targets = {
+        'mc-open-models': 'model-picker-btn',
+        'mc-open-hardware': 'hwmon',
+        'mc-open-tasks': 'rail-tasks',
+        'mc-open-memory': 'tool-memory-btn',
+        'mc-open-integrations': 'tool-plugins-btn',
+        'mc-open-tool-calls': 'tool-tool-calls-btn',
+    }
+    assert set(m.group(1) for m in starts) == set(targets), "handler set changed"
+
+    for i, m in enumerate(starts):
+        open_id = m.group(1)
+        block_end = starts[i + 1].start() if i + 1 < len(starts) else len(src)
+        block = src[m.start():block_end]
+        expected_target = targets[open_id]
+        assert f"'{expected_target}'" in block or f'"{expected_target}"' in block, (
+            f"handler for '{open_id}' does not reference its target id "
+            f"'{expected_target}' within its own block"
+        )
+
+
 def test_mission_control_has_tool_calls_widget():
     html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
     assert 'data-widget="tool-calls"' in html

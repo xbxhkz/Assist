@@ -208,6 +208,31 @@ def test_tool_events_non_list_is_skipped():
     assert [r["tool"] for r in records] == ["ok_tool"]
 
 
+def test_since_and_until_filter_by_timestamp():
+    owner = _unique_owner()
+    sid = _make_session(owner)
+    t_old = datetime(2026, 1, 1, 12, 0, 0)
+    t_new = datetime(2026, 1, 5, 12, 0, 0)
+    _add_tool_events(sid, [{"round": 1, "tool": "old_tool", "command": "c", "output": "o", "exit_code": 0}], t_old)
+    _add_tool_events(sid, [{"round": 1, "tool": "new_tool", "command": "c", "output": "o", "exit_code": 0}], t_new)
+
+    cutoff = datetime(2026, 1, 3, 0, 0, 0)
+
+    db = SessionLocal()
+    try:
+        records, _ = tcr.list_tool_calls(db, owner=owner, since=cutoff)
+    finally:
+        db.close()
+    assert [r["tool"] for r in records] == ["new_tool"]
+
+    db = SessionLocal()
+    try:
+        records, _ = tcr.list_tool_calls(db, owner=owner, until=cutoff)
+    finally:
+        db.close()
+    assert [r["tool"] for r in records] == ["old_tool"]
+
+
 def test_tool_events_list_with_non_dict_elements_is_skipped():
     owner = _unique_owner()
     sid = _make_session(owner)

@@ -6,12 +6,22 @@ This module queries that existing data at read time; it does not add a new
 table. See docs/superpowers/specs/2026-08-10-mission-control-tool-call-log-design.md.
 """
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
 from core.database import ChatMessage as DBChatMessage, Session as DBSession, SessionLocal
 
 _BATCH_SIZE = 200
+# Safety cap on how many _BATCH_SIZE batches list_tool_calls will scan while
+# hunting for `limit` matching records. Without this, a tool_name filter that
+# matches nothing (or whose matches are all old) walks the owner's ENTIRE
+# message history with no upper bound -- meta_data is non-null for virtually
+# every message, so there's nothing else to narrow the scan, and there's no
+# plain index on timestamp alone (only the composite (session_id, timestamp)).
+# When the cap is hit we have no proof there isn't more data past it, so
+# has_more must honestly report True rather than claiming the scan was
+# exhaustive.
+_MAX_BATCHES = 50
 
 
 def list_tool_calls(
@@ -48,12 +58,14 @@ def list_tool_calls(
     has_more = False
     seen = 0
     batch_offset = 0
+    batches_scanned = 0
 
     while True:
         batch = query.offset(batch_offset).limit(_BATCH_SIZE).all()
         if not batch:
             break
         batch_offset += len(batch)
+        batches_scanned += 1
 
         for message, session_name in batch:
             try:
@@ -91,13 +103,18 @@ def list_tool_calls(
                 break
         if has_more or len(batch) < _BATCH_SIZE:
             break
+        if batches_scanned >= _MAX_BATCHES:
+            # Gave up before exhausting the owner's history -- we cannot
+            # claim there's nothing more past the cap.
+            has_more = True
+            break
 
     return records, has_more
 
 
 from fastapi import APIRouter, HTTPException, Request
 
-from src.auth_helpers import get_current_user
+from src.auth_helpers import effective_user
 
 
 def setup_tool_calls_routes() -> APIRouter:
@@ -113,7 +130,7 @@ def setup_tool_calls_routes() -> APIRouter:
         limit: int = 50,
         offset: int = 0,
     ):
-        user = get_current_user(request)
+        user = effective_user(request)
 
         since_dt = None
         if since:
@@ -121,12 +138,19 @@ def setup_tool_calls_routes() -> APIRouter:
                 since_dt = datetime.fromisoformat(since)
             except ValueError:
                 raise HTTPException(status_code=400, detail="invalid 'since' -- expected ISO 8601")
+            if since_dt.tzinfo is not None:
+                # ChatMessage.timestamp is stored as naive UTC -- convert an
+                # offset-aware caller value instead of silently comparing it
+                # as if the offset weren't there.
+                since_dt = since_dt.astimezone(timezone.utc).replace(tzinfo=None)
         until_dt = None
         if until:
             try:
                 until_dt = datetime.fromisoformat(until)
             except ValueError:
                 raise HTTPException(status_code=400, detail="invalid 'until' -- expected ISO 8601")
+            if until_dt.tzinfo is not None:
+                until_dt = until_dt.astimezone(timezone.utc).replace(tzinfo=None)
 
         safe_limit = max(1, min(limit, 200))
         safe_offset = max(0, offset)

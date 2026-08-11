@@ -30,6 +30,7 @@ function _renderEntries(entries, append) {
   const html = entries.map(function (c) {
     const cmd = esc(c.command || '');
     const output = esc((c.output || '').slice(0, 200));
+    const round = ' <span class="tool-call-log-round">round ' + esc(c.round == null ? '?' : c.round) + '</span>';
     const exitCode = (c.exit_code === null || c.exit_code === undefined) ? '' :
       ' <span class="tool-call-log-exit">exit ' + esc(c.exit_code) + '</span>';
     const sid = esc(c.session_id || '');
@@ -38,7 +39,7 @@ function _renderEntries(entries, append) {
       '<div class="tool-call-log-meta">' +
       '<a href="#" class="tool-call-log-session" data-session-id="' + sid + '">' + esc(c.session_name || 'Unknown') + '</a>' +
       ' (<a href="#" class="tool-call-log-session-filter" data-session-id="' + sid + '">filter</a>)' +
-      ' &middot; ' + esc(c.tool || '?') + exitCode +
+      ' &middot; ' + esc(c.tool || '?') + round + exitCode +
       ' &middot; <span class="tool-call-log-time">' + esc(c.timestamp || '') + '</span>' +
       '</div>' +
       '<div class="tool-call-log-command">' + cmd + '</div>' +
@@ -71,7 +72,14 @@ async function loadToolCallLog(append) {
   } catch (e) {
     if (list) {
       list.classList.add('tool-call-log-error');
-      list.textContent = 'Failed to load: ' + e.message;
+      if (append) {
+        // Don't wipe already-loaded entries just because "Load more" failed --
+        // append a small error message after them instead of replacing the list.
+        list.insertAdjacentHTML('beforeend',
+          '<div class="tool-call-log-entry tool-call-log-error">Failed to load more: ' + esc(e.message) + '</div>');
+      } else {
+        list.textContent = 'Failed to load: ' + e.message;
+      }
     }
   }
 }
