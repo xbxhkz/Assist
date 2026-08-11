@@ -53,7 +53,7 @@ def main() -> None:
 
     from src.desktop_runtime import (
         choose_port, local_origin, augment_allowed_origins,
-        make_uvicorn_server, wait_for_server_ready,
+        make_uvicorn_server, wait_for_server_ready, run_server_logging_errors,
         bundled_fastembed_cache, webview2_runtime_available,
     )
 
@@ -74,9 +74,15 @@ def main() -> None:
     from app import app
 
     server = make_uvicorn_server(app, host, port)
-    threading.Thread(target=server.run, daemon=True).start()
+    threading.Thread(target=run_server_logging_errors, args=(server,), daemon=True).start()
 
-    if not wait_for_server_ready(origin + "/api/health", timeout=45.0):
+    # 90s: a cold first run (fresh install, no warm disk/OS cache, possible
+    # antivirus scan-on-first-touch of the freshly-written binaries) has been
+    # measured taking ~34s just for module import before this wait even
+    # starts -- 45s left too little margin. A genuine crash (now logged by
+    # run_server_logging_errors above) still surfaces via this same timeout,
+    # just with more room for a merely-slow-not-broken cold start.
+    if not wait_for_server_ready(origin + "/api/health", timeout=90.0):
         _show_error("Assist could not start its background service in time.")
         server.should_exit = True
         return

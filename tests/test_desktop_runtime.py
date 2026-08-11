@@ -135,3 +135,35 @@ def test_launcher_imports_without_starting_gui():
     launcher = importlib.import_module("launcher")
     assert hasattr(launcher, "main")
     assert callable(launcher.main)
+
+
+def test_run_server_logging_errors_logs_exception(caplog):
+    # A windowed (console-less) frozen build has no visible stdout/stderr, so
+    # an exception on the background thread running the server (e.g. a
+    # port-bind race between choose_port()'s check and the server's real
+    # bind) would otherwise vanish with zero trace. This must land in the
+    # log instead of being silently swallowed by the default thread
+    # exception hook.
+    class _FailingServer:
+        def run(self):
+            raise RuntimeError("boom")
+
+    with caplog.at_level("ERROR"):
+        dr.run_server_logging_errors(_FailingServer())
+
+    assert "Background server thread failed" in caplog.text
+    assert "boom" in caplog.text
+
+
+def test_run_server_logging_errors_runs_normally_without_logging_error(caplog):
+    calls = []
+
+    class _OkServer:
+        def run(self):
+            calls.append(1)
+
+    with caplog.at_level("ERROR"):
+        dr.run_server_logging_errors(_OkServer())
+
+    assert calls == [1]
+    assert "Background server thread failed" not in caplog.text

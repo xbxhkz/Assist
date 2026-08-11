@@ -4,6 +4,7 @@ No GUI and no top-level `webview` import so this module is safe to import in
 any environment (including the headless Docker/server path). The launcher
 (`launcher.py`) wires these together and owns the pywebview window.
 """
+import logging
 import os
 import socket
 import sys
@@ -59,6 +60,23 @@ def make_uvicorn_server(app, host: str, port: int, log_level: str = "info"):
     import uvicorn
     config = uvicorn.Config(app=app, host=host, port=port, log_level=log_level)
     return uvicorn.Server(config)
+
+
+def run_server_logging_errors(server, logger=None) -> None:
+    """Run a uvicorn Server, logging (not swallowing) any exception it raises.
+
+    Meant as the target of the background thread that runs the server. A
+    windowed (console-less) frozen build has no visible stdout/stderr, so an
+    exception here (e.g. a port-bind race between choose_port()'s check and
+    the server's real bind) would otherwise vanish with zero trace, making a
+    genuine crash indistinguishable from a slow cold start once
+    wait_for_server_ready times out.
+    """
+    log = logger or logging.getLogger(__name__)
+    try:
+        server.run()
+    except Exception:
+        log.exception("Background server thread failed")
 
 
 def _default_opener(url: str) -> int:
