@@ -94,7 +94,7 @@ def test_mission_control_loadAllWidgets_wires_all_loaders():
 
     body = match.group(1)
 
-    # All 6 loaders must be called within the function body
+    # All 7 loaders must be called within the function body
     expected_calls = [
         'loadModelsWidget()',
         'loadHardwareWidget()',
@@ -102,6 +102,7 @@ def test_mission_control_loadAllWidgets_wires_all_loaders():
         'loadMemoryWidget()',
         'loadIntegrationsWidget()',
         'loadToolCallsWidget()',
+        'loadActiveAgentsWidget()',
     ]
     for call in expected_calls:
         assert call in body, f"loadAllWidgets() does not call {call}"
@@ -197,3 +198,19 @@ def test_mission_control_has_tool_calls_widget():
     src = (ROOT / "static" / "js" / "missionControl.js").read_text(encoding="utf-8")
     assert "loadToolCallsWidget" in src
     assert "/api/tool-calls" in src
+
+
+def test_mission_control_has_active_agents_widget():
+    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    assert 'data-widget="active-agents"' in html
+    assert 'id="mc-body-active-agents"' in html
+
+    src = (ROOT / "static" / "js" / "missionControl.js").read_text(encoding="utf-8")
+    assert "loadActiveAgentsWidget" in src
+    assert "/api/agent-runs/active" in src
+
+
+def test_mission_control_active_agents_uses_select_session_for_jump():
+    src = (ROOT / "static" / "js" / "missionControl.js").read_text(encoding="utf-8")
+    assert "sessionModule" in src
+    assert "selectSession" in src

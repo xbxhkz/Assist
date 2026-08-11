@@ -139,6 +139,21 @@ async function loadToolCallsWidget() {
   }
 }
 
+async function loadActiveAgentsWidget() {
+  const body = $('mc-body-active-agents');
+  if (body) body.classList.remove('mc-error');
+  try {
+    const data = await api('/api/agent-runs/active');
+    const items = data.active || [];
+    const listHtml = items.map(function (a) {
+      return '<div><a href="#" class="mc-active-agent-session" data-session-id="' + esc(a.session_id) + '">' + esc(a.session_name || 'Unknown') + '</a></div>';
+    }).join('') || '<div>No active agents right now</div>';
+    setCardBody('active-agents', esc(items.length) + ' active<br>' + listHtml);
+  } catch (e) {
+    setCardError('active-agents', e.message);
+  }
+}
+
 function refreshWidget(widgetId) {
   if (widgetId === 'models') loadModelsWidget();
   if (widgetId === 'hardware') loadHardwareWidget();
@@ -146,6 +161,7 @@ function refreshWidget(widgetId) {
   if (widgetId === 'memory') loadMemoryWidget();
   if (widgetId === 'integrations') loadIntegrationsWidget();
   if (widgetId === 'tool-calls') loadToolCallsWidget();
+  if (widgetId === 'active-agents') loadActiveAgentsWidget();
 }
 
 function loadAllWidgets() {
@@ -155,6 +171,7 @@ function loadAllWidgets() {
   loadMemoryWidget();
   loadIntegrationsWidget();
   loadToolCallsWidget();
+  loadActiveAgentsWidget();
 }
 
 function openMissionControl() {
@@ -208,6 +225,19 @@ function init() {
     closeMissionControl();
     const toolCallsBtn = $('tool-tool-calls-btn');
     if (toolCallsBtn) toolCallsBtn.click();
+  });
+  const activeAgentsBody = $('mc-body-active-agents');
+  if (activeAgentsBody) activeAgentsBody.addEventListener('click', function (ev) {
+    const link = ev.target.closest('.mc-active-agent-session');
+    if (!link) return;
+    ev.preventDefault();
+    const sid = link.getAttribute('data-session-id');
+    if (sid) {
+      closeMissionControl();
+      if (window.sessionModule && window.sessionModule.selectSession) {
+        window.sessionModule.selectSession(sid);
+      }
+    }
   });
   Modals.register('mission-control-modal', {
     railBtnId: 'rail-mission-control', sidebarBtnId: 'tool-mission-control-btn', closeFn: closeMissionControl,
