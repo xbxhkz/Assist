@@ -125,3 +125,30 @@ def test_tool_class_delegates_to_module_function():
     tool = RemoveBackgroundTool()
     result = asyncio.run(tool.execute("{}", {"owner": "alice"}))
     assert "error" in result
+
+
+def test_gallery_save_failure_logs_a_warning(tmp_path, caplog):
+    # The Gallery-save except block must not discard the failure reason
+    # entirely -- it should be surfaced via the module logger (as a
+    # non-fatal warning, since remove_background still succeeds and
+    # returns image_url) rather than silently swallowed.
+    import logging
+
+    real_file = tmp_path / "upload.png"
+    real_file.write_bytes(b"original-bytes")
+    content = json.dumps({"attachment_id": "up-1"})
+
+    def failing_saver(image_bytes, owner):
+        raise RuntimeError("db unavailable")
+
+    with caplog.at_level(logging.WARNING, logger="src.agent_tools.image_tools"):
+        result = asyncio.run(remove_background_tool(
+            content, {"owner": "alice"},
+            upload_resolver=_fake_upload_resolver(found=True, path=str(real_file)),
+            remover=_fake_remover(output=b"removed-bg-bytes"),
+            gallery_saver=failing_saver,
+        ))
+
+    assert "image_url" in result
+    assert "gallery_image_id" not in result
+    assert any(r.levelno == logging.WARNING and "Gallery" in r.message for r in caplog.records)

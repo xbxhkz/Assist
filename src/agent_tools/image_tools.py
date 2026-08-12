@@ -12,8 +12,17 @@ every failure returns {"error": ...}, matching diagnose_equipment's
 established pattern. See
 docs/superpowers/specs/2026-08-12-image-editing-background-removal-design.md.
 """
+import asyncio
 import base64
 import json
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def _read_bytes(path):
+    with open(path, "rb") as f:
+        return f.read()
 
 
 def _default_gallery_saver(image_bytes, owner):
@@ -80,8 +89,12 @@ async def remove_background_tool(content, ctx, *, remover=None, upload_resolver=
         return {"error": f"remove_background: attachment '{attachment_id}' not found"}
 
     try:
-        with open(info["path"], "rb") as f:
-            image_bytes = f.read()
+        # Off the event loop: reading the source file and, especially, the
+        # synchronous ONNX inference + full-size PIL resize in remover() can
+        # take real time (plus a first-call model load) -- never block the
+        # app, matching desktop_tools.py's capture_screen/webcam_look
+        # asyncio.to_thread pattern for the same reason.
+        image_bytes = await asyncio.to_thread(_read_bytes, info["path"])
     except OSError as e:
         return {"error": f"remove_background: could not read attachment: {e}"}
 
@@ -89,7 +102,7 @@ async def remove_background_tool(content, ctx, *, remover=None, upload_resolver=
         from src.bg_removal import remove_background as remover
 
     try:
-        result_bytes = remover(image_bytes)
+        result_bytes = await asyncio.to_thread(remover, image_bytes)
     except Exception as e:
         return {"error": f"remove_background: model failed: {e}"}
 
@@ -103,7 +116,7 @@ async def remove_background_tool(content, ctx, *, remover=None, upload_resolver=
     try:
         result["gallery_image_id"] = saver(result_bytes, owner)
     except Exception:
-        pass
+        logger.warning("remove_background: failed to save result to Gallery", exc_info=True)
 
     return result
 
