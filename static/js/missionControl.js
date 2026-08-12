@@ -154,6 +154,21 @@ async function loadActiveAgentsWidget() {
   }
 }
 
+async function loadWorkflowRunsWidget() {
+  const body = $('mc-body-workflow-runs');
+  if (body) body.classList.remove('mc-error');
+  try {
+    const data = await api('/api/workflow-runs/active');
+    const items = data.active || [];
+    const listHtml = items.map(function (w) {
+      return '<div>' + esc(w.workflow_name || w.workflow_id || '?') + ' (' + esc(w.trigger || '?') + ')</div>';
+    }).join('') || '<div>No workflows running right now</div>';
+    setCardBody('workflow-runs', esc(items.length) + ' running<br>' + listHtml);
+  } catch (e) {
+    setCardError('workflow-runs', e.message);
+  }
+}
+
 function refreshWidget(widgetId) {
   if (widgetId === 'models') loadModelsWidget();
   if (widgetId === 'hardware') loadHardwareWidget();
@@ -162,6 +177,7 @@ function refreshWidget(widgetId) {
   if (widgetId === 'integrations') loadIntegrationsWidget();
   if (widgetId === 'tool-calls') loadToolCallsWidget();
   if (widgetId === 'active-agents') loadActiveAgentsWidget();
+  if (widgetId === 'workflow-runs') loadWorkflowRunsWidget();
 }
 
 function loadAllWidgets() {
@@ -172,6 +188,7 @@ function loadAllWidgets() {
   loadIntegrationsWidget();
   loadToolCallsWidget();
   loadActiveAgentsWidget();
+  loadWorkflowRunsWidget();
 }
 
 function openMissionControl() {
@@ -238,6 +255,12 @@ function init() {
         window.sessionModule.selectSession(sid);
       }
     }
+  });
+  const openWorkflowRuns = $('mc-open-workflow-runs');
+  if (openWorkflowRuns) openWorkflowRuns.addEventListener('click', function () {
+    closeMissionControl();
+    const workflowsBtn = $('tool-workflows-btn');
+    if (workflowsBtn) workflowsBtn.click();
   });
   Modals.register('mission-control-modal', {
     railBtnId: 'rail-mission-control', sidebarBtnId: 'tool-mission-control-btn', closeFn: closeMissionControl,

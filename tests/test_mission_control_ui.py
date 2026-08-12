@@ -103,6 +103,7 @@ def test_mission_control_loadAllWidgets_wires_all_loaders():
         'loadIntegrationsWidget()',
         'loadToolCallsWidget()',
         'loadActiveAgentsWidget()',
+        'loadWorkflowRunsWidget()',
     ]
     for call in expected_calls:
         assert call in body, f"loadAllWidgets() does not call {call}"
@@ -133,6 +134,7 @@ def test_mission_control_link_targets_exist_in_html():
         'tool-memory-btn': 'memory',
         'tool-plugins-btn': 'integrations',
         'tool-tool-calls-btn': 'tool-calls',
+        'tool-workflows-btn': 'workflow-runs',
     }
 
     for target_id, widget_name in targets.items():
@@ -167,7 +169,7 @@ def test_mission_control_open_handlers_wire_to_correct_targets():
     # A block runs from one such declaration up to the next (or EOF for the
     # last one).
     starts = list(re.finditer(r"const\s+open\w+\s*=\s*\$\('(mc-open-[\w-]+)'\);", src))
-    assert len(starts) == 6, "expected 6 mc-open-* handlers, found %d" % len(starts)
+    assert len(starts) == 7, "expected 7 mc-open-* handlers, found %d" % len(starts)
 
     targets = {
         'mc-open-models': 'model-picker-btn',
@@ -176,6 +178,7 @@ def test_mission_control_open_handlers_wire_to_correct_targets():
         'mc-open-memory': 'tool-memory-btn',
         'mc-open-integrations': 'tool-plugins-btn',
         'mc-open-tool-calls': 'tool-tool-calls-btn',
+        'mc-open-workflow-runs': 'tool-workflows-btn',
     }
     assert set(m.group(1) for m in starts) == set(targets), "handler set changed"
 
@@ -214,3 +217,13 @@ def test_mission_control_active_agents_uses_select_session_for_jump():
     src = (ROOT / "static" / "js" / "missionControl.js").read_text(encoding="utf-8")
     assert "sessionModule" in src
     assert "selectSession" in src
+
+
+def test_mission_control_has_workflow_runs_widget():
+    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    assert 'data-widget="workflow-runs"' in html
+    assert 'id="mc-body-workflow-runs"' in html
+
+    src = (ROOT / "static" / "js" / "missionControl.js").read_text(encoding="utf-8")
+    assert "loadWorkflowRunsWidget" in src
+    assert "/api/workflow-runs/active" in src
