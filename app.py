@@ -792,6 +792,9 @@ app.include_router(setup_loras_routes())
 from routes.workflow_routes import setup_workflow_routes
 app.include_router(setup_workflow_routes())
 
+# Live workflow-run tracking (Mission Control sub-project 2c)
+from routes.workflow_runs_routes import setup_workflow_runs_routes
+app.include_router(setup_workflow_runs_routes())
 
 # MCP (Model Context Protocol)
 from src.mcp_manager import McpManager
