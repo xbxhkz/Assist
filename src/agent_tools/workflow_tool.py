@@ -4,6 +4,7 @@ inner-tool dispatch is ungated, so only admins may run a workflow. A ctx
 `_in_workflow` flag blocks workflow-invokes-workflow nesting."""
 import json
 
+from src import workflow_runs
 from src.workflows import store
 from src.workflows.engine import run_workflow
 from src.workflows.model import WorkflowError
@@ -51,10 +52,13 @@ async def run_workflow_tool(content, ctx):
     child = dict(ctx)
     child["_in_workflow"] = True
     child["owner"] = ctx.get("owner")
+    run_id = workflow_runs.start(wid, wf.get("name") or wid, ctx.get("owner"), "agent_tool")
     try:
         result = await run_workflow(wf, inputs, child)
     except WorkflowError as e:
         return {"error": "; ".join(e.errors)}
+    finally:
+        workflow_runs.finish(run_id)
     outputs = result.get("outputs") or {}
     log = result.get("log") or []
     oks = sum(1 for e in log if e.get("status") == "ok")

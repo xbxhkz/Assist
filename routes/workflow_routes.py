@@ -8,6 +8,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
 from core.middleware import require_admin
 from src.auth_helpers import get_current_user
+from src import workflow_runs
 from src.workflows import store
 from src.workflows.engine import run_workflow
 from src.workflows.model import WorkflowError, validate
@@ -69,9 +70,12 @@ def setup_workflow_routes() -> APIRouter:
         if not wf:
             raise HTTPException(404, {"errors": ["workflow not found"]})
         owner = get_current_user(request)
+        run_id = workflow_runs.start(wid, wf.get("name") or wid, owner, "api")
         try:
             return await run_workflow(wf, body.get("inputs") or {}, {"owner": owner})
         except WorkflowError as e:
             raise _bad_request(e.errors)
+        finally:
+            workflow_runs.finish(run_id)
 
     return router

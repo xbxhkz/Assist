@@ -1277,6 +1277,7 @@ class TaskScheduler:
         from src.workflows.store import get_workflow
         from src.workflows.engine import run_workflow
         from src.workflows.triggers import resolve_trigger_inputs
+        from src import workflow_runs
 
         wid = task.action
         wf = get_workflow(wid) if wid else None
@@ -1289,7 +1290,11 @@ class TaskScheduler:
         except (ValueError, TypeError):
             fixed = {}
         inputs = resolve_trigger_inputs(wf, fixed, context)
-        result = await run_workflow(wf, inputs, {"owner": task.owner})
+        run_id = workflow_runs.start(wid, wf.get("name") or wid, task.owner, "scheduled")
+        try:
+            result = await run_workflow(wf, inputs, {"owner": task.owner})
+        finally:
+            workflow_runs.finish(run_id)
         outputs = result.get("outputs") or {}
         log = result.get("log") or []
         errors = sum(1 for e in log if e.get("status") == "error")
