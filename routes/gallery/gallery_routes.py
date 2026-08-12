@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from core.database import SessionLocal, GalleryImage, GalleryAlbum, ModelEndpoint
 from core.database import Session as DbSession
 from src.auth_helpers import get_current_user, owner_filter, require_privilege
+from src.bg_removal import remove_background as run_bg_removal_model
 from src.upload_limits import (
     read_upload_limited,
     GALLERY_UPLOAD_MAX_BYTES,
@@ -1642,19 +1643,14 @@ def setup_gallery_routes() -> APIRouter:
         else:
             crop = img
 
+        crop_buf = io.BytesIO()
+        crop.convert("RGBA").save(crop_buf, format="PNG")
         try:
-            from rembg import remove
-            cut = remove(crop)
-        except ImportError:
-            try:
-                from transformers import pipeline
-                pipe = pipeline("image-segmentation", model="briaai/RMBG-1.4", trust_remote_code=True)
-                mask_img = pipe(crop, return_mask=True).convert("L")
-                tmp = crop.copy()
-                tmp.putalpha(mask_img)
-                cut = tmp
-            except Exception:
-                return {"error": "No background removal model available. Install rembg: pip install rembg"}
+            cut_bytes = run_bg_removal_model(crop_buf.getvalue())
+        except Exception:
+            logger.warning("Background removal failed", exc_info=True)
+            return {"error": "Background removal failed"}
+        cut = Image.open(io.BytesIO(cut_bytes)).convert("RGBA")
 
         # Compose the cropped result back into a full-size transparent canvas.
         if bbox:
