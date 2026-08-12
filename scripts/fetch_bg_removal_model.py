@@ -4,12 +4,16 @@ build_assets/bg_removal/ directory, mirroring build_assets/yolo/). Mirrors
 scripts/fetch_sd_server.py's raw-download pattern -- a single file here, no
 zip extraction needed.
 
-NOTE: MODEL_URL below is from training-knowledge memory of where the rembg
-project (danielgatis/rembg) hosts its pre-exported ONNX models as GitHub
-Release assets -- NOT freshly verified. Confirm with `curl -sIL <url>`
-before relying on this in a real release build. No checksum verification
-exists here, matching every sibling fetch_*.py script in this repo (none of
-them verify a hash either -- only existence-after-write is checked).
+MODEL_URL points at the rembg project's (danielgatis/rembg) pre-exported
+U2Net ONNX GitHub Release asset. Verified 2026-08-12 with a HEAD request:
+200, Content-Length 175997641 (~176 MB), filename u2net.onnx. No checksum
+verification exists here, matching every sibling fetch_*.py script in this
+repo (none of them verify a hash either -- only existence-after-write is
+checked).
+
+Called by build-windows-portable.ps1 before PyInstaller runs: Assist.spec's
+('build_assets/bg_removal', 'bg_removal') datas entry is a HARD error when
+the directory is missing, and build_assets/ is gitignored.
 """
 import os
 import sys

@@ -49,22 +49,28 @@ def test_unresolvable_attachment_returns_error():
     assert "error" in result
 
 
-def _fake_gallery_saver(image_id="gallery-img-1"):
+def _fake_gallery_saver(image_id="gallery-img-1", filename="abc123def456.png"):
     calls = []
 
     def saver(image_bytes, owner):
         calls.append((image_bytes, owner))
-        return image_id
+        return {"id": image_id, "filename": filename}
 
     saver.calls = calls
     return saver
 
 
-def test_successful_removal_returns_image_url_and_saves_to_gallery(tmp_path):
+def test_successful_removal_returns_short_url_and_saves_to_gallery(tmp_path):
+    """On the happy path image_url must be the SHORT served URL, never an
+    inline data: URI. The base64 form is multi-KB-to-multi-MB and gets copied
+    into the LLM's own context (tool_execution.format_tool_result JSON-dumps
+    keys it doesn't special-case) AND into persisted session history
+    (agent_loop's tool_event), which is replayed on every future session load
+    and never shrinks. generate_image avoids this by returning a URL."""
     real_file = tmp_path / "upload.png"
     real_file.write_bytes(b"original-bytes")
     content = json.dumps({"attachment_id": "up-1"})
-    gallery_saver = _fake_gallery_saver(image_id="gallery-img-1")
+    gallery_saver = _fake_gallery_saver(image_id="gallery-img-1", filename="abc123def456.png")
 
     result = asyncio.run(remove_background_tool(
         content, {"owner": "alice"},
@@ -73,12 +79,87 @@ def test_successful_removal_returns_image_url_and_saves_to_gallery(tmp_path):
         gallery_saver=gallery_saver,
     ))
 
-    assert "image_url" in result
-    assert result["image_url"].startswith("data:image/png;base64,")
-    decoded = base64.b64decode(result["image_url"].split(",", 1)[1])
-    assert decoded == b"removed-bg-bytes"
+    assert result["image_url"] == "/api/generated-image/abc123def456.png"
+    assert "base64" not in result["image_url"]
+    assert len(result["image_url"]) < 200
     assert result["gallery_image_id"] == "gallery-img-1"
     assert gallery_saver.calls == [(b"removed-bg-bytes", "alice")]
+
+
+def test_result_carries_no_base64_payload_anywhere_on_the_happy_path(tmp_path):
+    """Not just image_url: NO field may smuggle the image bytes back into the
+    LLM context / persisted history."""
+    real_file = tmp_path / "upload.png"
+    real_file.write_bytes(b"original-bytes")
+    content = json.dumps({"attachment_id": "up-1"})
+
+    big = b"\x89PNG" + b"x" * 100_000
+    result = asyncio.run(remove_background_tool(
+        content, {"owner": "alice"},
+        upload_resolver=_fake_upload_resolver(found=True, path=str(real_file)),
+        remover=_fake_remover(output=big),
+        gallery_saver=_fake_gallery_saver(),
+    ))
+
+    assert all(len(str(v)) < 500 for v in result.values()), result.keys()
+
+
+def test_real_formatter_output_carries_no_base64(tmp_path):
+    """The actual consequence, checked against the REAL formatter: whatever
+    remove_background returns is run through tool_execution.format_tool_result
+    and fed back into the LLM's own context every subsequent turn. image_url is
+    not in _FORMATTER_HANDLED_KEYS, so a data: URI would be JSON-dumped in
+    whole (up to the 8000-char cap) as meaningless base64."""
+    from src.tool_execution import format_tool_result
+
+    real_file = tmp_path / "upload.png"
+    real_file.write_bytes(b"original-bytes")
+    content = json.dumps({"attachment_id": "up-1"})
+
+    result = asyncio.run(remove_background_tool(
+        content, {"owner": "alice"},
+        upload_resolver=_fake_upload_resolver(found=True, path=str(real_file)),
+        remover=_fake_remover(output=b"\x89PNG" + b"y" * 200_000),
+        gallery_saver=_fake_gallery_saver(),
+    ))
+
+    text = format_tool_result("remove_background: up-1", result)
+    assert "base64" not in text
+    assert "/api/generated-image/abc123def456.png" in text
+    assert len(text) < 1000, f"tool result text is {len(text)} chars"
+
+
+def test_default_gallery_saver_returns_id_and_filename(tmp_path, monkeypatch):
+    """The served-URL path depends on the REAL saver handing back the filename
+    it wrote, not just the row id -- and on that filename living in the exact
+    directory app.py's /api/generated-image/{filename} serves from."""
+    import src.agent_tools.image_tools as image_tools
+
+    class _FakeDb:
+        def __init__(self):
+            self.added = []
+
+        def add(self, row):
+            self.added.append(row)
+
+        def commit(self):
+            pass
+
+        def close(self):
+            pass
+
+    db = _FakeDb()
+    monkeypatch.setattr("core.database.SessionLocal", lambda: db)
+    monkeypatch.setattr("src.constants.GENERATED_IMAGES_DIR", str(tmp_path))
+
+    saved = image_tools._default_gallery_saver(b"png-bytes", "alice")
+
+    assert set(saved) == {"id", "filename"}
+    assert saved["filename"].endswith(".png")
+    # The bytes really landed where the serving route will look for them.
+    assert (tmp_path / saved["filename"]).read_bytes() == b"png-bytes"
+    assert db.added and db.added[0].filename == saved["filename"]
+    assert db.added[0].owner == "alice"
 
 
 def test_model_failure_returns_error_not_raise(tmp_path):
@@ -99,10 +180,11 @@ def test_model_failure_returns_error_not_raise(tmp_path):
     assert "error" in result
 
 
-def test_gallery_save_failure_still_returns_image_url(tmp_path):
+def test_gallery_save_failure_falls_back_to_inline_data_uri(tmp_path):
     # Saving to Gallery is a best-effort convenience, not the primary
-    # deliverable -- if it fails, the user should still get the image
-    # inline rather than losing the whole result.
+    # deliverable -- if it fails there is no served URL to hand back, so the
+    # tool must fall back to the inline data: URI rather than losing the image
+    # the model already produced.
     real_file = tmp_path / "upload.png"
     real_file.write_bytes(b"original-bytes")
     content = json.dumps({"attachment_id": "up-1"})
@@ -117,8 +199,29 @@ def test_gallery_save_failure_still_returns_image_url(tmp_path):
         gallery_saver=failing_saver,
     ))
 
-    assert "image_url" in result
+    assert result["image_url"].startswith("data:image/png;base64,")
+    decoded = base64.b64decode(result["image_url"].split(",", 1)[1])
+    assert decoded == b"removed-bg-bytes"
     assert "gallery_image_id" not in result
+
+
+def test_saver_without_a_filename_falls_back_to_inline_data_uri(tmp_path):
+    """A saver that reports an id but no filename (e.g. a caller-injected one)
+    leaves nothing for /api/generated-image/ to serve -- keep the gallery id,
+    but still return a viewable image."""
+    real_file = tmp_path / "upload.png"
+    real_file.write_bytes(b"original-bytes")
+    content = json.dumps({"attachment_id": "up-1"})
+
+    result = asyncio.run(remove_background_tool(
+        content, {"owner": "alice"},
+        upload_resolver=_fake_upload_resolver(found=True, path=str(real_file)),
+        remover=_fake_remover(output=b"removed-bg-bytes"),
+        gallery_saver=lambda image_bytes, owner: {"id": "gallery-img-9"},
+    ))
+
+    assert result["gallery_image_id"] == "gallery-img-9"
+    assert result["image_url"].startswith("data:image/png;base64,")
 
 
 def test_tool_class_delegates_to_module_function():

@@ -1,5 +1,6 @@
 """Gallery routes — browsable library for photos and AI-generated images."""
 
+import asyncio
 import os
 import hashlib
 import logging
@@ -1597,7 +1598,8 @@ def setup_gallery_routes() -> APIRouter:
 
           1. Crop the image to the mask's bounding box (with padding) so
              the model only sees the region the user cares about.
-          2. Run rembg on that crop.
+          2. Run the bundled U2Net ONNX model (src/bg_removal.py) on that
+             crop, off the event loop.
           3. Paste the result back at the original offset.
           4. Multiply the final alpha by the user's mask, so anything
              outside the hint becomes transparent regardless of what the
@@ -1636,7 +1638,7 @@ def setup_gallery_routes() -> APIRouter:
                 hint = None
                 bbox = None
 
-        # Crop to the bbox if a hint was supplied so rembg sees just the
+        # Crop to the bbox if a hint was supplied so the model sees just the
         # user's region of interest. Otherwise process the whole image.
         if bbox:
             crop = img.crop(bbox)
@@ -1646,7 +1648,13 @@ def setup_gallery_routes() -> APIRouter:
         crop_buf = io.BytesIO()
         crop.convert("RGBA").save(crop_buf, format="PNG")
         try:
-            cut_bytes = run_bg_removal_model(crop_buf.getvalue())
+            # Off the event loop: the ONNX inference is synchronous and can
+            # take tens of seconds on the first call (model load) and seconds
+            # on every call (LANCZOS resize + inference). Running it inline in
+            # this async handler would block the whole app — the same reason
+            # the remove_background chat tool wraps its call
+            # (src/agent_tools/image_tools.py).
+            cut_bytes = await asyncio.to_thread(run_bg_removal_model, crop_buf.getvalue())
         except Exception:
             logger.warning("Background removal failed", exc_info=True)
             return {"error": "Background removal failed"}

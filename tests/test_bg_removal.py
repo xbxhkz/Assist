@@ -7,6 +7,7 @@ docs/superpowers/specs/2026-08-12-image-editing-background-removal-design.md.
 import io
 
 import numpy as np
+import pytest
 from PIL import Image
 
 from src import bg_removal
@@ -46,6 +47,33 @@ def test_remove_background_preserves_original_dimensions():
 
     out = Image.open(io.BytesIO(result))
     assert out.size == (100, 50)
+
+
+def test_missing_model_file_raises_a_clear_actionable_error(tmp_path, monkeypatch):
+    """A dev/build environment where scripts/fetch_bg_removal_model.py never
+    ran must fail with a specific message naming the expected path and the fix
+    -- never a raw onnxruntime exception (the spec requires this explicitly)."""
+    missing = str(tmp_path / "nowhere" / "u2net.onnx")
+    monkeypatch.setattr(bg_removal, "_session", None)
+    monkeypatch.setattr(bg_removal, "_model_path", lambda: missing)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        bg_removal._get_session()
+
+    msg = str(excinfo.value)
+    assert missing in msg
+    assert "fetch_bg_removal_model.py" in msg
+
+
+def test_remove_background_without_a_session_surfaces_the_clear_error(tmp_path, monkeypatch):
+    """Same check through the real public entry point: remove_background() with
+    no injected session must surface the actionable message, not whatever
+    onnxruntime would have thrown."""
+    monkeypatch.setattr(bg_removal, "_session", None)
+    monkeypatch.setattr(bg_removal, "_model_path", lambda: str(tmp_path / "u2net.onnx"))
+
+    with pytest.raises(RuntimeError, match="fetch_bg_removal_model.py"):
+        bg_removal.remove_background(_make_jpeg())
 
 
 def test_remove_background_uses_injected_session_not_the_real_one(monkeypatch):

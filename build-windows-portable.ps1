@@ -51,7 +51,7 @@ if (-not $pyExe) {
 }
 Write-Host ("Using Python: " + $pyExe)
 
-if ($Fast -and (Test-Path "build_assets\llama") -and (Test-Path "build_assets\sd")) {
+if ($Fast -and (Test-Path "build_assets\llama") -and (Test-Path "build_assets\sd") -and (Test-Path "build_assets\bg_removal")) {
     Write-Step "Fast build: skipping pip install + asset fetches (assets present)"
 } else {
     Write-Step "Installing build dependencies"
@@ -70,6 +70,14 @@ if ($Fast -and (Test-Path "build_assets\llama") -and (Test-Path "build_assets\sd
     Write-Step "Vendoring sd-server (CPU + Vulkan)"
     & $pyExe scripts/fetch_sd_server.py
     if ($LASTEXITCODE -ne 0) { Fail "sd-server fetch failed." }
+
+    # Assist.spec's ('build_assets/bg_removal', 'bg_removal') datas entry is a
+    # HARD PyInstaller error when the source directory is missing, and
+    # build_assets/ is gitignored — so a clean machine has nothing there until
+    # this runs. (sd-server once broke clean builds exactly this way.)
+    Write-Step "Vendoring background-removal model (U2Net ONNX)"
+    & $pyExe scripts/fetch_bg_removal_model.py
+    if ($LASTEXITCODE -ne 0) { Fail "Background-removal model fetch failed." }
 }
 
 Write-Step "Building portable exe bundle"

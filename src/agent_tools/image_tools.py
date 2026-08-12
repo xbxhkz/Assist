@@ -1,6 +1,8 @@
 """The `remove_background` builtin tool: strip the background from an
-already-uploaded chat image attachment, returning a transparent PNG inline
-in the chat response via the established image_url convention. Runs the
+already-uploaded chat image attachment, returning a transparent PNG in the
+chat response via the established image_url convention -- as a SHORT
+/api/generated-image/<file> URL (like generate_image), falling back to an
+inline data: URI only when the Gallery save failed. Runs the
 bundled U2Net ONNX model (src/bg_removal.py) -- no rembg/transformers
 dependency. This is the first builtin tool to call
 upload_handler.resolve_upload() directly; no existing accessor for the
@@ -29,7 +31,13 @@ def _default_gallery_saver(image_bytes, owner):
     """Persist a new Gallery image, mirroring POST /api/gallery/upload's own
     GalleryImage field set exactly (routes/gallery/gallery_routes.py:230-248),
     minus the EXIF-derived fields that don't apply to a synthetically
-    generated PNG. Returns the new image's id."""
+    generated PNG.
+
+    Returns {"id": <gallery row id>, "filename": <name under
+    GENERATED_IMAGES_DIR>}. The filename matters as much as the id: it is what
+    app.py's GET /api/generated-image/{filename} serves (with per-row owner
+    enforcement), which lets the tool hand back a SHORT url instead of an
+    inline multi-MB data: URI."""
     import hashlib
     import uuid
     from pathlib import Path
@@ -55,7 +63,7 @@ def _default_gallery_saver(image_bytes, owner):
             file_size=len(image_bytes),
         ))
         db.commit()
-        return img_id
+        return {"id": img_id, "filename": filename}
     finally:
         db.close()
 
@@ -106,17 +114,46 @@ async def remove_background_tool(content, ctx, *, remover=None, upload_resolver=
     except Exception as e:
         return {"error": f"remove_background: model failed: {e}"}
 
-    image_url = "data:image/png;base64," + base64.b64encode(result_bytes).decode("ascii")
-    result = {"output": "Background removed.", "image_url": image_url}
+    result = {"output": "Background removed."}
 
     # Best-effort: saving to Gallery makes the result findable later, but
     # isn't the primary deliverable -- a save failure must not lose the
     # image the model already successfully produced.
     saver = gallery_saver or _default_gallery_saver
     try:
-        result["gallery_image_id"] = saver(result_bytes, owner)
+        saved = saver(result_bytes, owner)
     except Exception:
         logger.warning("remove_background: failed to save result to Gallery", exc_info=True)
+        saved = None
+
+    filename = None
+    if isinstance(saved, dict):
+        if saved.get("id"):
+            result["gallery_image_id"] = saved["id"]
+        _fn = saved.get("filename")
+        # str-check, not truthiness: a non-str here would silently build a
+        # nonsense URL (this repo's recurring truthy-non-str bug class).
+        filename = _fn if isinstance(_fn, str) and _fn.strip() else None
+    elif saved:
+        # An injected saver that only returns an id: still usable for the
+        # gallery link, just not for a served URL.
+        result["gallery_image_id"] = saved
+
+    if filename:
+        # Short, stable URL served by app.py's GET /api/generated-image/
+        # {filename} (per-row owner enforcement included) -- exactly what
+        # generate_image returns. A data: URI here would be copied verbatim
+        # into TWO places that keep it forever: tool_execution.format_tool_
+        # result JSON-dumps unhandled keys back into the LLM's own context,
+        # and agent_loop's tool_event persists the untruncated value into
+        # session history that is replayed on every future session load.
+        image_url = f"/api/generated-image/{filename}"
+    else:
+        # Gallery save failed (or produced no file): fall back to the inline
+        # data: URI so the user still gets a viewable image, preserving the
+        # best-effort-persistence semantics.
+        image_url = "data:image/png;base64," + base64.b64encode(result_bytes).decode("ascii")
+    result["image_url"] = image_url
 
     return result
 

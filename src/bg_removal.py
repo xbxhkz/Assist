@@ -29,8 +29,21 @@ def _model_path() -> str:
 def _get_session():
     global _session
     if _session is None:
+        path = _model_path()
+        # Checked BEFORE importing onnxruntime / constructing the session so a
+        # dev environment where the build-time fetch never ran gets a specific,
+        # actionable error instead of a raw onnxruntime "No such file" (or an
+        # ImportError that hides the real problem). Mirrors
+        # src/localmodels/runtime.py's "run scripts/fetch_llama_server.py"
+        # message for the same class of missing build asset.
+        if not os.path.isfile(path):
+            raise RuntimeError(
+                f"Background-removal model not found at {path}. "
+                "Run scripts/fetch_bg_removal_model.py to download it into "
+                "build_assets/bg_removal/ (the frozen build bundles it from there)."
+            )
         import onnxruntime
-        _session = onnxruntime.InferenceSession(_model_path())
+        _session = onnxruntime.InferenceSession(path)
     return _session
 
 

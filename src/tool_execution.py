@@ -867,6 +867,18 @@ async def _execute_tool_block_impl(
     elif tool == "edit_image":
         desc = "edit_image"
         result = await do_edit_image(content, owner=owner)
+    elif tool == "remove_background":
+        # Registry-dispatched (agent_tools.image_tools); owner threaded because
+        # the tool resolves the caller's OWN chat attachment —
+        # upload_handler.resolve_upload() denies any upload record that has an
+        # owner when it is called with owner=None, so without this the tool
+        # returns "attachment not found" for every real user in an auth-enabled
+        # install (it only appears to work in single-user/no-auth mode).
+        # session_id follows the same convention as the other ctx-dependent
+        # registry tools, so the Gallery save can be scoped later if needed.
+        desc = f"remove_background: {content.split(chr(10))[0][:80]}"
+        result = await _direct_fallback(tool, content, session_id=session_id, owner=owner) \
+            or {"error": "remove_background: execution failed", "exit_code": 1}
     elif tool == "edit_file":
         result = await _direct_fallback(tool, content) or {"error": "edit failed", "exit_code": 1}
         desc = result.get("output") or result.get("error") or "edit_file"

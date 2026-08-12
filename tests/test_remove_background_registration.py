@@ -2,6 +2,7 @@
 be -- this codebase has a documented gotcha (found building webcam_look)
 that a new tool needs the full registration set, not just a handler entry.
 See docs/superpowers/specs/2026-08-12-image-editing-background-removal-design.md."""
+import asyncio
 from pathlib import Path
 
 _CHAT_ROUTES = Path(__file__).resolve().parent.parent / "routes" / "chat_routes.py"
@@ -50,6 +51,46 @@ def test_remove_background_blocked_when_can_generate_images_disabled():
         "remove_background must be added to disabled_tools in the same "
         "can_generate_images privilege branch as generate_image"
     )
+
+
+def test_dispatcher_threads_owner_and_session_into_tool_ctx(monkeypatch):
+    """The REAL dispatcher (execute_tool_block, not a mock of it) must thread
+    owner= into remove_background's ctx.
+
+    Without an explicit dispatch branch the tool falls into the generic
+    dynamic_handlers catch-all, which calls _direct_fallback(tool, content,
+    progress_cb=...) with no owner -- so ctx["owner"] is None, the tool calls
+    upload_handler.resolve_upload(attachment_id, owner=None), and resolve_upload
+    denies any upload record that HAS an owner (i.e. every real upload in an
+    auth-enabled install). The tool then returns "attachment not found" for
+    every real user, every time, while still appearing to work in no-auth mode.
+    """
+    import src.agent_tools as agent_tools
+    from src.agent_tools import ToolBlock
+    from src.tool_execution import execute_tool_block
+
+    seen = {}
+
+    async def spy(content, ctx):
+        seen["content"] = content
+        seen["ctx"] = ctx
+        return {"output": "Background removed.", "exit_code": 0}
+
+    monkeypatch.setitem(agent_tools.TOOL_HANDLERS, "remove_background", spy)
+
+    desc, result = asyncio.run(execute_tool_block(
+        ToolBlock("remove_background", '{"attachment_id": "up-1"}'),
+        session_id="sess-1",
+        owner="alice",
+    ))
+
+    assert result.get("exit_code") == 0
+    assert seen["content"] == '{"attachment_id": "up-1"}'
+    assert seen["ctx"].get("owner") == "alice", (
+        "remove_background's ctx lost the owner -- resolve_upload will deny "
+        "every owned attachment"
+    )
+    assert seen["ctx"].get("session_id") == "sess-1"
 
 
 def test_remove_background_in_plan_mode_known_mutators():
