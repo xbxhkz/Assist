@@ -304,7 +304,7 @@ _DOMAIN_TOOL_MAP = {
     "contacts": {"resolve_contact", "manage_contact"},
     "integrations": {"api_call"},
     "desktop": {"launch_app", "find_files", "list_windows", "control_window", "capture_screen",
-                "webcam_look", "diagnose_equipment",
+                "webcam_look", "diagnose_equipment", "remove_background",
                 "ingest_equipment_manual", "search_equipment_manual",
                 "list_ui_elements", "click_element", "set_element_text", "mouse", "keyboard"},
     "network": {"net_info", "discover_hosts", "scan_ports", "read_equipment"},
@@ -427,6 +427,11 @@ Capture the screen so you can see it. Requires the user to enable screen access.
 {"describe": false}
 ```
 Look through the webcam and detect objects (YOLO). Requires the user to enable Camera access. Optional describe=true also adds a vision-model scene description.""",
+
+    "remove_background": """```remove_background
+{"attachment_id": "<id from an uploaded image>"}
+```
+Remove the background from an image the user uploaded in chat, returning a transparent PNG shown inline in your response.""",
 
     "list_ui_elements": """\
 ```list_ui_elements
