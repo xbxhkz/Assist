@@ -42,6 +42,8 @@ datas = [
     ('build_assets/sd', 'sd'),
     # Bundled YOLO weight (yolov8n.pt) so webcam object detection works offline.
     ('build_assets/yolo', 'yolo'),
+    # Bundled U2Net ONNX model for background removal (populated by scripts/fetch_bg_removal_model.py).
+    ('build_assets/bg_removal', 'bg_removal'),
     # Vendored uv binary — sets up the on-demand Python 3.11 CUDA training venv.
     ('build_assets/uv', 'uv'),
     # The training sidecar script, run inside the training venv (never imported
