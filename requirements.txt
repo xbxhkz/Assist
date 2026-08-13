@@ -60,6 +60,13 @@ faster-whisper
 # build_assets/yolo and ultralytics is collected in Assist.spec. Pulls torch (already
 # bundled) + cv2 (already bundled).
 ultralytics
+# Face-swap tooling (the face_swap tool): InsightFace provides face
+# detection/alignment + the pretrained swap model. The Python package ships
+# by default so the pipeline is available once the (separately gated, never
+# auto-bundled) model weights are downloaded -- see src/face_swap.py. The
+# frozen build bundles the package itself via collect_all in Assist.spec;
+# the model weights are not part of that bundle.
+insightface
 pytest
 pytest-asyncio
 # starlette.testclient prefers httpx2 since Starlette 1.2.0 and warns on every

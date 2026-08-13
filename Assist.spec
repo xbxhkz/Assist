@@ -20,7 +20,13 @@ for _pkg in ("chromadb", "onnxruntime", "fastembed", "tokenizers",
              # client) ships bundled nodeset XML/schema data files that PyInstaller's
              # static analysis misses, so collect_all pulls them. pymodbus (Modbus
              # TCP) is pure Python code and needs no data collection.
-             "asyncua"):
+             "asyncua",
+             # Face-swap tooling (face_swap tool): InsightFace's face
+             # detection/alignment + swap-model runtime. Model WEIGHTS
+             # (buffalo_l, inswapper_128.onnx) are gated behind explicit
+             # license acceptance (src/face_swap.py) and are never bundled
+             # here -- only the Python package/runtime is.
+             "insightface"):
     _d, _b, _h = collect_all(_pkg)
     _collected_datas += _d
     _collected_binaries += _b
