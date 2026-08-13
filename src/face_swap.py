@@ -15,9 +15,12 @@ API verified directly against the installed insightface==1.0.1 package
 module:
   - FaceAnalysis.__init__(self, name='buffalo_l', root='~/.insightface',
     allowed_modules=None, **kwargs) -- root= is confirmed the right kwarg.
-  - model_zoo.get_model(name, **kwargs): when name.endswith('.onnx') it is
-    treated as a direct file path (no bare-name resolution needed for the
-    swap model); confirmed accepting our absolute inswapper_128.onnx path.
+  - model_zoo.get_model(name, **kwargs) reads root= via kwargs (confirmed:
+    `root = kwargs.get('root', '~/.insightface')`), mirroring
+    FaceAnalysis(root=...). _get_swapper() passes the bare filename (not an
+    absolute path) as `name`, since get_model()'s internal download_onnx()
+    interpolates `name` directly into the fetch URL -- an absolute local
+    path there would build a malformed, non-working download URL.
   - FaceAnalysis.get(img) returns a plain Python list ([] or list[Face]) --
     confirmed via source, matches the truthiness checks below.
 No deviations from the plan's assumptions were needed.
@@ -55,11 +58,14 @@ def _model_root() -> str:
 
 def _ensure_models_available():
     """Gate: the InsightFace license must be explicitly accepted before
-    InsightFace's own downloader is allowed to run. Called from both
-    _get_analyzer() and _get_swapper() so neither singleton can be
-    constructed (and neither model implicitly downloaded) without passing
-    this check first."""
-    if not get_setting("face_swap_license_accepted", False):
+    InsightFace's own downloader is allowed to run. Its primary caller is
+    swap_face() itself, unconditionally, so the gate applies even when
+    analyzer/swapper are injected (see swap_face()'s docstring for why). It
+    is also called from _get_analyzer() and _get_swapper() so neither
+    singleton can be constructed (and neither model implicitly downloaded)
+    on its own without passing this check first -- do not remove either
+    call site as a "redundant cleanup"."""
+    if get_setting("face_swap_license_accepted", False) is not True:
         raise LicenseNotAcceptedError(
             "Face-swap requires accepting InsightFace's model license first "
             "-- go to Settings -> AI Features -> Face Swap to review and "
@@ -82,10 +88,13 @@ def _get_swapper():
     if _swapper is None:
         _ensure_models_available()
         from insightface.model_zoo import get_model
-        _swapper = get_model(
-            os.path.join(_model_root(), "models", _SWAP_MODEL_FILENAME),
-            download=True,
-        )
+        # Pass the bare filename (not a full path) as `name`, with root=
+        # telling InsightFace where to look/save it -- mirroring
+        # _get_analyzer()'s FaceAnalysis(root=...) pattern. get_model()
+        # interpolates `name` directly into its download URL when it needs
+        # to fetch the file; passing our absolute local path there would
+        # build a malformed, non-working URL instead of a real download.
+        _swapper = get_model(_SWAP_MODEL_FILENAME, download=True, root=_model_root())
     return _swapper
 
 

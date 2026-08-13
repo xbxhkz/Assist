@@ -34,23 +34,40 @@ class _FakeAnalyzer:
 
 class _FakeSwapper:
     def get(self, target_img, target_face, source_face, paste_back=True):
-        # Return a same-shape array so PIL can re-encode it as a valid PNG.
-        return target_img
+        # A distinguishable transformation (not identity) so a dropped-result
+        # bug (still encoding target_img unchanged) or a channel-order bug
+        # (a dropped/duplicated BGR<->RGB flip) is actually detectable via a
+        # pixel-level assertion on the output, not just format/metadata
+        # checks.
+        return 255 - target_img
 
 
 def test_swap_face_returns_png_bytes_with_provenance_metadata(monkeypatch):
     monkeypatch.setattr(face_swap, "get_setting", lambda key, default=None: True)
     analyzer = _FakeAnalyzer([[_FakeFace()], [_FakeFace()]])
     swapper = _FakeSwapper()
+    # Non-grayscale (R != G != B) so a dropped or duplicated BGR<->RGB
+    # channel flip changes the observed pixel value instead of hiding
+    # behind a color that looks the same either way.
+    target_color = (200, 100, 50)
 
     result = face_swap.swap_face(
-        _make_png(color=(10, 20, 30)), _make_png(color=(200, 100, 50)),
+        _make_png(color=(10, 20, 30)), _make_png(color=target_color),
         analyzer=analyzer, swapper=swapper,
     )
 
     out = Image.open(io.BytesIO(result))
     assert out.format == "PNG"
     assert out.text.get("assist:ai-edited") == "face-swap"
+    # Pixel-level check: the fake swapper inverts every channel it receives,
+    # and an elementwise invert commutes with channel reordering, so the
+    # correct output pixel is exactly the per-channel invert of the original
+    # target color no matter which of swap_face()'s two BGR<->RGB flips is
+    # "in effect" -- this assertion fails if either flip is dropped or
+    # duplicated, or if the swapper's actual result is silently discarded in
+    # favor of re-encoding the original target image untouched.
+    expected = tuple(255 - c for c in target_color)
+    assert out.convert("RGB").getpixel((0, 0)) == expected
 
 
 def test_swap_face_raises_when_license_not_accepted(monkeypatch):
