@@ -86,6 +86,7 @@ BUILTIN_TOOL_DESCRIPTIONS: Dict[str, str] = {
     "capture_screen": "Capture the screen so you can see it. Requires the user to enable screen access. Use to read on-screen content, forms, errors.",
     "webcam_look": "Look through the webcam and detect objects (YOLO). Requires the user to enable camera access. Optional describe=true adds a vision-model scene description.",
     "remove_background": "Remove the background from an uploaded chat image, returning a transparent PNG.",
+    "edit_image_prompt": "Edit an uploaded chat image by describing the change in natural language, returning the edited image.",
     "list_ui_elements": "List interactable UI controls of a window (name, type, id, bounds). Requires screen access. Use before click_element to find targets.",
     "click_element": "Click a UI control by name/automation_id/control_type via UI Automation. Requires input control.",
     "set_element_text": "Set the text of a UI control (e.g. a text field) via UI Automation. Requires input control.",

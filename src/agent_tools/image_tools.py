@@ -27,7 +27,7 @@ def _read_bytes(path):
         return f.read()
 
 
-def _default_gallery_saver(image_bytes, owner):
+def _default_gallery_saver(image_bytes, owner, *, prompt="Background removed", model="remove_background"):
     """Persist a new Gallery image, mirroring POST /api/gallery/upload's own
     GalleryImage field set exactly (routes/gallery/gallery_routes.py:230-248),
     minus the EXIF-derived fields that don't apply to a synthetically
@@ -37,7 +37,10 @@ def _default_gallery_saver(image_bytes, owner):
     GENERATED_IMAGES_DIR>}. The filename matters as much as the id: it is what
     app.py's GET /api/generated-image/{filename} serves (with per-row owner
     enforcement), which lets the tool hand back a SHORT url instead of an
-    inline multi-MB data: URI."""
+    inline multi-MB data: URI. `prompt`/`model` default to
+    remove_background's own values so its existing 2-positional-arg call
+    (saver(result_bytes, owner)) is unaffected; edit_image_prompt passes its
+    own values instead of duplicating this file-write + DB-insert logic."""
     import hashlib
     import uuid
     from pathlib import Path
@@ -56,8 +59,8 @@ def _default_gallery_saver(image_bytes, owner):
         db.add(GalleryImage(
             id=img_id,
             filename=filename,
-            prompt="Background removed",
-            model="remove_background",
+            prompt=prompt,
+            model=model,
             owner=owner,
             file_hash=hashlib.sha256(image_bytes).hexdigest(),
             file_size=len(image_bytes),
@@ -161,3 +164,109 @@ async def remove_background_tool(content, ctx, *, remover=None, upload_resolver=
 class RemoveBackgroundTool:
     async def execute(self, content, ctx):
         return await remove_background_tool(content, ctx)
+
+
+async def edit_image_prompt_tool(content, ctx, *, editor=None, upload_resolver=None, gallery_saver=None):
+    ctx = ctx or {}
+    owner = ctx.get("owner")
+
+    try:
+        args = json.loads(content) if content and content.strip() else {}
+        if not isinstance(args, dict):
+            return {"error": "edit_image_prompt: arguments must be a JSON object"}
+    except (ValueError, TypeError):
+        return {"error": "edit_image_prompt: arguments must be valid JSON"}
+
+    attachment_id = args.get("attachment_id")
+    if not isinstance(attachment_id, str) or not attachment_id.strip():
+        return {"error": "edit_image_prompt: an 'attachment_id' is required"}
+
+    prompt = args.get("prompt")
+    if not isinstance(prompt, str) or not prompt.strip():
+        return {"error": "edit_image_prompt: a 'prompt' describing the edit is required"}
+
+    if upload_resolver is None:
+        from src.constants import DATA_DIR, UPLOAD_DIR
+        from src.upload_handler import UploadHandler
+        upload_resolver = UploadHandler(DATA_DIR, UPLOAD_DIR).resolve_upload
+
+    try:
+        info = upload_resolver(attachment_id, owner=owner)
+    except Exception as e:
+        return {"error": f"edit_image_prompt: could not resolve attachment: {e}"}
+
+    if not info or not info.get("path"):
+        return {"error": f"edit_image_prompt: attachment '{attachment_id}' not found"}
+
+    try:
+        # Off the event loop, matching remove_background_tool's established
+        # pattern -- reading the source file and img2img inference can both
+        # take real time.
+        image_bytes = await asyncio.to_thread(_read_bytes, info["path"])
+    except OSError as e:
+        return {"error": f"edit_image_prompt: could not read attachment: {e}"}
+
+    if editor is None:
+        from src.ai_interaction import _apply_image_autoserve, _resolve_model
+        from src.image_edit import edit_image as editor
+
+        model_spec, autoserve_err = await _apply_image_autoserve("", False, owner)
+        if autoserve_err:
+            return {"error": f"edit_image_prompt: {autoserve_err}"}
+        if not model_spec:
+            return {"error": "edit_image_prompt: no local image model is configured or "
+                              "being served; configure a default image model in "
+                              "Admin -> Image Generation"}
+        try:
+            url, model_id, headers = await asyncio.to_thread(_resolve_model, model_spec, owner=owner)
+        except ValueError as e:
+            return {"error": f"edit_image_prompt: no endpoint found for image model "
+                              f"'{model_spec}': {e}"}
+        base_url = url.replace("/chat/completions", "").replace("/v1/messages", "").rstrip("/")
+    else:
+        # Injected editor (tests): skip real auto-serve/resolve entirely.
+        base_url, model_id, headers = "", "edit_image_prompt", {}
+
+    try:
+        # headers must be passed as a keyword here: src.image_edit.edit_image's
+        # real signature makes it keyword-only (after `*`), and asyncio.to_thread
+        # forwards **kwargs as well as *args -- a positional call would raise
+        # TypeError against the real function (test-injected editors accept
+        # either form, since their `headers` parameter isn't keyword-only).
+        result_bytes = await asyncio.to_thread(editor, image_bytes, prompt, base_url, headers=headers)
+    except Exception as e:
+        return {"error": f"edit_image_prompt: model failed: {e}"}
+
+    result = {"output": "Image edited."}
+
+    def _saver(image_bytes, owner):
+        return _default_gallery_saver(image_bytes, owner, prompt=prompt, model=model_id)
+
+    saver = gallery_saver or _saver
+    try:
+        saved = saver(result_bytes, owner)
+    except Exception:
+        logger.warning("edit_image_prompt: failed to save result to Gallery", exc_info=True)
+        saved = None
+
+    filename = None
+    if isinstance(saved, dict):
+        if saved.get("id"):
+            result["gallery_image_id"] = saved["id"]
+        _fn = saved.get("filename")
+        filename = _fn if isinstance(_fn, str) and _fn.strip() else None
+    elif saved:
+        result["gallery_image_id"] = saved
+
+    if filename:
+        image_url = f"/api/generated-image/{filename}"
+    else:
+        image_url = "data:image/png;base64," + base64.b64encode(result_bytes).decode("ascii")
+    result["image_url"] = image_url
+
+    return result
+
+
+class EditImagePromptTool:
+    async def execute(self, content, ctx):
+        return await edit_image_prompt_tool(content, ctx)

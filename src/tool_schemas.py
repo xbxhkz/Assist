@@ -769,6 +769,21 @@ FUNCTION_TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "edit_image_prompt",
+            "description": "Edit an image the user uploaded in this chat by describing the change in natural language (e.g. 'add a red hat', 'make the sky sunset-colored'). Returns the edited image.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "attachment_id": {"type": "string", "description": "The id of the uploaded image attachment"},
+                    "prompt": {"type": "string", "description": "A natural-language description of the edit to make"},
+                },
+                "required": ["attachment_id", "prompt"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "ui_control",
             "description": "Control the user interface. Actions: toggle (turn tools on/off), open_panel (open a modal: documents/library, gallery, email, sessions, notes, memories/brain, skills, settings, cookbook), open_email_reply (open an email reply draft document; DOES NOT send. For 'write/draft a reply saying X', include body with the drafted reply), set_mode, switch_model, set_theme (built-in presets: dark, light, midnight, paper, cyberpunk, retrowave, forest, ocean, ume, copper, terminal, organs, lavender, gpt, claude, cute), create_theme (CREATE any custom theme with a name + colors object — pick distinctive, evocative hex colors that match the requested aesthetic, NOT generic defaults. The theme auto-applies after creation). When a user asks for ANY theme not in the built-in preset list, ALWAYS use create_theme.",
             "parameters": {

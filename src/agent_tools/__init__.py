@@ -41,7 +41,7 @@ from .admin_tools import (
 )
 from .workflow_tool import RunWorkflowTool
 from .industrial_tools import DiagnoseEquipmentTool
-from .image_tools import RemoveBackgroundTool
+from .image_tools import RemoveBackgroundTool, EditImagePromptTool
 from .industrial_live import ReadEquipmentTool
 from .industrial_manuals import IngestEquipmentManualTool, SearchEquipmentManualTool
 
@@ -92,6 +92,7 @@ TOOL_HANDLERS = {
     "run_workflow": RunWorkflowTool().execute,
     "diagnose_equipment": DiagnoseEquipmentTool().execute,
     "remove_background": RemoveBackgroundTool().execute,
+    "edit_image_prompt": EditImagePromptTool().execute,
     "read_equipment": ReadEquipmentTool().execute,
     "ingest_equipment_manual": IngestEquipmentManualTool().execute,
     "search_equipment_manual": SearchEquipmentManualTool().execute,
@@ -130,6 +131,7 @@ TOOL_TAGS = {"bash", "python", "web_search", "web_fetch", "read_file", "write_fi
              "run_workflow",
              "diagnose_equipment",
              "remove_background",
+             "edit_image_prompt",
              "read_equipment",
              "ingest_equipment_manual",
              "search_equipment_manual",
