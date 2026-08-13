@@ -67,10 +67,18 @@ ensures the default image model is being served (reusing the existing `ensure_im
 auto-routing logic already used for `generate_image` — no separate service, no new model to
 bundle), then POSTs to the already-running `sd-server.exe`'s `/sdapi/v1/img2img` endpoint with the
 input image as `init_images[0]`, the user's prompt, and `denoising_strength=0.6` (the balance
-point the spike validated — a real, visible edit that still resembles the original), `steps=20`
-(matching the spike's own successful test configuration). Returns the resulting PNG bytes.
-`strength` is a fixed default per the brainstorming decision below — not exposed as a tunable
-parameter to the model or user in v1.
+point the spike validated — a real, visible edit that still resembles the original). Returns the
+resulting PNG bytes. `strength` is a fixed default per the brainstorming decision below — not
+exposed as a tunable parameter to the model or user in v1.
+
+**Post-implementation correction (found by the final whole-branch review, not part of the
+original design):** this section originally also specified a hardcoded `steps=20` matching the
+spike's own test configuration. The implementation deliberately omits `steps` from the request
+payload instead, letting `sd-server` apply whichever per-model-family step count it was actually
+launched with (`src/imagemodels/runtime.py` tunes this via `--steps` per model, e.g. a distilled
+"klein" model launches at 4 steps) — a hardcoded 20 would have meant up to ~5x unnecessary
+inference work and running off the serving model's own trained recipe. `denoising_strength=0.6`
+and the fixed 512×512 output size are unaffected by this correction.
 
 **A new builtin agent tool, `edit_image_prompt`** — deliberately named to avoid any collision or
 confusion with the existing, broken, out-of-scope `edit_image` tool. Takes `attachment_id` +
