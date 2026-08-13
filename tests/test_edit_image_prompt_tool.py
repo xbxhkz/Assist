@@ -20,7 +20,7 @@ def _fake_upload_resolver(found=True, path="/tmp/fake.png"):
 
 
 def _fake_editor(output=b"fake-edited-png"):
-    def editor(image_bytes, prompt, base_url, headers):
+    def editor(image_bytes, prompt, base_url, *, headers):
         return output
     return editor
 
@@ -87,7 +87,7 @@ def test_model_failure_returns_error_not_raise(tmp_path):
     real_file.write_bytes(b"original-bytes")
     content = json.dumps({"attachment_id": "up-1", "prompt": "add a red hat"})
 
-    def failing_editor(image_bytes, prompt, base_url, headers):
+    def failing_editor(image_bytes, prompt, base_url, *, headers):
         raise RuntimeError("boom")
 
     result = asyncio.run(edit_image_prompt_tool(
@@ -141,7 +141,7 @@ def test_gallery_saver_receives_prompt_and_model_via_default_saver(tmp_path, mon
     real_file.write_bytes(b"original-bytes")
     content = json.dumps({"attachment_id": "up-1", "prompt": "add a red hat"})
 
-    def fake_editor(image_bytes, prompt, base_url, headers):
+    def fake_editor(image_bytes, prompt, base_url, *, headers):
         return b"edited-bytes"
 
     asyncio.run(edit_image_prompt_tool(

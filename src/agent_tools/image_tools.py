@@ -27,6 +27,68 @@ def _read_bytes(path):
         return f.read()
 
 
+async def _resolve_attachment_bytes(tool_name, attachment_id, owner, upload_resolver):
+    """Resolve a chat attachment to bytes. Returns (image_bytes, None) on
+    success, (None, error_dict) on failure. Shared by every image tool that
+    resolves a chat-uploaded attachment (mirrors remove_background_tool's
+    original inline logic)."""
+    try:
+        info = upload_resolver(attachment_id, owner=owner)
+    except Exception as e:
+        return None, {"error": f"{tool_name}: could not resolve attachment: {e}"}
+
+    if not info or not info.get("path"):
+        return None, {"error": f"{tool_name}: attachment '{attachment_id}' not found"}
+
+    try:
+        # Off the event loop, matching desktop_tools.py's capture_screen/
+        # webcam_look pattern -- reading the source file can take real time.
+        image_bytes = await asyncio.to_thread(_read_bytes, info["path"])
+    except OSError as e:
+        return None, {"error": f"{tool_name}: could not read attachment: {e}"}
+
+    return image_bytes, None
+
+
+def _image_result(output_message, result_bytes, saved):
+    """Shape a tool's successful result: image_url (short served URL on a
+    successful Gallery save, data: URI fallback if the save failed) plus an
+    optional gallery_image_id. Shared by every image tool that follows the
+    best-effort-Gallery-save pattern (mirrors remove_background_tool's
+    original inline logic)."""
+    result = {"output": output_message}
+
+    filename = None
+    if isinstance(saved, dict):
+        if saved.get("id"):
+            result["gallery_image_id"] = saved["id"]
+        _fn = saved.get("filename")
+        # str-check, not truthiness: a non-str here would silently build a
+        # nonsense URL (this repo's recurring truthy-non-str bug class).
+        filename = _fn if isinstance(_fn, str) and _fn.strip() else None
+    elif saved:
+        # An injected saver that only returns an id: still usable for the
+        # gallery link, just not for a served URL.
+        result["gallery_image_id"] = saved
+
+    if filename:
+        # Short, stable URL served by app.py's GET /api/generated-image/
+        # {filename} (per-row owner enforcement included) -- exactly what
+        # generate_image returns. A data: URI here would be copied verbatim
+        # into TWO places that keep it forever: tool_execution.format_tool_
+        # result JSON-dumps unhandled keys back into the LLM's own context,
+        # and agent_loop's tool_event persists the untruncated value into
+        # session history that is replayed on every future session load.
+        result["image_url"] = f"/api/generated-image/{filename}"
+    else:
+        # Gallery save failed (or produced no file): fall back to the inline
+        # data: URI so the user still gets a viewable image, preserving the
+        # best-effort-persistence semantics.
+        result["image_url"] = "data:image/png;base64," + base64.b64encode(result_bytes).decode("ascii")
+
+    return result
+
+
 def _default_gallery_saver(image_bytes, owner, *, prompt="Background removed", model="remove_background"):
     """Persist a new Gallery image, mirroring POST /api/gallery/upload's own
     GalleryImage field set exactly (routes/gallery/gallery_routes.py:230-248),
@@ -91,23 +153,9 @@ async def remove_background_tool(content, ctx, *, remover=None, upload_resolver=
         from src.upload_handler import UploadHandler
         upload_resolver = UploadHandler(DATA_DIR, UPLOAD_DIR).resolve_upload
 
-    try:
-        info = upload_resolver(attachment_id, owner=owner)
-    except Exception as e:
-        return {"error": f"remove_background: could not resolve attachment: {e}"}
-
-    if not info or not info.get("path"):
-        return {"error": f"remove_background: attachment '{attachment_id}' not found"}
-
-    try:
-        # Off the event loop: reading the source file and, especially, the
-        # synchronous ONNX inference + full-size PIL resize in remover() can
-        # take real time (plus a first-call model load) -- never block the
-        # app, matching desktop_tools.py's capture_screen/webcam_look
-        # asyncio.to_thread pattern for the same reason.
-        image_bytes = await asyncio.to_thread(_read_bytes, info["path"])
-    except OSError as e:
-        return {"error": f"remove_background: could not read attachment: {e}"}
+    image_bytes, err = await _resolve_attachment_bytes("remove_background", attachment_id, owner, upload_resolver)
+    if err:
+        return err
 
     if remover is None:
         from src.bg_removal import remove_background as remover
@@ -116,8 +164,6 @@ async def remove_background_tool(content, ctx, *, remover=None, upload_resolver=
         result_bytes = await asyncio.to_thread(remover, image_bytes)
     except Exception as e:
         return {"error": f"remove_background: model failed: {e}"}
-
-    result = {"output": "Background removed."}
 
     # Best-effort: saving to Gallery makes the result findable later, but
     # isn't the primary deliverable -- a save failure must not lose the
@@ -129,36 +175,7 @@ async def remove_background_tool(content, ctx, *, remover=None, upload_resolver=
         logger.warning("remove_background: failed to save result to Gallery", exc_info=True)
         saved = None
 
-    filename = None
-    if isinstance(saved, dict):
-        if saved.get("id"):
-            result["gallery_image_id"] = saved["id"]
-        _fn = saved.get("filename")
-        # str-check, not truthiness: a non-str here would silently build a
-        # nonsense URL (this repo's recurring truthy-non-str bug class).
-        filename = _fn if isinstance(_fn, str) and _fn.strip() else None
-    elif saved:
-        # An injected saver that only returns an id: still usable for the
-        # gallery link, just not for a served URL.
-        result["gallery_image_id"] = saved
-
-    if filename:
-        # Short, stable URL served by app.py's GET /api/generated-image/
-        # {filename} (per-row owner enforcement included) -- exactly what
-        # generate_image returns. A data: URI here would be copied verbatim
-        # into TWO places that keep it forever: tool_execution.format_tool_
-        # result JSON-dumps unhandled keys back into the LLM's own context,
-        # and agent_loop's tool_event persists the untruncated value into
-        # session history that is replayed on every future session load.
-        image_url = f"/api/generated-image/{filename}"
-    else:
-        # Gallery save failed (or produced no file): fall back to the inline
-        # data: URI so the user still gets a viewable image, preserving the
-        # best-effort-persistence semantics.
-        image_url = "data:image/png;base64," + base64.b64encode(result_bytes).decode("ascii")
-    result["image_url"] = image_url
-
-    return result
+    return _image_result("Background removed.", result_bytes, saved)
 
 
 class RemoveBackgroundTool:
@@ -190,21 +207,9 @@ async def edit_image_prompt_tool(content, ctx, *, editor=None, upload_resolver=N
         from src.upload_handler import UploadHandler
         upload_resolver = UploadHandler(DATA_DIR, UPLOAD_DIR).resolve_upload
 
-    try:
-        info = upload_resolver(attachment_id, owner=owner)
-    except Exception as e:
-        return {"error": f"edit_image_prompt: could not resolve attachment: {e}"}
-
-    if not info or not info.get("path"):
-        return {"error": f"edit_image_prompt: attachment '{attachment_id}' not found"}
-
-    try:
-        # Off the event loop, matching remove_background_tool's established
-        # pattern -- reading the source file and img2img inference can both
-        # take real time.
-        image_bytes = await asyncio.to_thread(_read_bytes, info["path"])
-    except OSError as e:
-        return {"error": f"edit_image_prompt: could not read attachment: {e}"}
+    image_bytes, err = await _resolve_attachment_bytes("edit_image_prompt", attachment_id, owner, upload_resolver)
+    if err:
+        return err
 
     if editor is None:
         from src.ai_interaction import _apply_image_autoserve, _resolve_model
@@ -231,13 +236,13 @@ async def edit_image_prompt_tool(content, ctx, *, editor=None, upload_resolver=N
         # headers must be passed as a keyword here: src.image_edit.edit_image's
         # real signature makes it keyword-only (after `*`), and asyncio.to_thread
         # forwards **kwargs as well as *args -- a positional call would raise
-        # TypeError against the real function (test-injected editors accept
-        # either form, since their `headers` parameter isn't keyword-only).
+        # TypeError against the real function. Test-injected editors declare
+        # `headers` keyword-only too (see tests/test_edit_image_prompt_tool.py),
+        # so a regression back to a positional call here fails the test suite
+        # instead of only failing in production.
         result_bytes = await asyncio.to_thread(editor, image_bytes, prompt, base_url, headers=headers)
     except Exception as e:
         return {"error": f"edit_image_prompt: model failed: {e}"}
-
-    result = {"output": "Image edited."}
 
     def _saver(image_bytes, owner):
         return _default_gallery_saver(image_bytes, owner, prompt=prompt, model=model_id)
@@ -249,22 +254,7 @@ async def edit_image_prompt_tool(content, ctx, *, editor=None, upload_resolver=N
         logger.warning("edit_image_prompt: failed to save result to Gallery", exc_info=True)
         saved = None
 
-    filename = None
-    if isinstance(saved, dict):
-        if saved.get("id"):
-            result["gallery_image_id"] = saved["id"]
-        _fn = saved.get("filename")
-        filename = _fn if isinstance(_fn, str) and _fn.strip() else None
-    elif saved:
-        result["gallery_image_id"] = saved
-
-    if filename:
-        image_url = f"/api/generated-image/{filename}"
-    else:
-        image_url = "data:image/png;base64," + base64.b64encode(result_bytes).decode("ascii")
-    result["image_url"] = image_url
-
-    return result
+    return _image_result("Image edited.", result_bytes, saved)
 
 
 class EditImagePromptTool:
