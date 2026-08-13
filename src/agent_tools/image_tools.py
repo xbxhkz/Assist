@@ -1,10 +1,15 @@
-"""The `remove_background` builtin tool: strip the background from an
-already-uploaded chat image attachment, returning a transparent PNG in the
-chat response via the established image_url convention -- as a SHORT
-/api/generated-image/<file> URL (like generate_image), falling back to an
-inline data: URI only when the Gallery save failed. Runs the
-bundled U2Net ONNX model (src/bg_removal.py) -- no rembg/transformers
-dependency. This is the first builtin tool to call
+"""The builtin image-editing tools that operate on an already-uploaded chat
+image attachment: `remove_background` (strips the background via the bundled
+U2Net ONNX model, src/bg_removal.py -- no rembg/transformers dependency) and
+`edit_image_prompt` (applies a natural-language edit via img2img on the
+bundled sd-server, src/image_edit.py). Both share three helpers here --
+_resolve_attachment_bytes (attachment -> bytes), _image_result (result
+shaping) and _default_gallery_saver (best-effort Gallery persistence).
+
+Both return their result via the established image_url convention -- as a
+SHORT /api/generated-image/<file> URL (like generate_image), falling back to
+an inline data: URI only when the Gallery save failed. This is the first
+builtin tool module to call
 upload_handler.resolve_upload() directly; no existing accessor for the
 app's UploadHandler singleton is reachable from a Tool's ctx, so this
 constructs its own throwaway instance, mirroring
@@ -12,7 +17,8 @@ routes/document_helpers.py's existing precedent for the same reason (the
 read path needs no cross-request state). NEVER raises into the agent --
 every failure returns {"error": ...}, matching diagnose_equipment's
 established pattern. See
-docs/superpowers/specs/2026-08-12-image-editing-background-removal-design.md.
+docs/superpowers/specs/2026-08-12-image-editing-background-removal-design.md
+and docs/superpowers/specs/2026-08-12-image-editing-prompt-edit-design.md.
 """
 import asyncio
 import base64
@@ -219,8 +225,12 @@ async def edit_image_prompt_tool(content, ctx, *, editor=None, upload_resolver=N
         if autoserve_err:
             return {"error": f"edit_image_prompt: {autoserve_err}"}
         if not model_spec:
-            return {"error": "edit_image_prompt: no local image model is configured or "
-                              "being served; configure a default image model in "
+            # Reached when _apply_image_autoserve reports a local model IS
+            # serving but its advertised id could not be probed (it returns ""
+            # in that case -- see src/ai_interaction.py). The genuinely-not-
+            # configured case surfaces through the autoserve_err branch above.
+            return {"error": "edit_image_prompt: a local image model is serving but did "
+                              "not report a model id -- try restarting it from "
                               "Admin -> Image Generation"}
         try:
             url, model_id, headers = await asyncio.to_thread(_resolve_model, model_spec, owner=owner)
