@@ -99,6 +99,7 @@ import { wireAIModelSelectors } from './editor/ai-models.js';
 import { wireInpaintButtons } from './editor/ai-inpaint.js';
 import { wireAIToolsMisc } from './editor/ai-tools-misc.js';
 import { wireRembgAndSharpen } from './editor/ai-rembg.js';
+import { wireFaceSwap } from './editor/ai-face-swap.js';
 import { wireStrokeToolSliders } from './editor/stroke-tool-sliders.js';
 import { wireImport } from './editor/wire-import.js';
 import { wireMergeButtons } from './editor/wire-merge-buttons.js';
@@ -2485,6 +2486,8 @@ function _buildEditor(container) {
         rembgSection.style.display = show ? '' : 'none';
         if (show) _checkRembgInstalled();
       }
+      const faceswapSection = document.getElementById('ge-faceswap-section');
+      if (faceswapSection) faceswapSection.style.display = state.tool === 'faceswap' ? '' : 'none';
       const importSection = document.getElementById('ge-import-section');
       if (importSection) importSection.style.display = state.tool === 'import' ? '' : 'none';
       const harmonizeSection = document.getElementById('ge-harmonize-section');
@@ -2825,6 +2828,20 @@ function _buildEditor(container) {
   const { buildSelectionHintMask: _buildSelectionHintMask } = wireRembgAndSharpen({
     applyImageTool: _applyImageTool,
     openCookbookForDependency: (pkg) => _openCookbookForDependency(pkg),
+    composite,
+    renderLayerPanel: () => _renderLayerPanel(),
+    uiModule,
+  });
+
+  // Face Swap — the one AI tool that needs a second uploaded file (the
+  // source face) alongside the flattened canvas. Full implementation
+  // in editor/ai-face-swap.js.
+  wireFaceSwap({
+    apiBase: API_BASE,
+    container,
+    flatten,
+    saveState: _saveState,
+    createLayer,
     composite,
     renderLayerPanel: () => _renderLayerPanel(),
     uiModule,

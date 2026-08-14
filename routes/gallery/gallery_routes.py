@@ -15,6 +15,7 @@ from core.database import SessionLocal, GalleryImage, GalleryAlbum, ModelEndpoin
 from core.database import Session as DbSession
 from src.auth_helpers import get_current_user, owner_filter, require_privilege
 from src.bg_removal import remove_background as run_bg_removal_model
+from src.face_swap import swap_face
 from src.upload_limits import (
     read_upload_limited,
     GALLERY_UPLOAD_MAX_BYTES,
@@ -1683,6 +1684,33 @@ def setup_gallery_routes() -> APIRouter:
         buf = io.BytesIO()
         result.save(buf, format="PNG")
         return {"image": base64.b64encode(buf.getvalue()).decode()}
+
+    # ---- POST /api/image/face-swap ----
+    @router.post("/api/image/face-swap")
+    async def gallery_face_swap(request: Request):
+        """Swap a face from an uploaded source image into the currently-open
+        editor canvas (target). Both are real file uploads, matching
+        style-transfer's FormData pattern -- not remove-bg's base64-JSON
+        pattern, since this route needs two files, not one base64 field."""
+        import base64
+
+        require_privilege(request, "can_generate_images")
+        form = await request.form()
+        target_file = form.get("image")
+        source_file = form.get("source_face")
+        if not target_file or not source_file:
+            raise HTTPException(400, "Both image and source_face are required")
+
+        target_bytes = await read_upload_limited(target_file, GALLERY_TRANSFORM_UPLOAD_MAX_BYTES, "Target image")
+        source_bytes = await read_upload_limited(source_file, GALLERY_TRANSFORM_UPLOAD_MAX_BYTES, "Source face image")
+
+        try:
+            result_bytes = await asyncio.to_thread(swap_face, source_bytes, target_bytes)
+        except Exception:
+            logger.warning("Face swap failed", exc_info=True)
+            return {"error": "Face swap failed"}
+
+        return {"image": base64.b64encode(result_bytes).decode()}
 
     # ---- POST /api/image/enhance-face ----
     @router.post("/api/image/enhance-face")
