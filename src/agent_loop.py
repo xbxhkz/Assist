@@ -304,7 +304,7 @@ _DOMAIN_TOOL_MAP = {
     "contacts": {"resolve_contact", "manage_contact"},
     "integrations": {"api_call"},
     "desktop": {"launch_app", "find_files", "list_windows", "control_window", "capture_screen",
-                "webcam_look", "diagnose_equipment", "remove_background", "edit_image_prompt",
+                "webcam_look", "diagnose_equipment", "remove_background", "edit_image_prompt", "face_swap",
                 "ingest_equipment_manual", "search_equipment_manual",
                 "list_ui_elements", "click_element", "set_element_text", "mouse", "keyboard"},
     "network": {"net_info", "discover_hosts", "scan_ports", "read_equipment"},
@@ -437,6 +437,11 @@ Remove the background from an image the user uploaded in chat, returning a trans
 {"attachment_id": "<id from an uploaded image>", "prompt": "<describe the edit, e.g. 'add a red hat'>"}
 ```
 Edit an image the user uploaded in chat by describing the change in natural language. Returns the edited image shown inline in your response.""",
+
+    "face_swap": """```face_swap
+{"source_face_id": "<id of the uploaded source-face image>", "target_image_id": "<id of the uploaded target image>"}
+```
+Swap the face from the source image into the target image. Requires the user to have accepted the face-swap model's license in Settings first. Returns the result shown inline in your response.""",
 
     "list_ui_elements": """\
 ```list_ui_elements

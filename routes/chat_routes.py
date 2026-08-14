@@ -841,7 +841,7 @@ def setup_chat_routes(
             if not _privs.get("can_use_documents", True):
                 disabled_tools.update({"create_document", "edit_document", "update_document", "suggest_document"})
             if not _privs.get("can_generate_images", True):
-                disabled_tools.update({"generate_image", "remove_background", "edit_image_prompt"})
+                disabled_tools.update({"generate_image", "remove_background", "edit_image_prompt", "face_swap"})
             if not _privs.get("can_manage_memory", True):
                 disabled_tools.update({"manage_memory", "manage_skills"})
             if not _privs.get("can_use_research", True):

@@ -184,7 +184,7 @@ _PLAN_MODE_KNOWN_MUTATORS = {
     "download_model", "serve_model",
     "stop_served_model", "cancel_download", "adopt_served_model", "serve_preset",
     "generate_image", "edit_image", "trigger_research", "manage_research",
-    "remove_background", "edit_image_prompt",
+    "remove_background", "edit_image_prompt", "face_swap",
     "run_workflow",
     "ingest_equipment_manual",
     # Shell is never read-only-safe; block it explicitly so it stays out of plan

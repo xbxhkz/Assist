@@ -784,6 +784,21 @@ FUNCTION_TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "face_swap",
+            "description": "Swap a face from one uploaded image (the source face) into another uploaded image (the target). Returns the target image with the face swapped in.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "source_face_id": {"type": "string", "description": "The id of the uploaded image containing the source face"},
+                    "target_image_id": {"type": "string", "description": "The id of the uploaded image to swap the face into"},
+                },
+                "required": ["source_face_id", "target_image_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "ui_control",
             "description": "Control the user interface. Actions: toggle (turn tools on/off), open_panel (open a modal: documents/library, gallery, email, sessions, notes, memories/brain, skills, settings, cookbook), open_email_reply (open an email reply draft document; DOES NOT send. For 'write/draft a reply saying X', include body with the drafted reply), set_mode, switch_model, set_theme (built-in presets: dark, light, midnight, paper, cyberpunk, retrowave, forest, ocean, ume, copper, terminal, organs, lavender, gpt, claude, cute), create_theme (CREATE any custom theme with a name + colors object — pick distinctive, evocative hex colors that match the requested aesthetic, NOT generic defaults. The theme auto-applies after creation). When a user asks for ANY theme not in the built-in preset list, ALWAYS use create_theme.",
             "parameters": {

@@ -270,3 +270,57 @@ async def edit_image_prompt_tool(content, ctx, *, editor=None, upload_resolver=N
 class EditImagePromptTool:
     async def execute(self, content, ctx):
         return await edit_image_prompt_tool(content, ctx)
+
+
+async def face_swap_tool(content, ctx, *, swapper=None, upload_resolver=None, gallery_saver=None):
+    ctx = ctx or {}
+    owner = ctx.get("owner")
+
+    try:
+        args = json.loads(content) if content and content.strip() else {}
+        if not isinstance(args, dict):
+            return {"error": "face_swap: arguments must be a JSON object"}
+    except (ValueError, TypeError):
+        return {"error": "face_swap: arguments must be valid JSON"}
+
+    source_face_id = args.get("source_face_id")
+    if not isinstance(source_face_id, str) or not source_face_id.strip():
+        return {"error": "face_swap: a 'source_face_id' is required"}
+
+    target_image_id = args.get("target_image_id")
+    if not isinstance(target_image_id, str) or not target_image_id.strip():
+        return {"error": "face_swap: a 'target_image_id' is required"}
+
+    if upload_resolver is None:
+        from src.constants import DATA_DIR, UPLOAD_DIR
+        from src.upload_handler import UploadHandler
+        upload_resolver = UploadHandler(DATA_DIR, UPLOAD_DIR).resolve_upload
+
+    source_bytes, err = await _resolve_attachment_bytes("face_swap", source_face_id, owner, upload_resolver)
+    if err:
+        return err
+    target_bytes, err = await _resolve_attachment_bytes("face_swap", target_image_id, owner, upload_resolver)
+    if err:
+        return err
+
+    if swapper is None:
+        from src.face_swap import swap_face as swapper
+
+    try:
+        result_bytes = await asyncio.to_thread(swapper, source_bytes, target_bytes)
+    except Exception as e:
+        return {"error": f"face_swap: {e}"}
+
+    saver = gallery_saver or _default_gallery_saver
+    try:
+        saved = saver(result_bytes, owner)
+    except Exception:
+        logger.warning("face_swap: failed to save result to Gallery", exc_info=True)
+        saved = None
+
+    return _image_result("Face swapped.", result_bytes, saved)
+
+
+class FaceSwapTool:
+    async def execute(self, content, ctx):
+        return await face_swap_tool(content, ctx)
