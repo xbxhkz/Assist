@@ -341,7 +341,7 @@ export function controlsHTML({ color, brushSize, wandTolerance }) {
       </div>
     </div>
     <div class="ge-faceswap-section" id="ge-faceswap-section" style="display:none;">
-      <div class="ge-section-title ge-section-title-with-help"><span>Face Swap</span><span class="ge-section-help" tabindex="0" role="img" aria-label="What this does" title="Swaps a face from a photo you upload into this image using a locally-run InsightFace model. Needs a clear, front-facing face in both the source photo and the current canvas. Requires accepting the model license once in Settings → AI Features → Face Swap.">?</span></div>
+      <div class="ge-section-title ge-section-title-with-help"><span>Face Swap</span><span class="ge-section-help" tabindex="0" role="img" aria-label="What this does" title="Swaps a face from a photo you upload into this image using a locally-run InsightFace model. Needs a clear, front-facing face in both the source photo and the current canvas. Requires accepting the model license once in Settings → AI Defaults → Face Swap Model License.">?</span></div>
       <p style="font-size:10px;opacity:0.5;margin:0 0 6px;">Upload a photo of the face you want to use as the source, then apply it to this image.</p>
       <div class="ge-control-row ge-actions" style="flex-wrap:wrap;">
         <button class="ge-btn ge-btn-sm" id="ge-faceswap-choose">Choose Source Face…</button>

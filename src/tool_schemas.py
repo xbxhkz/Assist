@@ -785,7 +785,7 @@ FUNCTION_TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "face_swap",
-            "description": "Swap a face from one uploaded image (the source face) into another uploaded image (the target). Returns the target image with the face swapped in.",
+            "description": "Swap a face from one uploaded image (the source face) into another uploaded image (the target). Returns the target image with the face swapped in. Requires the user to have accepted the face-swap model license in Settings -> AI Defaults -> Face Swap Model License (you cannot accept this on the user's behalf -- ask them to do it).",
             "parameters": {
                 "type": "object",
                 "properties": {

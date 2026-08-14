@@ -68,8 +68,8 @@ def _ensure_models_available():
     if get_setting("face_swap_license_accepted", False) is not True:
         raise LicenseNotAcceptedError(
             "Face-swap requires accepting InsightFace's model license first "
-            "-- go to Settings -> AI Features -> Face Swap to review and "
-            "accept it."
+            "-- go to Settings -> AI Defaults -> Face Swap Model License to "
+            "review and accept it."
         )
 
 

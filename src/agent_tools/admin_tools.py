@@ -18,6 +18,16 @@ from src.tool_security import BUILTIN_EMAIL_TOOLS
 
 logger = logging.getLogger(__name__)
 
+# Consent/licence-acceptance settings the user must grant PERSONALLY, in the
+# Settings UI, after reading the terms the toggle shows them. manage_settings
+# must never write one on the user's behalf: doing so would satisfy the gate
+# that guards the acceptance (e.g. src/face_swap.py's
+# _ensure_models_available()) without the user ever having seen the licence,
+# which is exactly the guardrail these keys exist to enforce. Only the `set`
+# action is refused -- reset/delete restore the default (False), which merely
+# re-locks the gate and is always safe.
+_CONSENT_KEYS = {"face_swap_license_accepted"}
+
 
 async def do_manage_endpoints(content: str, owner: Optional[str] = None) -> Dict:
     """Manage model endpoints: list, add, delete, enable, disable."""
@@ -646,6 +656,14 @@ async def do_manage_settings(content: str, owner: Optional[str] = None) -> Dict:
                 return {"error": f"Unknown setting '{raw}'. Use action='list' to see available settings.", "exit_code": 1}
             if _is_secret(key):
                 return {"response": f"'{key}' is a credential/secret. For security I can't set it from chat. Open Settings and set it there.", "exit_code": 0}
+            # Licence/consent acceptances (see _CONSENT_KEYS): the user must
+            # grant these themselves after reading the terms, so granting one
+            # from chat is refused outright -- it would defeat the very gate
+            # the acceptance exists to guard.
+            if key in _CONSENT_KEYS:
+                return {"response": f"'{key}' is a license acceptance the user must grant themselves "
+                                    "in Settings -> AI Defaults -> Face Swap Model License, after reading "
+                                    "the terms. I can't set it on their behalf.", "exit_code": 0}
             # Structured settings (dicts/lists like keybinds, default_model_fallbacks)
             # have no safe scalar coercion; _coerce would pass a bare string
             # straight through and clobber the structure. Refuse them here; they're

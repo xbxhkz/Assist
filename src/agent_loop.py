@@ -441,7 +441,7 @@ Edit an image the user uploaded in chat by describing the change in natural lang
     "face_swap": """```face_swap
 {"source_face_id": "<id of the uploaded source-face image>", "target_image_id": "<id of the uploaded target image>"}
 ```
-Swap the face from the source image into the target image. Requires the user to have accepted the face-swap model's license in Settings first. Returns the result shown inline in your response.""",
+Swap the face from the source image into the target image. Requires the user to have accepted the face-swap model's license in Settings -> AI Defaults -> Face Swap Model License first — you cannot accept it on their behalf (manage_settings refuses that key), so if the tool reports the license isn't accepted, ask the user to go accept it. Returns the result shown inline in your response.""",
 
     "list_ui_elements": """\
 ```list_ui_elements

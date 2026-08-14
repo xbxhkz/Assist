@@ -15,7 +15,11 @@ from core.database import SessionLocal, GalleryImage, GalleryAlbum, ModelEndpoin
 from core.database import Session as DbSession
 from src.auth_helpers import get_current_user, owner_filter, require_privilege
 from src.bg_removal import remove_background as run_bg_removal_model
-from src.face_swap import swap_face
+from src.face_swap import LicenseNotAcceptedError, NoFaceDetectedError, swap_face
+# Reused verbatim by gallery_face_swap so the editor path persists its
+# archival, provenance-marked copy through the exact same mechanism the chat
+# face_swap tool already uses (one write path, one field set).
+from src.agent_tools.image_tools import _default_gallery_saver
 from src.upload_limits import (
     read_upload_limited,
     GALLERY_UPLOAD_MAX_BYTES,
@@ -1694,7 +1698,7 @@ def setup_gallery_routes() -> APIRouter:
         pattern, since this route needs two files, not one base64 field."""
         import base64
 
-        require_privilege(request, "can_generate_images")
+        user = require_privilege(request, "can_generate_images")
         form = await request.form()
         target_file = form.get("image")
         source_file = form.get("source_face")
@@ -1706,9 +1710,35 @@ def setup_gallery_routes() -> APIRouter:
 
         try:
             result_bytes = await asyncio.to_thread(swap_face, source_bytes, target_bytes)
+        # Both of these carry actionable, already-safe-to-show text (they are
+        # static messages, not raw exception strings) -- the chat path shows
+        # the user what to actually do about them, so the Gallery path must
+        # too instead of flattening them into the generic failure below.
+        except LicenseNotAcceptedError:
+            return {"error": "Face swap needs the InsightFace model license accepted "
+                             "in Settings -> AI Defaults -> Face Swap Model License first."}
+        except NoFaceDetectedError:
+            return {"error": "No face detected in the source photo or the current image."}
         except Exception:
             logger.warning("Face swap failed", exc_info=True)
             return {"error": "Face swap failed"}
+
+        # Provenance: swap_face() embeds `assist:ai-edited=face-swap` PNG
+        # metadata, but the editor draws the returned image onto a canvas
+        # (static/js/editor/ai-face-swap.js), which discards ALL PNG metadata
+        # -- so nothing the user later exports from that canvas keeps the tag.
+        # Persist one archival, still-marked copy server-side (same saver the
+        # chat face_swap tool uses) so a correctly-marked copy of every swap
+        # always exists on disk. Best-effort, exactly like the chat tool's
+        # Gallery save: a persistence failure must never cost the user the
+        # result the model already produced.
+        try:
+            _default_gallery_saver(
+                result_bytes, user,
+                prompt="Face swapped (Gallery)", model="face_swap",
+            )
+        except Exception:
+            logger.warning("face_swap: failed to save archival copy to Gallery", exc_info=True)
 
         return {"image": base64.b64encode(result_bytes).decode()}
 
