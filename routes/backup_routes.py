@@ -11,6 +11,22 @@ from src.settings import load_settings, save_settings, load_features, save_featu
 
 logger = logging.getLogger(__name__)
 
+# Licence/consent acceptances the user must grant PERSONALLY in the Settings
+# UI, after reading the terms the toggle shows them. A restore merges a
+# caller-supplied dict straight into live settings, so without this filter an
+# import could flip the acceptance on the user's behalf and satisfy the gate
+# guarding it (src/face_swap.py::_ensure_models_available) without the licence
+# ever being shown — the exact bypass these keys exist to prevent. The generic
+# `app_api` agent tool can reach this route, so the filter belongs here at the
+# write boundary rather than only in a caller-side blocklist.
+#
+# Kept as a local literal, deliberately: the canonical set is
+# src/agent_tools/admin_tools.py::_CONSENT_KEYS (which manage_settings uses),
+# but importing it here would pull the entire agent-tool registry (~700
+# modules) into a plain route module and invert the route→agent layering.
+# tests/test_backup_import_consent_keys.py asserts the two stay identical.
+_CONSENT_KEYS = {"face_swap_license_accepted"}
+
 
 def setup_backup_routes(memory_manager, preset_manager, skills_manager) -> APIRouter:
     router = APIRouter(tags=["backup"])
@@ -73,6 +89,7 @@ def setup_backup_routes(memory_manager, preset_manager, skills_manager) -> APIRo
             raise HTTPException(400, "Expected a JSON object")
 
         imported = []
+        skipped = []
 
         # ── Memories ──
         if "memories" in body and isinstance(body["memories"], list):
@@ -185,7 +202,21 @@ def setup_backup_routes(memory_manager, preset_manager, skills_manager) -> APIRo
         # ── Settings ──
         if "settings" in body and isinstance(body["settings"], dict):
             current = load_settings()
-            current.update(body["settings"])
+            # Drop licence/consent acceptances (see _CONSENT_KEYS) before the
+            # merge: a restore may carry them (export dumps every setting), but
+            # replaying one would grant an acceptance the user never gave.
+            # Dropping leaves whatever the user themselves chose in place, so a
+            # legitimate round-trip export→import is unaffected for every other
+            # key. Not a hard 400: real backups routinely contain these.
+            incoming = {k: v for k, v in body["settings"].items()
+                        if k not in _CONSENT_KEYS}
+            for key in body["settings"]:
+                if key in _CONSENT_KEYS:
+                    logger.warning(
+                        "Import: ignoring '%s' — licence acceptance must be "
+                        "granted by the user in Settings, not restored.", key)
+                    skipped.append(key)
+            current.update(incoming)
             save_settings(current)
             imported.append("settings")
 
@@ -207,6 +238,14 @@ def setup_backup_routes(memory_manager, preset_manager, skills_manager) -> APIRo
         if not imported:
             return {"ok": False, "message": "No recognized data found in the file"}
 
-        return {"ok": True, "imported": imported, "message": f"Imported: {', '.join(imported)}"}
+        message = f"Imported: {', '.join(imported)}"
+        result = {"ok": True, "imported": imported, "message": message}
+        if skipped:
+            result["skipped"] = skipped
+            result["message"] = (
+                f"{message}. Skipped {', '.join(skipped)} — a license "
+                "acceptance can only be granted by you, in Settings."
+            )
+        return result
 
     return router

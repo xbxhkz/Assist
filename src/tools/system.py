@@ -511,7 +511,15 @@ _APP_API_BLOCKLIST_PREFIXES = (
     "/api/tokens",         # api token mgmt (bare /api/tokens list+create must also block)
     "/api/admin",          # admin one-shots (wipe etc.)
     "/api/shell",          # host shell execution must stay behind named command tooling
-    "/api/backup/restore", # destructive restore
+    # Bulk restore: merges caller-supplied settings/features/prefs into the
+    # live config and bulk-writes memories/skills/presets — an admin one-shot
+    # with the same blast radius as /api/admin. Was listed as the nonexistent
+    # "/api/backup/restore", which matched nothing; the real route is the
+    # POST /api/import in routes/backup_routes.py. Users reach it from the
+    # Settings UI, which does not go through app_api, so blocking costs
+    # nothing. Defence in depth only: that route now also filters consent
+    # keys at its own write boundary (backup_routes._CONSENT_KEYS).
+    "/api/import",
 )
 
 # (method, prefix) pairs to refuse specifically. Used for endpoints
