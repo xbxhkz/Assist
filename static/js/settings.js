@@ -945,6 +945,31 @@ async function initImageSettings() {
   if (enabledToggle) enabledToggle.addEventListener('change', function() { syncImgDisabled(); saveSettings(); });
 }
 
+/* ── Face Swap License ──
+   One-time, persistent acknowledgment of InsightFace's model license --
+   NOT a per-session capability toggle (contrast shellExec.js's
+   shell_exec_enabled, which resets off every restart). Kept as its own
+   small init function rather than folded into initImageSettings() above:
+   that function's scope (model/quality/size dropdowns + the config-greying
+   enabled toggle) is specific to image generation and doesn't naturally
+   extend to an unrelated face-swap license key. */
+async function initFaceSwapLicenseSettings() {
+  const toggle = el('set-faceSwapLicenseToggle');
+  if (!toggle) return;
+  try {
+    const settingsRes = await fetch('/api/auth/settings', { credentials: 'same-origin' });
+    const settings = await settingsRes.json();
+    toggle.checked = settings.face_swap_license_accepted === true;
+  } catch (e) { console.warn('Failed to load face swap license setting', e); }
+
+  toggle.addEventListener('change', async function() {
+    try {
+      await fetch('/api/auth/settings', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ face_swap_license_accepted: toggle.checked }) });
+    } catch (e) { console.warn('Failed to save face swap license setting', e); }
+  });
+}
+
 /* ── Vision ── */
 async function initVisionSettings() {
   const vlSel = el('set-vlModelSelect');
@@ -2481,6 +2506,7 @@ function initAll() {
   initUtilityModel();
   initDatasetGenerationModel();
   initImageSettings();
+  initFaceSwapLicenseSettings();
   initFolderAccess();
   initVisionSettings();
   initTtsSettings();

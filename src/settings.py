@@ -43,6 +43,14 @@ DEFAULT_SETTINGS = {
     "webcam_describe_default": False,
     "input_control_enabled": False,
     "shell_exec_enabled": False,
+    # One-time acknowledgment that the user has read and accepted
+    # InsightFace's model license (covering both the buffalo_l detection
+    # pack and the inswapper_128.onnx swap model -- both are non-commercial/
+    # research-only). Unlike screen/camera/input/shell access, this is a
+    # persistent acceptance, not a per-session capability grant -- it must
+    # NOT be wired into any reset_* startup function. See
+    # src/face_swap.py's _ensure_models_available().
+    "face_swap_license_accepted": False,
     "operator_max_rounds": 30,
     "operator_max_seconds": 600,
     # Built-in MCP server ids (image_gen, memory, rag, email) to skip at

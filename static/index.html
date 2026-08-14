@@ -2306,6 +2306,18 @@
               <div id="set-imgSettingsMsg" style="font-size:11px;color:color-mix(in srgb, var(--fg) 45%, transparent);"></div>
             </div>
           </div>
+          <div class="admin-card">
+            <h2 style="display:flex;align-items:center;gap:6px;">Face Swap Model License<span style="flex:1"></span><label class="admin-switch"><input type="checkbox" id="set-faceSwapLicenseToggle"><span class="admin-slider"></span></label></h2>
+            <div class="admin-toggle-sub" style="margin-bottom:8px">
+              Face-swap uses InsightFace's face-detection (buffalo_l) and face-swap
+              (InSwapper) models, both licensed by InsightFace for non-commercial
+              research use only — see
+              <a href="https://github.com/deepinsight/insightface" target="_blank" rel="noopener">github.com/deepinsight/insightface</a>
+              for their current license terms. Checking this box downloads both models
+              (a few hundred MB total) for that purpose. Commercial use requires a
+              separate license directly from InsightFace.
+            </div>
+          </div>
           <!-- Speech to Text (voice input) — restored so the mic button and
                hands-free voice mode can be enabled. Driven by initSttSettings(). -->
           <div class="admin-card">
