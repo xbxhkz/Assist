@@ -517,6 +517,33 @@ async def test_app_api_blocks_cookbook_host_control_routes_before_loopback(monke
 
 
 @pytest.mark.asyncio
+async def test_app_api_blocks_export_route_before_loopback(monkeypatch):
+    """GET /api/export dumps load_settings() wholesale with no secret
+    masking (routes/backup_routes.py), unlike manage_settings' own
+    get/list actions, which mask credentials via _is_secret()/_mask().
+    An agent reaching it through app_api could read out every API key/
+    token/password in settings.json. Blocking it here costs nothing --
+    real users hit this route directly from the Settings UI's download
+    button, never through app_api."""
+    import httpx
+    from src.tool_implementations import do_app_api
+
+    class UnexpectedAsyncClient:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("app_api should block the export route before loopback")
+
+    monkeypatch.setattr(httpx, "AsyncClient", UnexpectedAsyncClient)
+
+    result = await do_app_api(
+        json.dumps({"action": "call", "method": "GET", "path": "/api/export"}),
+        owner="admin",
+    )
+
+    assert result["exit_code"] == 1
+    assert "Path blocked for safety" in result["error"]
+
+
+@pytest.mark.asyncio
 async def test_app_api_endpoint_discovery_hides_shell_routes(monkeypatch):
     _install_core_middleware_stub(monkeypatch)
     import httpx

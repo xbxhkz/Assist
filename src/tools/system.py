@@ -520,6 +520,15 @@ _APP_API_BLOCKLIST_PREFIXES = (
     # nothing. Defence in depth only: that route now also filters consent
     # keys at its own write boundary (backup_routes._CONSENT_KEYS).
     "/api/import",
+    # GET /api/export dumps load_settings() wholesale, unfiltered, into its
+    # response (routes/backup_routes.py) -- including any API keys/tokens/
+    # passwords manage_settings would otherwise mask via _is_secret()/
+    # _mask(). Masking secrets in the export itself was considered and
+    # rejected: it would silently drop them from a legitimate backup's own
+    # restore, which is a regression to that feature, not a fix. Blocking
+    # here instead costs nothing -- users reach this route directly from
+    # the Settings UI's download button, never through app_api.
+    "/api/export",
 )
 
 # (method, prefix) pairs to refuse specifically. Used for endpoints
