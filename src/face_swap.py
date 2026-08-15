@@ -129,9 +129,27 @@ def swap_face(source_face_bytes: bytes, target_image_bytes: bytes, *,
     source_faces = analyzer.get(source_img)
     if not source_faces:
         raise NoFaceDetectedError("No face detected in the source image")
+    if source_faces[0].kps is None:
+        # The detector found a face-shaped region but couldn't produce
+        # usable landmarks for it (confirmed against the installed
+        # insightface==1.0.1 source: FaceAnalysis.get() sets kps=None
+        # whenever its detector's kpss batch comes back None). Unguarded,
+        # INSwapper.get() below passes this straight to
+        # face_align.norm_crop2 -> estimate_norm's `assert lmk.shape ==
+        # (5, 2)`, which crashes on None with a bare, unactionable
+        # "'NoneType' object has no attribute 'shape'".
+        raise NoFaceDetectedError(
+            "A face was detected in the source image but its landmarks "
+            "couldn't be aligned -- try a clearer, more front-facing photo"
+        )
     target_faces = analyzer.get(target_img)
     if not target_faces:
         raise NoFaceDetectedError("No face detected in the target image")
+    if target_faces[0].kps is None:
+        raise NoFaceDetectedError(
+            "A face was detected in the target image but its landmarks "
+            "couldn't be aligned -- try a clearer, more front-facing photo"
+        )
 
     result = swapper.get(target_img, target_faces[0], source_faces[0], paste_back=True)
 

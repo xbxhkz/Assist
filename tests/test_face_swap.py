@@ -33,7 +33,17 @@ def _make_image(fmt, size=(64, 64), color=(200, 50, 50)):
 
 
 class _FakeFace:
-    pass
+    def __init__(self, kps=True):
+        # Real InsightFace Face objects (insightface/app/common.py) always
+        # carry a `kps` attribute -- 5 landmark points on success, or None
+        # when the detector found a face-shaped region but couldn't produce
+        # usable landmarks for it (confirmed against the installed
+        # insightface==1.0.1 source: FaceAnalysis.get() sets kps=None
+        # whenever the detector's kpss batch is None). Unguarded, that None
+        # crashes deep inside face_align.estimate_norm's `assert lmk.shape
+        # == (5, 2)` as a bare "'NoneType' object has no attribute 'shape'"
+        # -- the exact error this module now guards against.
+        self.kps = np.zeros((5, 2), dtype=np.float32) if kps else None
 
 
 class _FakeAnalyzer:
@@ -107,6 +117,31 @@ def test_swap_face_raises_when_no_face_in_source(monkeypatch):
 def test_swap_face_raises_when_no_face_in_target(monkeypatch):
     monkeypatch.setattr(face_swap, "get_setting", lambda key, default=None: True)
     analyzer = _FakeAnalyzer([[_FakeFace()], []])  # source ok, target: none
+
+    with pytest.raises(face_swap.NoFaceDetectedError):
+        face_swap.swap_face(
+            _make_png(), _make_png(),
+            analyzer=analyzer, swapper=_FakeSwapper(),
+        )
+
+
+def test_swap_face_raises_when_source_face_has_no_landmarks(monkeypatch):
+    """Reproduces the real bug: a detected face whose landmarks (kps)
+    came back None must raise our own NoFaceDetectedError, not let
+    INSwapper.get() crash inside face_align with a bare AttributeError."""
+    monkeypatch.setattr(face_swap, "get_setting", lambda key, default=None: True)
+    analyzer = _FakeAnalyzer([[_FakeFace(kps=False)], [_FakeFace()]])
+
+    with pytest.raises(face_swap.NoFaceDetectedError):
+        face_swap.swap_face(
+            _make_png(), _make_png(),
+            analyzer=analyzer, swapper=_FakeSwapper(),
+        )
+
+
+def test_swap_face_raises_when_target_face_has_no_landmarks(monkeypatch):
+    monkeypatch.setattr(face_swap, "get_setting", lambda key, default=None: True)
+    analyzer = _FakeAnalyzer([[_FakeFace()], [_FakeFace(kps=False)]])
 
     with pytest.raises(face_swap.NoFaceDetectedError):
         face_swap.swap_face(
