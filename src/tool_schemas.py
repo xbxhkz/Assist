@@ -785,14 +785,15 @@ FUNCTION_TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "face_swap",
-            "description": "Swap a face from one uploaded image (the source face) into another uploaded image (the target). Returns the target image with the face swapped in. Requires the user to have accepted the face-swap model license in Settings -> AI Defaults -> Face Swap Model License (you cannot accept this on the user's behalf -- ask them to do it).",
+            "description": "Swap a face from one image (the source face) into another image (the target). Returns the target image with the face swapped in. Each image can be given EITHER as an uploaded chat attachment id OR as a real filesystem path/filename (searched under the user's home directory and any configured extra tool roots) -- give exactly one of the two per image, never both. Any common image format works (PNG, JPEG, WEBP, etc). Requires the user to have accepted the face-swap model license in Settings -> AI Defaults -> Face Swap Model License (you cannot accept this on the user's behalf -- ask them to do it).",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "source_face_id": {"type": "string", "description": "The id of the uploaded image containing the source face"},
-                    "target_image_id": {"type": "string", "description": "The id of the uploaded image to swap the face into"},
+                    "source_face_id": {"type": "string", "description": "The id of the uploaded image containing the source face. Use this OR source_face_path, not both."},
+                    "source_face_path": {"type": "string", "description": "A filesystem path or bare filename for the source-face image (e.g. 'C:\\Users\\me\\Pictures\\face.jpg' or just 'face.jpg'). Use this OR source_face_id, not both."},
+                    "target_image_id": {"type": "string", "description": "The id of the uploaded image to swap the face into. Use this OR target_image_path, not both."},
+                    "target_image_path": {"type": "string", "description": "A filesystem path or bare filename for the target image (e.g. 'C:\\Users\\me\\Pictures\\group.jpg' or just 'group.jpg'). Use this OR target_image_id, not both."},
                 },
-                "required": ["source_face_id", "target_image_id"],
             },
         },
     },

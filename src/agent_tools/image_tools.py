@@ -5,9 +5,14 @@ U2Net ONNX model, src/bg_removal.py -- no rembg/transformers dependency),
 bundled sd-server, src/image_edit.py), and `face_swap` (swaps a face from
 one uploaded image into another via the bundled InsightFace pipeline,
 src/face_swap.py -- the only one of the three that resolves TWO chat
-attachments). All three share three helpers here --
-_resolve_attachment_bytes (attachment -> bytes), _image_result (result
-shaping) and _default_gallery_saver (best-effort Gallery persistence).
+attachments, and the only one that ALSO accepts a real filesystem path or
+bare filename instead of a chat attachment). All three share three helpers
+here -- _resolve_attachment_bytes (attachment -> bytes), _image_result
+(result shaping) and _default_gallery_saver (best-effort Gallery
+persistence). face_swap additionally uses _resolve_path_bytes /
+_resolve_face_swap_source, confined to the same roots find_files already
+searches (src/agent_tools/desktop_tools.py's FindFilesTool) -- this extends
+an existing trust boundary to a new tool, not a new capability class.
 
 All three return their result via the established image_url convention -- as
 a SHORT /api/generated-image/<file> URL (like generate_image), falling back
@@ -28,6 +33,9 @@ import asyncio
 import base64
 import json
 import logging
+import os
+
+from src.settings import get_setting
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +66,109 @@ async def _resolve_attachment_bytes(tool_name, attachment_id, owner, upload_reso
         return None, {"error": f"{tool_name}: could not read attachment: {e}"}
 
     return image_bytes, None
+
+
+def _face_swap_roots():
+    """Same root set find_files searches (src/agent_tools/desktop_tools.py's
+    FindFilesTool): the user's home directory plus admin-configured
+    tool_path_extra_roots. Deliberately excludes find_files' optional
+    all_drives widening -- face_swap has no reason to search further than
+    find_files' own default scope."""
+    roots = [os.path.expanduser("~")]
+    extra = get_setting("tool_path_extra_roots") or []
+    roots += [str(r) for r in extra if r]
+    return roots
+
+
+def _path_within_roots(path, roots):
+    for root in roots:
+        if not os.path.isdir(root):
+            continue
+        root_abs = os.path.abspath(root)
+        try:
+            if os.path.commonpath([path, root_abs]) == root_abs:
+                return True
+        except ValueError:
+            # commonpath raises when the two paths don't share a drive
+            # (Windows) -- simply not a match.
+            continue
+    return False
+
+
+async def _resolve_path_bytes(tool_name, path_value):
+    """Resolve a face-swap input given as a full filesystem path or a bare
+    filename. A full path must resolve within the same roots find_files
+    already searches -- this extends an existing trust boundary
+    (src/agent_tools/desktop_tools.py's FindFilesTool) to a new tool, not a
+    new capability class, so it also applies find_files' own sensitive-path
+    filter (_is_sensitive_path) rather than only bounding by root. A bare
+    filename (no directory separator) is matched by exact, case-insensitive
+    basename against every hit find_files' own search() would surface under
+    those roots (which already applies that same sensitive-path filter) --
+    zero or multiple matches are both clear errors, listing candidates on a
+    multiple-match so the caller can retry with a full path. Returns
+    (image_bytes, None) or (None, error_dict)."""
+    from src.tool_execution import _is_sensitive_path
+
+    roots = _face_swap_roots()
+    has_dir = os.path.dirname(path_value) != ""
+
+    if has_dir:
+        candidate = os.path.abspath(path_value)
+        if not _path_within_roots(candidate, roots):
+            return None, {"error": f"{tool_name}: '{path_value}' is outside the allowed "
+                                    "folders (your home directory or configured extra roots)"}
+        if _is_sensitive_path(candidate):
+            return None, {"error": f"{tool_name}: '{path_value}' is not accessible"}
+    else:
+        from src.desktop.filesearch import search
+        target = path_value.strip().lower()
+        hits = await asyncio.to_thread(search, path_value, roots=roots, max_results=200)
+        matches = [h["path"] for h in hits if os.path.basename(h["path"]).lower() == target]
+        if not matches:
+            return None, {"error": f"{tool_name}: no file named '{path_value}' found in your "
+                                    "home directory or configured extra folders"}
+        if len(matches) > 1:
+            listing = "\n".join(matches[:10])
+            return None, {"error": f"{tool_name}: multiple files named '{path_value}' found "
+                                    f"-- use a full path instead:\n{listing}"}
+        candidate = matches[0]
+
+    if not os.path.isfile(candidate):
+        return None, {"error": f"{tool_name}: '{path_value}' is not a file"}
+
+    from src.upload_limits import GALLERY_TRANSFORM_UPLOAD_MAX_BYTES
+    try:
+        size = os.path.getsize(candidate)
+    except OSError as e:
+        return None, {"error": f"{tool_name}: could not read '{path_value}': {e}"}
+    if size > GALLERY_TRANSFORM_UPLOAD_MAX_BYTES:
+        return None, {"error": f"{tool_name}: '{path_value}' is too large "
+                                f"({size} bytes, max {GALLERY_TRANSFORM_UPLOAD_MAX_BYTES} bytes)"}
+
+    try:
+        image_bytes = await asyncio.to_thread(_read_bytes, candidate)
+    except OSError as e:
+        return None, {"error": f"{tool_name}: could not read '{path_value}': {e}"}
+
+    return image_bytes, None
+
+
+async def _resolve_face_swap_source(tool_name, label, id_value, path_value, owner, upload_resolver):
+    """Resolve one face_swap input image to bytes from EITHER a chat
+    attachment id (id_value) or a filesystem path/bare filename (path_value)
+    -- exactly one of the pair must be given. Returns (image_bytes, None) on
+    success, (None, error_dict) on failure."""
+    has_id = isinstance(id_value, str) and bool(id_value.strip())
+    has_path = isinstance(path_value, str) and bool(path_value.strip())
+
+    if has_id and has_path:
+        return None, {"error": f"{tool_name}: give either '{label}_id' or '{label}_path', not both"}
+    if has_id:
+        return await _resolve_attachment_bytes(tool_name, id_value, owner, upload_resolver)
+    if has_path:
+        return await _resolve_path_bytes(tool_name, path_value)
+    return None, {"error": f"{tool_name}: either '{label}_id' or '{label}_path' is required"}
 
 
 def _image_result(output_message, result_bytes, saved):
@@ -288,22 +399,21 @@ async def face_swap_tool(content, ctx, *, swapper=None, upload_resolver=None, ga
         return {"error": "face_swap: arguments must be valid JSON"}
 
     source_face_id = args.get("source_face_id")
-    if not isinstance(source_face_id, str) or not source_face_id.strip():
-        return {"error": "face_swap: a 'source_face_id' is required"}
-
+    source_face_path = args.get("source_face_path")
     target_image_id = args.get("target_image_id")
-    if not isinstance(target_image_id, str) or not target_image_id.strip():
-        return {"error": "face_swap: a 'target_image_id' is required"}
+    target_image_path = args.get("target_image_path")
 
     if upload_resolver is None:
         from src.constants import DATA_DIR, UPLOAD_DIR
         from src.upload_handler import UploadHandler
         upload_resolver = UploadHandler(DATA_DIR, UPLOAD_DIR).resolve_upload
 
-    source_bytes, err = await _resolve_attachment_bytes("face_swap", source_face_id, owner, upload_resolver)
+    source_bytes, err = await _resolve_face_swap_source(
+        "face_swap", "source_face", source_face_id, source_face_path, owner, upload_resolver)
     if err:
         return err
-    target_bytes, err = await _resolve_attachment_bytes("face_swap", target_image_id, owner, upload_resolver)
+    target_bytes, err = await _resolve_face_swap_source(
+        "face_swap", "target_image", target_image_id, target_image_path, owner, upload_resolver)
     if err:
         return err
 

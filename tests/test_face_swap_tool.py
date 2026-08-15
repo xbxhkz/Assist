@@ -7,6 +7,7 @@ docs/superpowers/specs/2026-08-13-image-editing-face-swap-design.md.
 """
 import asyncio
 import json
+import os
 
 from src.agent_tools.image_tools import FaceSwapTool, face_swap_tool
 
@@ -216,3 +217,208 @@ def test_tool_class_delegates_to_module_function():
     content = json.dumps({"target_image_id": "up-2"})
     result = asyncio.run(tool.execute(content, {"owner": "alice"}))
     assert "error" in result
+
+
+# ── source_face_path / target_image_path (filesystem path or bare filename) ──
+
+def test_giving_both_id_and_path_for_same_image_is_error(tmp_path):
+    target_file = tmp_path / "target.png"
+    target_file.write_bytes(b"target-bytes")
+    content = json.dumps({
+        "source_face_id": "up-1", "source_face_path": str(tmp_path / "source.png"),
+        "target_image_id": "up-2",
+    })
+    result = asyncio.run(face_swap_tool(
+        content, {"owner": "alice"},
+        upload_resolver=_fake_upload_resolver({"up-1": str(tmp_path / "source.png"), "up-2": str(target_file)}),
+        swapper=_fake_swapper(),
+    ))
+    assert "error" in result
+    assert "source_face_id" in result["error"] and "source_face_path" in result["error"]
+
+
+def test_source_face_path_full_path_within_home_resolves(tmp_path, monkeypatch):
+    import src.agent_tools.image_tools as image_tools
+
+    monkeypatch.setattr(os.path, "expanduser", lambda p: str(tmp_path) if p == "~" else os.path.expanduser(p))
+    monkeypatch.setattr(image_tools, "get_setting", lambda key, default=None: [], raising=False)
+
+    source_file = tmp_path / "myface.jpg"
+    source_file.write_bytes(b"source-jpeg-bytes")
+    target_file = tmp_path / "target.png"
+    target_file.write_bytes(b"target-bytes")
+
+    captured = {}
+
+    def capturing_swapper(source_face_bytes, target_image_bytes):
+        captured["source"] = source_face_bytes
+        return b"swapped-bytes"
+
+    content = json.dumps({
+        "source_face_path": str(source_file),
+        "target_image_id": "up-2",
+    })
+    result = asyncio.run(face_swap_tool(
+        content, {"owner": "alice"},
+        upload_resolver=_fake_upload_resolver({"up-2": str(target_file)}),
+        swapper=capturing_swapper,
+        gallery_saver=_fake_gallery_saver(),
+    ))
+
+    assert "error" not in result
+    assert captured["source"] == b"source-jpeg-bytes"
+
+
+def test_source_face_path_outside_roots_is_error(tmp_path, monkeypatch):
+    import src.agent_tools.image_tools as image_tools
+
+    home_dir = tmp_path / "home"
+    home_dir.mkdir()
+    outside_dir = tmp_path / "outside"
+    outside_dir.mkdir()
+    outside_file = outside_dir / "face.png"
+    outside_file.write_bytes(b"secret-bytes")
+
+    monkeypatch.setattr(os.path, "expanduser", lambda p: str(home_dir) if p == "~" else os.path.expanduser(p))
+    monkeypatch.setattr(image_tools, "get_setting", lambda key, default=None: [], raising=False)
+
+    content = json.dumps({
+        "source_face_path": str(outside_file),
+        "target_image_id": "up-2",
+    })
+    result = asyncio.run(face_swap_tool(
+        content, {"owner": "alice"},
+        upload_resolver=_fake_upload_resolver({"up-2": str(tmp_path / "target.png")}),
+        swapper=_fake_swapper(),
+    ))
+
+    assert "error" in result
+    assert "outside the allowed folders" in result["error"]
+
+
+def test_target_image_path_bare_filename_resolves_single_match(tmp_path, monkeypatch):
+    import src.agent_tools.image_tools as image_tools
+
+    home_dir = tmp_path / "home"
+    subdir = home_dir / "Pictures"
+    subdir.mkdir(parents=True)
+    target_file = subdir / "vacation.webp"
+    target_file.write_bytes(b"target-webp-bytes")
+    source_file = tmp_path / "source.png"
+    source_file.write_bytes(b"source-bytes")
+
+    monkeypatch.setattr(os.path, "expanduser", lambda p: str(home_dir) if p == "~" else os.path.expanduser(p))
+    monkeypatch.setattr(image_tools, "get_setting", lambda key, default=None: [], raising=False)
+
+    captured = {}
+
+    def capturing_swapper(source_face_bytes, target_image_bytes):
+        captured["target"] = target_image_bytes
+        return b"swapped-bytes"
+
+    content = json.dumps({
+        "source_face_id": "up-1",
+        "target_image_path": "vacation.webp",
+    })
+    result = asyncio.run(face_swap_tool(
+        content, {"owner": "alice"},
+        upload_resolver=_fake_upload_resolver({"up-1": str(source_file)}),
+        swapper=capturing_swapper,
+        gallery_saver=_fake_gallery_saver(),
+    ))
+
+    assert "error" not in result
+    assert captured["target"] == b"target-webp-bytes"
+
+
+def test_bare_filename_zero_matches_is_error(tmp_path, monkeypatch):
+    import src.agent_tools.image_tools as image_tools
+
+    home_dir = tmp_path / "home"
+    home_dir.mkdir()
+    source_file = tmp_path / "source.png"
+    source_file.write_bytes(b"source-bytes")
+    monkeypatch.setattr(os.path, "expanduser", lambda p: str(home_dir) if p == "~" else os.path.expanduser(p))
+    monkeypatch.setattr(image_tools, "get_setting", lambda key, default=None: [], raising=False)
+
+    content = json.dumps({
+        "source_face_id": "up-1",
+        "target_image_path": "nonexistent.png",
+    })
+    result = asyncio.run(face_swap_tool(
+        content, {"owner": "alice"},
+        upload_resolver=_fake_upload_resolver({"up-1": str(source_file)}),
+        swapper=_fake_swapper(),
+    ))
+
+    assert "error" in result
+    assert "no file named" in result["error"]
+
+
+def test_bare_filename_multiple_matches_is_error(tmp_path, monkeypatch):
+    import src.agent_tools.image_tools as image_tools
+
+    home_dir = tmp_path / "home"
+    dir_a = home_dir / "a"
+    dir_b = home_dir / "b"
+    dir_a.mkdir(parents=True)
+    dir_b.mkdir(parents=True)
+    (dir_a / "dup.png").write_bytes(b"a-bytes")
+    (dir_b / "dup.png").write_bytes(b"b-bytes")
+    source_file = home_dir / "source.png"
+    source_file.write_bytes(b"source-bytes")
+
+    monkeypatch.setattr(os.path, "expanduser", lambda p: str(home_dir) if p == "~" else os.path.expanduser(p))
+    monkeypatch.setattr(image_tools, "get_setting", lambda key, default=None: [], raising=False)
+
+    content = json.dumps({
+        "source_face_id": "up-1",
+        "target_image_path": "dup.png",
+    })
+    result = asyncio.run(face_swap_tool(
+        content, {"owner": "alice"},
+        upload_resolver=_fake_upload_resolver({"up-1": str(source_file)}),
+        swapper=_fake_swapper(),
+    ))
+
+    assert "error" in result
+    assert "multiple files named" in result["error"]
+
+
+def test_path_file_too_large_is_error(tmp_path, monkeypatch):
+    import src.agent_tools.image_tools as image_tools
+    from src.upload_limits import GALLERY_TRANSFORM_UPLOAD_MAX_BYTES
+
+    home_dir = tmp_path / "home"
+    home_dir.mkdir()
+    big_file = home_dir / "huge.png"
+    source_file = home_dir / "source.png"
+    source_file.write_bytes(b"source-bytes")
+
+    monkeypatch.setattr(os.path, "expanduser", lambda p: str(home_dir) if p == "~" else os.path.expanduser(p))
+    monkeypatch.setattr(image_tools, "get_setting", lambda key, default=None: [], raising=False)
+    # Sparse file: seek past the limit and write one byte, so the test
+    # doesn't actually allocate/write 25MB+ of real content on disk.
+    with open(big_file, "wb") as f:
+        f.seek(GALLERY_TRANSFORM_UPLOAD_MAX_BYTES)
+        f.write(b"x")
+
+    content = json.dumps({
+        "source_face_id": "up-1",
+        "target_image_path": str(big_file),
+    })
+    result = asyncio.run(face_swap_tool(
+        content, {"owner": "alice"},
+        upload_resolver=_fake_upload_resolver({"up-1": str(source_file)}),
+        swapper=_fake_swapper(),
+    ))
+
+    assert "error" in result
+    assert "too large" in result["error"]
+
+
+def test_neither_id_nor_path_given_is_error():
+    content = json.dumps({"target_image_id": "up-2"})
+    result = asyncio.run(face_swap_tool(content, {"owner": "alice"}))
+    assert "error" in result
+    assert "source_face_id" in result["error"] and "source_face_path" in result["error"]
