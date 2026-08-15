@@ -181,11 +181,12 @@ class McpManager:
         args: Optional[List[str]] = None,
         env: Optional[Dict[str, str]] = None,
         url: Optional[str] = None,
+        cwd: Optional[str] = None,
     ) -> bool:
         """Connect to an MCP server via stdio, SSE, or Streamable HTTP transport."""
         try:
             if transport == "stdio":
-                res = await self._connect_stdio(server_id, name, command, args or [], env or {})
+                res = await self._connect_stdio(server_id, name, command, args or [], env or {}, cwd)
             elif transport == "sse":
                 res = await self._connect_sse(server_id, name, url)
             elif transport == "http":
@@ -203,7 +204,8 @@ class McpManager:
             self._generation += 1
             return False
 
-    async def _connect_stdio(self, server_id: str, name: str, command: str, args: List[str], env: Dict[str, str]) -> bool:
+    async def _connect_stdio(self, server_id: str, name: str, command: str, args: List[str], env: Dict[str, str],
+                              cwd: Optional[str] = None) -> bool:
         """Connect to an MCP server via stdio transport."""
         try:
             from mcp import ClientSession, StdioServerParameters
@@ -214,6 +216,17 @@ class McpManager:
                 command=command,
                 args=args,
                 env={**os.environ, **env} if env else None,
+                # Every stdio MCP child gets an explicit, writable cwd.
+                # Without one it inherits THIS process's cwd, which for the
+                # installed frozen build is {app} (Program Files -- the
+                # Inno Setup shortcut sets no WorkingDir), a directory
+                # standard Windows users can't write to. Confirmed as the
+                # root cause of a real "browser_take_screenshot ... EPERM"
+                # crash: Playwright's MCP server saves its screenshot
+                # relative to its inherited cwd. DATA_DIR mirrors
+                # tool_execution.agent_cwd()'s established convention for
+                # subprocess working directories.
+                cwd=cwd or DATA_DIR,
             )
 
             stack = AsyncExitStack()
