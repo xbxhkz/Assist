@@ -431,12 +431,20 @@ Look through the webcam and detect objects (YOLO). Requires the user to enable C
     "remove_background": """```remove_background
 {"attachment_id": "<id from an uploaded image>"}
 ```
-Remove the background from an image the user uploaded in chat, returning a transparent PNG shown inline in your response.""",
+Or by filesystem path/filename instead of an upload id:
+```remove_background
+{"image_path": "<full path or just a filename, e.g. photo.jpg>"}
+```
+Give exactly one of `attachment_id`/`image_path`. A bare filename is searched for under the user's home directory and any configured extra tool roots (same scope as find_files); a full path must resolve within those same folders. Any common image format works. Remove the background from the image, returning a transparent PNG shown inline in your response.""",
 
     "edit_image_prompt": """```edit_image_prompt
 {"attachment_id": "<id from an uploaded image>", "prompt": "<describe the edit, e.g. 'add a red hat'>"}
 ```
-Edit an image the user uploaded in chat by describing the change in natural language. Returns the edited image shown inline in your response.""",
+Or by filesystem path/filename instead of an upload id:
+```edit_image_prompt
+{"image_path": "<full path or just a filename, e.g. photo.jpg>", "prompt": "<describe the edit>"}
+```
+Give exactly one of `attachment_id`/`image_path`. A bare filename is searched for under the user's home directory and any configured extra tool roots (same scope as find_files); a full path must resolve within those same folders. Any common image format works. Edit the image by describing the change in natural language. Returns the edited image shown inline in your response.""",
 
     "face_swap": """```face_swap
 {"source_face_id": "<id of the uploaded source-face image>", "target_image_id": "<id of the uploaded target image>"}

@@ -154,21 +154,27 @@ async def _resolve_path_bytes(tool_name, path_value):
     return image_bytes, None
 
 
-async def _resolve_face_swap_source(tool_name, label, id_value, path_value, owner, upload_resolver):
-    """Resolve one face_swap input image to bytes from EITHER a chat
-    attachment id (id_value) or a filesystem path/bare filename (path_value)
-    -- exactly one of the pair must be given. Returns (image_bytes, None) on
-    success, (None, error_dict) on failure."""
+async def _resolve_image_source(tool_name, id_field, path_field, id_value, path_value, owner, upload_resolver):
+    """Resolve one image-tool input to bytes from EITHER a chat attachment
+    id (id_value, given under the arg name id_field) or a filesystem
+    path/bare filename (path_value, given under the arg name path_field) --
+    exactly one of the pair must be given. Shared by every image tool that
+    accepts a chat-attachment-or-filesystem-path input
+    (remove_background_tool, edit_image_prompt_tool, face_swap_tool -- the
+    id/path field names differ per tool and per image, so they're passed in
+    rather than derived, e.g. remove_background's existing 'attachment_id'
+    predates this pattern and isn't renamed to fit it). Returns
+    (image_bytes, None) on success, (None, error_dict) on failure."""
     has_id = isinstance(id_value, str) and bool(id_value.strip())
     has_path = isinstance(path_value, str) and bool(path_value.strip())
 
     if has_id and has_path:
-        return None, {"error": f"{tool_name}: give either '{label}_id' or '{label}_path', not both"}
+        return None, {"error": f"{tool_name}: give either '{id_field}' or '{path_field}', not both"}
     if has_id:
         return await _resolve_attachment_bytes(tool_name, id_value, owner, upload_resolver)
     if has_path:
         return await _resolve_path_bytes(tool_name, path_value)
-    return None, {"error": f"{tool_name}: either '{label}_id' or '{label}_path' is required"}
+    return None, {"error": f"{tool_name}: either '{id_field}' or '{path_field}' is required"}
 
 
 def _image_result(output_message, result_bytes, saved):
@@ -266,15 +272,15 @@ async def remove_background_tool(content, ctx, *, remover=None, upload_resolver=
         return {"error": "remove_background: arguments must be valid JSON"}
 
     attachment_id = args.get("attachment_id")
-    if not isinstance(attachment_id, str) or not attachment_id.strip():
-        return {"error": "remove_background: an 'attachment_id' is required"}
+    image_path = args.get("image_path")
 
     if upload_resolver is None:
         from src.constants import DATA_DIR, UPLOAD_DIR
         from src.upload_handler import UploadHandler
         upload_resolver = UploadHandler(DATA_DIR, UPLOAD_DIR).resolve_upload
 
-    image_bytes, err = await _resolve_attachment_bytes("remove_background", attachment_id, owner, upload_resolver)
+    image_bytes, err = await _resolve_image_source(
+        "remove_background", "attachment_id", "image_path", attachment_id, image_path, owner, upload_resolver)
     if err:
         return err
 
@@ -316,8 +322,7 @@ async def edit_image_prompt_tool(content, ctx, *, editor=None, upload_resolver=N
         return {"error": "edit_image_prompt: arguments must be valid JSON"}
 
     attachment_id = args.get("attachment_id")
-    if not isinstance(attachment_id, str) or not attachment_id.strip():
-        return {"error": "edit_image_prompt: an 'attachment_id' is required"}
+    image_path = args.get("image_path")
 
     prompt = args.get("prompt")
     if not isinstance(prompt, str) or not prompt.strip():
@@ -328,7 +333,8 @@ async def edit_image_prompt_tool(content, ctx, *, editor=None, upload_resolver=N
         from src.upload_handler import UploadHandler
         upload_resolver = UploadHandler(DATA_DIR, UPLOAD_DIR).resolve_upload
 
-    image_bytes, err = await _resolve_attachment_bytes("edit_image_prompt", attachment_id, owner, upload_resolver)
+    image_bytes, err = await _resolve_image_source(
+        "edit_image_prompt", "attachment_id", "image_path", attachment_id, image_path, owner, upload_resolver)
     if err:
         return err
 
@@ -408,12 +414,12 @@ async def face_swap_tool(content, ctx, *, swapper=None, upload_resolver=None, ga
         from src.upload_handler import UploadHandler
         upload_resolver = UploadHandler(DATA_DIR, UPLOAD_DIR).resolve_upload
 
-    source_bytes, err = await _resolve_face_swap_source(
-        "face_swap", "source_face", source_face_id, source_face_path, owner, upload_resolver)
+    source_bytes, err = await _resolve_image_source(
+        "face_swap", "source_face_id", "source_face_path", source_face_id, source_face_path, owner, upload_resolver)
     if err:
         return err
-    target_bytes, err = await _resolve_face_swap_source(
-        "face_swap", "target_image", target_image_id, target_image_path, owner, upload_resolver)
+    target_bytes, err = await _resolve_image_source(
+        "face_swap", "target_image_id", "target_image_path", target_image_id, target_image_path, owner, upload_resolver)
     if err:
         return err
 

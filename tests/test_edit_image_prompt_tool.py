@@ -7,6 +7,7 @@ docs/superpowers/specs/2026-08-12-image-editing-prompt-edit-design.md.
 import asyncio
 import base64
 import json
+import os
 
 from src.agent_tools.image_tools import EditImagePromptTool, edit_image_prompt_tool
 
@@ -158,3 +159,43 @@ def test_tool_class_delegates_to_module_function():
     content = json.dumps({"prompt": "add a hat"})
     result = asyncio.run(tool.execute(content, {"owner": "alice"}))
     assert "error" in result
+
+
+# ── image_path (filesystem path or bare filename, mirrors face_swap's
+# source_face_path/target_image_path) ──
+
+def test_image_path_full_path_resolves(tmp_path, monkeypatch):
+    import src.agent_tools.image_tools as image_tools
+
+    monkeypatch.setattr(os.path, "expanduser", lambda p: str(tmp_path) if p == "~" else os.path.expanduser(p))
+    monkeypatch.setattr(image_tools, "get_setting", lambda key, default=None: [], raising=False)
+
+    source_file = tmp_path / "photo.webp"
+    source_file.write_bytes(b"source-webp-bytes")
+
+    captured = {}
+
+    def capturing_editor(image_bytes, prompt, base_url, *, headers):
+        captured["image"] = image_bytes
+        return b"edited-bytes"
+
+    content = json.dumps({"image_path": str(source_file), "prompt": "add a red hat"})
+    result = asyncio.run(edit_image_prompt_tool(
+        content, {"owner": "alice"},
+        editor=capturing_editor,
+        gallery_saver=_fake_gallery_saver(),
+    ))
+
+    assert "error" not in result
+    assert captured["image"] == b"source-webp-bytes"
+
+
+def test_giving_both_attachment_id_and_image_path_is_error(tmp_path):
+    content = json.dumps({
+        "attachment_id": "up-1",
+        "image_path": str(tmp_path / "photo.png"),
+        "prompt": "add a hat",
+    })
+    result = asyncio.run(edit_image_prompt_tool(content, {"owner": "alice"}))
+    assert "error" in result
+    assert "attachment_id" in result["error"] and "image_path" in result["error"]

@@ -756,13 +756,13 @@ FUNCTION_TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "remove_background",
-            "description": "Remove the background from an image the user uploaded in this chat, returning a transparent PNG.",
+            "description": "Remove the background from an image, returning a transparent PNG. The image can be given EITHER as an uploaded chat attachment id OR as a real filesystem path/filename (searched under the user's home directory and any configured extra tool roots) -- give exactly one of the two, never both. Any common image format works (PNG, JPEG, WEBP, etc).",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "attachment_id": {"type": "string", "description": "The id of the uploaded image attachment"},
+                    "attachment_id": {"type": "string", "description": "The id of the uploaded image attachment. Use this OR image_path, not both."},
+                    "image_path": {"type": "string", "description": "A filesystem path or bare filename for the image (e.g. 'C:\\Users\\me\\Pictures\\photo.jpg' or just 'photo.jpg'). Use this OR attachment_id, not both."},
                 },
-                "required": ["attachment_id"],
             },
         },
     },
@@ -770,14 +770,15 @@ FUNCTION_TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "edit_image_prompt",
-            "description": "Edit an image the user uploaded in this chat by describing the change in natural language (e.g. 'add a red hat', 'make the sky sunset-colored'). Returns the edited image.",
+            "description": "Edit an image by describing the change in natural language (e.g. 'add a red hat', 'make the sky sunset-colored'). Returns the edited image. The image can be given EITHER as an uploaded chat attachment id OR as a real filesystem path/filename (searched under the user's home directory and any configured extra tool roots) -- give exactly one of the two, never both. Any common image format works (PNG, JPEG, WEBP, etc).",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "attachment_id": {"type": "string", "description": "The id of the uploaded image attachment"},
+                    "attachment_id": {"type": "string", "description": "The id of the uploaded image attachment. Use this OR image_path, not both."},
+                    "image_path": {"type": "string", "description": "A filesystem path or bare filename for the image (e.g. 'C:\\Users\\me\\Pictures\\photo.jpg' or just 'photo.jpg'). Use this OR attachment_id, not both."},
                     "prompt": {"type": "string", "description": "A natural-language description of the edit to make"},
                 },
-                "required": ["attachment_id", "prompt"],
+                "required": ["prompt"],
             },
         },
     },

@@ -9,6 +9,7 @@ docs/superpowers/specs/2026-08-12-image-editing-background-removal-design.md.
 import asyncio
 import base64
 import json
+import os
 
 import pytest
 
@@ -255,3 +256,60 @@ def test_gallery_save_failure_logs_a_warning(tmp_path, caplog):
     assert "image_url" in result
     assert "gallery_image_id" not in result
     assert any(r.levelno == logging.WARNING and "Gallery" in r.message for r in caplog.records)
+
+
+# ── image_path (filesystem path or bare filename, mirrors face_swap's
+# source_face_path/target_image_path) ──
+
+def test_image_path_full_path_resolves(tmp_path, monkeypatch):
+    import src.agent_tools.image_tools as image_tools
+
+    monkeypatch.setattr(os.path, "expanduser", lambda p: str(tmp_path) if p == "~" else os.path.expanduser(p))
+    monkeypatch.setattr(image_tools, "get_setting", lambda key, default=None: [], raising=False)
+
+    source_file = tmp_path / "photo.jpg"
+    source_file.write_bytes(b"source-jpeg-bytes")
+
+    captured = {}
+
+    def capturing_remover(image_bytes, **kwargs):
+        captured["image"] = image_bytes
+        return b"removed-bg-bytes"
+
+    content = json.dumps({"image_path": str(source_file)})
+    result = asyncio.run(remove_background_tool(
+        content, {"owner": "alice"},
+        remover=capturing_remover,
+        gallery_saver=_fake_gallery_saver(),
+    ))
+
+    assert "error" not in result
+    assert captured["image"] == b"source-jpeg-bytes"
+
+
+def test_image_path_bare_filename_resolves(tmp_path, monkeypatch):
+    import src.agent_tools.image_tools as image_tools
+
+    home_dir = tmp_path / "home"
+    home_dir.mkdir()
+    source_file = home_dir / "photo.png"
+    source_file.write_bytes(b"source-bytes")
+
+    monkeypatch.setattr(os.path, "expanduser", lambda p: str(home_dir) if p == "~" else os.path.expanduser(p))
+    monkeypatch.setattr(image_tools, "get_setting", lambda key, default=None: [], raising=False)
+
+    content = json.dumps({"image_path": "photo.png"})
+    result = asyncio.run(remove_background_tool(
+        content, {"owner": "alice"},
+        remover=_fake_remover(output=b"removed-bg-bytes"),
+        gallery_saver=_fake_gallery_saver(),
+    ))
+
+    assert "error" not in result
+
+
+def test_giving_both_attachment_id_and_image_path_is_error(tmp_path):
+    content = json.dumps({"attachment_id": "up-1", "image_path": str(tmp_path / "photo.png")})
+    result = asyncio.run(remove_background_tool(content, {"owner": "alice"}))
+    assert "error" in result
+    assert "attachment_id" in result["error"] and "image_path" in result["error"]
