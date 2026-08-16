@@ -79,8 +79,12 @@ def detect(jpeg, *, model=None, conf=0.4):
     return format_detections(raw, w, h, conf)
 
 
-def annotate(jpeg, dets):
-    """Draw boxes + labels -> JPEG bytes (returns the input on decode failure)."""
+def annotate(jpeg, dets, fmt=".jpg"):
+    """Draw boxes + labels -> encoded image bytes in `fmt` (default JPEG,
+    matching webcam_look's original convention; pass fmt=".png" for callers
+    that need PNG, e.g. shape_detect's Gallery-save convention, which -- like
+    every other image tool in this app -- persists PNGs). Returns the input
+    on decode failure."""
     import cv2
     import numpy as np
     arr = cv2.imdecode(np.frombuffer(jpeg, np.uint8), cv2.IMREAD_COLOR)
@@ -92,7 +96,7 @@ def annotate(jpeg, dets):
         cv2.putText(arr, f"{d['label']} {int(d['confidence'] * 100)}%",
                     (int(x1), max(0, int(y1) - 6)), cv2.FONT_HERSHEY_SIMPLEX,
                     0.5, (0, 200, 0), 1)
-    ok, buf = cv2.imencode(".jpg", arr)
+    ok, buf = cv2.imencode(fmt, arr)
     return bytes(buf.tobytes()) if ok else jpeg
 
 

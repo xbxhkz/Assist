@@ -48,6 +48,14 @@ def test_annotate_returns_decodable_jpeg():
     assert cv2.imdecode(np.frombuffer(out, np.uint8), cv2.IMREAD_COLOR) is not None
 
 
+def test_annotate_supports_png_format():
+    jpeg = _jpeg()
+    dets = [{"label": "cup", "confidence": 0.7, "box": [5, 5, 40, 40], "position": "left"}]
+    out = yolo.annotate(jpeg, dets, fmt=".png")
+    assert out[:8] == b"\x89PNG\r\n\x1a\n"
+    assert cv2.imdecode(np.frombuffer(out, np.uint8), cv2.IMREAD_COLOR) is not None
+
+
 def test_detect_uses_injected_model():
     class _Box:
         def __init__(self): self.conf = [0.95]; self.cls = [0]; self.xyxy = [[1.0, 2.0, 30.0, 40.0]]
