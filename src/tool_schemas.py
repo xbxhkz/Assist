@@ -801,6 +801,20 @@ FUNCTION_TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "detect_shapes",
+            "description": "Detect labeled subjects (people, animals, and other objects) in a photo, returning what was found (label, confidence, rough position) plus the photo shown back with boxes and labels drawn on. The image can be given EITHER as an uploaded chat attachment id OR as a real filesystem path/filename (searched under the user's home directory and any configured extra tool roots) -- give exactly one of the two, never both. Any common image format works (PNG, JPEG, WEBP, etc).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "attachment_id": {"type": "string", "description": "The id of the uploaded image attachment. Use this OR image_path, not both."},
+                    "image_path": {"type": "string", "description": "A filesystem path or bare filename for the image (e.g. 'C:\\Users\\me\\Pictures\\photo.jpg' or just 'photo.jpg'). Use this OR attachment_id, not both."},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "ui_control",
             "description": "Control the user interface. Actions: toggle (turn tools on/off), open_panel (open a modal: documents/library, gallery, email, sessions, notes, memories/brain, skills, settings, cookbook), open_email_reply (open an email reply draft document; DOES NOT send. For 'write/draft a reply saying X', include body with the drafted reply), set_mode, switch_model, set_theme (built-in presets: dark, light, midnight, paper, cyberpunk, retrowave, forest, ocean, ume, copper, terminal, organs, lavender, gpt, claude, cute), create_theme (CREATE any custom theme with a name + colors object — pick distinctive, evocative hex colors that match the requested aesthetic, NOT generic defaults. The theme auto-applies after creation). When a user asks for ANY theme not in the built-in preset list, ALWAYS use create_theme.",
             "parameters": {

@@ -896,6 +896,15 @@ async def _execute_tool_block_impl(
         desc = f"face_swap: {content.split(chr(10))[0][:80]}"
         result = await _direct_fallback(tool, content, session_id=session_id, owner=owner) \
             or {"error": "face_swap: execution failed", "exit_code": 1}
+    elif tool == "detect_shapes":
+        # Registry-dispatched (agent_tools.image_tools); owner threaded for the
+        # exact same reason as remove_background/edit_image_prompt/face_swap
+        # just above -- the tool resolves the caller's OWN chat attachment via
+        # upload_handler.resolve_upload(), which denies any owned upload
+        # record when called with owner=None.
+        desc = f"detect_shapes: {content.split(chr(10))[0][:80]}"
+        result = await _direct_fallback(tool, content, session_id=session_id, owner=owner) \
+            or {"error": "detect_shapes: execution failed", "exit_code": 1}
     elif tool == "edit_file":
         result = await _direct_fallback(tool, content) or {"error": "edit failed", "exit_code": 1}
         desc = result.get("output") or result.get("error") or "edit_file"

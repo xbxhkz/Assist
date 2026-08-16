@@ -2,19 +2,22 @@
 image attachment: `remove_background` (strips the background via the bundled
 U2Net ONNX model, src/bg_removal.py -- no rembg/transformers dependency),
 `edit_image_prompt` (applies a natural-language edit via img2img on the
-bundled sd-server, src/image_edit.py), and `face_swap` (swaps a face from
+bundled sd-server, src/image_edit.py), `face_swap` (swaps a face from
 one uploaded image into another via the bundled InsightFace pipeline,
-src/face_swap.py -- the only one of the three that resolves TWO chat
-attachments, and the only one that ALSO accepts a real filesystem path or
-bare filename instead of a chat attachment). All three share three helpers
-here -- _resolve_attachment_bytes (attachment -> bytes), _image_result
-(result shaping) and _default_gallery_saver (best-effort Gallery
-persistence). face_swap additionally uses _resolve_path_bytes /
-_resolve_face_swap_source, confined to the same roots find_files already
+src/face_swap.py -- the only one of the four that resolves TWO chat
+attachments), and `detect_shapes` (detects labeled subjects -- people,
+animals, other objects -- via the bundled torchvision Mask R-CNN pipeline,
+src/shape_detect.py; read-only, never edits the source image). All four
+accept their image input EITHER as a chat attachment id OR as a real
+filesystem path/bare filename, via the shared _resolve_image_source /
+_resolve_path_bytes helpers, confined to the same roots find_files already
 searches (src/agent_tools/desktop_tools.py's FindFilesTool) -- this extends
-an existing trust boundary to a new tool, not a new capability class.
+an existing trust boundary to these tools, not a new capability class. All
+four share three more helpers here -- _resolve_attachment_bytes (attachment
+-> bytes), _image_result (result shaping) and _default_gallery_saver
+(best-effort Gallery persistence).
 
-All three return their result via the established image_url convention -- as
+All four return their result via the established image_url convention -- as
 a SHORT /api/generated-image/<file> URL (like generate_image), falling back
 to an inline data: URI only when the Gallery save failed. This is the first
 builtin tool module to call
@@ -26,8 +29,9 @@ read path needs no cross-request state). NEVER raises into the agent --
 every failure returns {"error": ...}, matching diagnose_equipment's
 established pattern. See
 docs/superpowers/specs/2026-08-12-image-editing-background-removal-design.md,
-docs/superpowers/specs/2026-08-12-image-editing-prompt-edit-design.md, and
-docs/superpowers/specs/2026-08-13-image-editing-face-swap-design.md.
+docs/superpowers/specs/2026-08-12-image-editing-prompt-edit-design.md,
+docs/superpowers/specs/2026-08-13-image-editing-face-swap-design.md, and
+docs/superpowers/specs/2026-08-15-shape-detection-design.md.
 """
 import asyncio
 import base64
@@ -447,3 +451,57 @@ async def face_swap_tool(content, ctx, *, swapper=None, upload_resolver=None, ga
 class FaceSwapTool:
     async def execute(self, content, ctx):
         return await face_swap_tool(content, ctx)
+
+
+async def detect_shapes_tool(content, ctx, *, detector=None, upload_resolver=None, gallery_saver=None):
+    ctx = ctx or {}
+    owner = ctx.get("owner")
+
+    try:
+        args = json.loads(content) if content and content.strip() else {}
+        if not isinstance(args, dict):
+            return {"error": "detect_shapes: arguments must be a JSON object"}
+    except (ValueError, TypeError):
+        return {"error": "detect_shapes: arguments must be valid JSON"}
+
+    attachment_id = args.get("attachment_id")
+    image_path = args.get("image_path")
+
+    if upload_resolver is None:
+        from src.constants import DATA_DIR, UPLOAD_DIR
+        from src.upload_handler import UploadHandler
+        upload_resolver = UploadHandler(DATA_DIR, UPLOAD_DIR).resolve_upload
+
+    image_bytes, err = await _resolve_image_source(
+        "detect_shapes", "attachment_id", "image_path", attachment_id, image_path, owner, upload_resolver)
+    if err:
+        return err
+
+    if detector is None:
+        from src.shape_detect import detect as detector
+
+    try:
+        dets = await asyncio.to_thread(detector, image_bytes)
+    except Exception as e:
+        return {"error": f"detect_shapes: {e}"}
+
+    from src.vision.yolo import annotate, summarize
+    out = summarize(dets)
+    annotated = await asyncio.to_thread(annotate, image_bytes, dets, ".png")
+
+    def _saver(image_bytes, owner):
+        return _default_gallery_saver(image_bytes, owner, prompt="Shapes detected", model="detect_shapes")
+
+    saver = gallery_saver or _saver
+    try:
+        saved = saver(annotated, owner)
+    except Exception:
+        logger.warning("detect_shapes: failed to save result to Gallery", exc_info=True)
+        saved = None
+
+    return _image_result(out, annotated, saved)
+
+
+class DetectShapesTool:
+    async def execute(self, content, ctx):
+        return await detect_shapes_tool(content, ctx)

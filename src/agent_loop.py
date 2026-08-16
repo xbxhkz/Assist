@@ -305,6 +305,7 @@ _DOMAIN_TOOL_MAP = {
     "integrations": {"api_call"},
     "desktop": {"launch_app", "find_files", "list_windows", "control_window", "capture_screen",
                 "webcam_look", "diagnose_equipment", "remove_background", "edit_image_prompt", "face_swap",
+                "detect_shapes",
                 "ingest_equipment_manual", "search_equipment_manual",
                 "list_ui_elements", "click_element", "set_element_text", "mouse", "keyboard"},
     "network": {"net_info", "discover_hosts", "scan_ports", "read_equipment"},
@@ -454,6 +455,15 @@ Or reference either/both images by filesystem path or bare filename instead of a
 {"source_face_path": "<full path or just a filename, e.g. face.jpg>", "target_image_path": "<full path or just a filename>"}
 ```
 For each image, give exactly ONE of `source_face_id`/`source_face_path` and exactly ONE of `target_image_id`/`target_image_path` — never both for the same image. A bare filename is searched for under the user's home directory and any configured extra tool roots (same scope as find_files); a full path must resolve within those same folders. Any common image format works (PNG, JPEG, WEBP, etc). Swap the face from the source image into the target image. Requires the user to have accepted the face-swap model's license in Settings -> AI Defaults -> Face Swap Model License first — you cannot accept it on their behalf (manage_settings refuses that key), so if the tool reports the license isn't accepted, ask the user to go accept it. Returns the result shown inline in your response.""",
+
+    "detect_shapes": """```detect_shapes
+{"attachment_id": "<id from an uploaded image>"}
+```
+Or by filesystem path/filename instead of an upload id:
+```detect_shapes
+{"image_path": "<full path or just a filename, e.g. photo.jpg>"}
+```
+Give exactly one of `attachment_id`/`image_path`. A bare filename is searched for under the user's home directory and any configured extra tool roots (same scope as find_files); a full path must resolve within those same folders. Any common image format works. Detect labeled subjects (people, animals, other objects) in the photo -- returns what was found plus the photo shown back with boxes/labels drawn on. Finding nothing is a normal result, not an error.""",
 
     "list_ui_elements": """\
 ```list_ui_elements
