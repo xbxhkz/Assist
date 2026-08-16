@@ -67,6 +67,15 @@ ultralytics
 # frozen build bundles the package itself via collect_all in Assist.spec;
 # the model weights are not part of that bundle.
 insightface
+# Shape detection (the detect_shapes tool): torchvision's pretrained Mask
+# R-CNN provides labeled, per-instance segmentation (masks, not just boxes)
+# -- BSD-3-Clause, unlike webcam_look's AGPL-3.0 ultralytics/YOLO pipeline
+# (see docs/superpowers/specs/2026-08-15-shape-detection-design.md for why
+# that matters). Declared explicitly rather than relying on it being pulled
+# in transitively via ultralytics. The frozen build bundles the package
+# itself via collect_all in Assist.spec; the ~170MB pretrained weights are
+# downloaded on first use, not part of that bundle (see src/shape_detect.py).
+torchvision
 pytest
 pytest-asyncio
 # starlette.testclient prefers httpx2 since Starlette 1.2.0 and warns on every

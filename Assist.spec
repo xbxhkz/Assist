@@ -26,7 +26,12 @@ for _pkg in ("chromadb", "onnxruntime", "fastembed", "tokenizers",
              # (buffalo_l, inswapper_128.onnx) are gated behind explicit
              # license acceptance (src/face_swap.py) and are never bundled
              # here -- only the Python package/runtime is.
-             "insightface"):
+             "insightface",
+             # Shape detection (detect_shapes tool): torchvision's Mask
+             # R-CNN. collect_all pulls its submodules/data (torch already
+             # handled via ultralytics' own entry above). Pretrained weights
+             # are downloaded on first use, not part of this bundle.
+             "torchvision"):
     _d, _b, _h = collect_all(_pkg)
     _collected_datas += _d
     _collected_binaries += _b
