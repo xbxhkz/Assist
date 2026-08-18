@@ -7,7 +7,6 @@ docs/superpowers/specs/2026-08-15-shape-detection-design.md.
 import io
 
 import numpy as np
-import pytest
 from PIL import Image
 
 from src import shape_detect
@@ -101,3 +100,25 @@ def test_detect_returns_empty_list_when_nothing_detected():
     dets = shape_detect.detect(_make_png(size=(2, 2)), model=model, categories=_CATEGORIES)
 
     assert dets == []
+
+
+def test_detect_numbers_detections_per_label():
+    """Per the spec, detections are numbered PER LABEL (person #1, person
+    #2, dog #1, ...) so a future swap_shape sub-project can disambiguate
+    "swap the 2nd person" without a later breaking change to Detection's
+    shape. Two people then a dog (in that order) must number the people
+    1, 2 independently of the dog, which starts its own count at 1."""
+    model = _FakeModel(
+        boxes=[[0, 0, 1, 1], [0, 0, 1, 1], [0, 0, 1, 1]],
+        labels=[1, 1, 2], scores=[0.9, 0.9, 0.9],
+        masks=[
+            [[[0.9, 0.9], [0.9, 0.9]]],
+            [[[0.9, 0.9], [0.9, 0.9]]],
+            [[[0.9, 0.9], [0.9, 0.9]]],
+        ],
+    )
+
+    dets = shape_detect.detect(_make_png(size=(2, 2)), model=model, categories=_CATEGORIES)
+
+    assert [d["label"] for d in dets] == ["person", "person", "dog"]
+    assert [d["index"] for d in dets] == [1, 2, 1]

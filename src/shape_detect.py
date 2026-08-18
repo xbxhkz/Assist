@@ -40,9 +40,7 @@ import io
 import os
 
 import numpy as np
-import torch
 from PIL import Image
-from torchvision.transforms.functional import to_tensor
 
 _model = None
 _categories = None
@@ -56,6 +54,7 @@ def _model_root() -> str:
 def _get_model():
     global _model, _categories
     if _model is None:
+        import torch
         os.makedirs(_model_root(), exist_ok=True)
         torch.hub.set_dir(_model_root())
         from torchvision.models.detection import maskrcnn_resnet50_fpn, MaskRCNN_ResNet50_FPN_Weights
@@ -86,15 +85,23 @@ def _format_detections(raw, w, h, conf=0.4):
     conf, round the box, add grid position (reusing yolo.py's own
     _position() so the phrasing matches webcam_look's established language
     instead of inventing a second convention) and the boolean instance
-    mask. Pure."""
+    mask. Also numbers each detection per label (person #1, person #2, dog
+    #1, ...) via a running per-label counter over the already-ordered `raw`
+    list -- not used by this module's own text output, but the exact shape
+    a future swap_shape sub-project needs to disambiguate "swap the 2nd
+    person" without a later breaking change (see spec's Architecture
+    section). Pure."""
     from src.vision.yolo import _position
     dets = []
+    counts = {}
     for label, c, x1, y1, x2, y2, mask in raw:
         if float(c) < conf:
             continue
         cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+        counts[label] = counts.get(label, 0) + 1
         dets.append({
             "label": label,
+            "index": counts[label],
             "confidence": round(float(c), 2),
             "box": [round(x1), round(y1), round(x2), round(y2)],
             "position": _position(cx, cy, w, h),
@@ -110,7 +117,23 @@ def detect(image_bytes, *, model=None, categories=None, conf=0.4):
     restriction. Never raises for "nothing detected" (returns []); model
     construction/inference errors propagate to the caller, which applies
     the never-raises discipline at its own boundary (matching every other
-    image tool's convention)."""
+    image tool's convention).
+
+    torch / torchvision.transforms.functional.to_tensor are imported here,
+    lazily, rather than at module scope: importing torch costs ~2.3s, and
+    this function is the ONLY code path (via detect_shapes_tool's
+    asyncio.to_thread(detector, image_bytes) call) where that cost is
+    supposed to land -- off the ASGI event loop, inside the thread pool.
+    A module-scope `import torch` would instead pay that cost synchronously
+    on the event loop the first time src.shape_detect is imported (e.g. by
+    detect_shapes_tool's own `from src.shape_detect import detect as
+    detector` line, which runs BEFORE the to_thread call), stalling every
+    concurrent request (including SSE chat streams) for ~2.5s on first use.
+    Mirrors src/face_swap.py's/src/bg_removal.py's own lazy-import-heavy-
+    deps-inside-the-getter convention for the same reason."""
+    import torch
+    from torchvision.transforms.functional import to_tensor
+
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     w, h = img.size
     tensor = to_tensor(img)

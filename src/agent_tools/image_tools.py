@@ -483,7 +483,22 @@ async def detect_shapes_tool(content, ctx, *, detector=None, upload_resolver=Non
     try:
         dets = await asyncio.to_thread(detector, image_bytes)
     except Exception as e:
-        return {"error": f"detect_shapes: {e}"}
+        # A bare str(e) here can be an unhelpful, low-level message (e.g.
+        # "<urlopen error getaddrinfo failed>") the first time detect_shapes
+        # runs and shape_detect._get_model() has to fetch the ~170MB
+        # COCO-pretrained Mask R-CNN weights (no network / DNS failure,
+        # etc.). Reliably distinguishing "download failed" from "some other
+        # detector error" isn't clean here -- torch.hub's download path can
+        # raise a range of exception types, and an early failure (e.g. a
+        # corrupt input image) happens before any download is even
+        # attempted -- so rather than special-case network errors, name the
+        # asset and the likely remedy for every detector failure, mirroring
+        # src/bg_removal.py's established precedent of naming the asset and
+        # the fix in its own model-missing error rather than surfacing a
+        # bare exception.
+        return {"error": f"detect_shapes: {e} -- if this is the first time detect_shapes has "
+                          "run, it may still be downloading the ~170MB Mask R-CNN detection "
+                          "model; check your network connectivity and try again"}
 
     from src.vision.yolo import annotate, summarize
     out = summarize(dets)
