@@ -51,9 +51,35 @@ tools cannot be registered without touching upstream files. The design therefore
 that surface rather than eliminating it:
 
 - Implementations live in a **new package we own**, `studio/backend/core/inference/assist_vision/`.
-- Upstream `tools.py` receives the **smallest possible edit** — ideally one import plus one
-  registration call — confining merge conflicts to a couple of lines rather than scattering
-  them through a 604 KB file.
+- Upstream `tools.py` receives the **smallest possible edit** — confining merge conflicts to a
+  couple of lines rather than scattering them through a 13,800-line file.
+
+**The registration mechanism, read from the real code** (`studio/backend/core/inference/tools.py`):
+
+```python
+# tools.py:9804 — the registry
+ALL_TOOLS = [WEB_SEARCH_TOOL, PYTHON_TOOL, TERMINAL_TOOL, EDIT_FILE_TOOL,
+             RENDER_HTML_TOOL, SEARCH_KNOWLEDGE_BASE_TOOL, SEARCH_CONVERSATION_TOOL]
+
+# tools.py:9996 — the dispatcher (an if/elif chain on `name`)
+def execute_tool(name: str, arguments: dict, cancel_event=None, timeout=..., session_id=None,
+                 ..., output_callback=None, ...) -> str:
+```
+
+Schemas are module-level OpenAI-style dicts (`{"type": "function", "function": {...}}`). So the
+two touchpoints are: one entry spliced into `ALL_TOOLS` (`*ASSIST_VISION_TOOLS`) and one
+delegating branch in `execute_tool` that forwards our tool names to our package. Roughly two
+lines of upstream change.
+
+**Two adaptations this forces, and they are not cosmetic:**
+
+1. **`execute_tool` is synchronous and returns `str`.** Assist's image tools are `async def`
+   returning dicts (`{"output": ..., "image_url": ..., "error": ...}`). Ported tools must
+   present a sync, string-returning face. Async model work still runs off the caller's thread
+   internally, but the tool boundary is synchronous.
+2. **Results are strings, so there is no `image_url` field.** The output convention becomes a
+   path (or short URL) written into the returned text, which suits Studio's file-centric tools
+   and reinforces the no-inline-data-URI rule below.
 
 ## Architecture
 
@@ -127,8 +153,10 @@ Two specifics that are easy to get wrong:
   `'NoneType' object has no attribute 'shape'` from inside InsightFace, because a detected
   face had no usable landmarks. It is caught at our boundary with an actionable message.
 
-**Adaptation point:** Studio's own tool-error convention is not yet known. Where it differs,
-ours conforms to Studio's rather than importing Assist's.
+**Studio's convention, now known:** `execute_tool` returns a plain `str` — there is no error
+*field* to populate. Failures are therefore returned as clear, human-and-model-readable error
+text from the same string return, not raised and not signalled structurally. Ours conforms to
+that rather than importing Assist's dict shape.
 
 ## Testing
 
