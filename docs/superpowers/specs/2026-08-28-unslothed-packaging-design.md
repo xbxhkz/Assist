@@ -179,9 +179,10 @@ import path or API route changed, and that `npm run i18n:check` passes across al
 Negative control: a deliberately over-broad replace must trip the import-path assertion.
 
 **Installer.** A smoke test that runs the **installed executable**, not the source tree: start the
-backend, assert all 17 tools register (the 12 upstream plus our 10 — 5 vision, 5 code), and assert
-a lazily imported module actually loads by making a real tool call. A frozen build can register a
-tool that explodes on first use; only exercising one detects that.
+backend, assert all **17** tools register (**7 upstream + 10 ours** — 5 vision, 5 code; counts
+verified against the installed package, not assumed), and assert a lazily imported module actually
+loads by making a real tool call. A frozen build can register a tool that explodes on first use;
+only exercising one detects that.
 
 **Docker.** Build both tags. For each: run it, assert the tools register, assert
 `typescript-language-server` and `csharp-ls` are on `PATH`, and assert data written to the mounted
