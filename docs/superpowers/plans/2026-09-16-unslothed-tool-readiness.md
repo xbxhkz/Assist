@@ -92,6 +92,7 @@ be guessing at a schema this piece does not own. `unknown` is accurate; a probe 
 - Produces:
   - `Readiness` — frozen dataclass with `state: str`, `detail: str`, `missing: str | None`, `remedy: str | None`
   - `register(tool_name: str, probe: Callable[[], Readiness]) -> None`
+  - `register_default(tool_name: str, probe: Callable[[], Readiness]) -> None` — registers only if absent
   - `resolve(tool_name: str, *, refresh: bool = False) -> Readiness`
   - `resolve_all(*, refresh: bool = False) -> dict[str, Readiness]`
   - `reset_for_tests() -> None`
@@ -185,6 +186,23 @@ def test_refresh_bypasses_the_cache():
     assert len(calls) == 2
 
 
+def test_register_default_does_NOT_overwrite_an_existing_probe():
+    """Load-bearing. install_default_probes() runs on every readiness query and
+    every enriched failure, so if defaults clobbered explicit registrations, any
+    caller-registered probe -- including a test's -- would be silently replaced
+    the moment the feature was exercised."""
+    tr.register("t", lambda: tr.Readiness("missing", "explicit", "x", None))
+    tr.register_default("t", lambda: tr.Readiness("ready", "default", None, None))
+    assert tr.resolve("t").detail == "explicit"
+
+
+def test_register_default_DOES_register_an_absent_probe():
+    """Control: without this, a register_default that did nothing at all would
+    pass the test above."""
+    tr.register_default("t", lambda: tr.Readiness("ready", "default", None, None))
+    assert tr.resolve("t").detail == "default"
+
+
 def test_resolve_all_returns_every_registered_tool():
     tr.register("a", lambda: tr.Readiness("ready", "", None, None))
     tr.register("b", lambda: tr.Readiness("missing", "", "x", None))
@@ -262,7 +280,23 @@ def reset_for_tests() -> None:
 
 
 def register(tool_name: str, probe: Probe) -> None:
+    """Register or REPLACE a probe. An explicit registration always wins."""
     with _lock:
+        _probes[tool_name] = probe
+        _cache.pop(tool_name, None)
+
+
+def register_default(tool_name: str, probe: Probe) -> None:
+    """Register only if nothing is registered for this tool yet.
+
+    install_default_probes() is called on every readiness query and every
+    enriched failure, so it must be safe to re-run. Using register() there would
+    silently overwrite any probe a caller -- or a test -- had registered
+    explicitly, the moment the feature was exercised.
+    """
+    with _lock:
+        if tool_name in _probes:
+            return
         _probes[tool_name] = probe
         _cache.pop(tool_name, None)
 
@@ -303,14 +337,19 @@ def resolve_all(*, refresh: bool = False) -> dict[str, Readiness]:
 ```
 C:/Users/Admin/.unsloth/studio/unsloth_studio/Scripts/python.exe -m pytest tests/test_tool_readiness_registry.py -v -p no:cacheprovider
 ```
-Expected: 7 passed.
+Expected: 9 passed.
 
 - [ ] **Step 5: Prove the unknown-default control is live**
 
-Temporarily change `resolve`'s `if probe is None:` branch to return
-`Readiness(READY, "assumed fine")`. Re-run and confirm
-`test_unregistered_tool_is_unknown_not_ready` FAILS. Restore it and confirm it passes.
-This is the single assumption the whole feature's honesty rests on.
+Two controls, both demonstrated:
+
+1. Temporarily change `resolve`'s `if probe is None:` branch to return
+   `Readiness(READY, "assumed fine")`. Re-run and confirm
+   `test_unregistered_tool_is_unknown_not_ready` FAILS. Restore it and confirm it passes.
+   This is the single assumption the whole feature's honesty rests on.
+2. Temporarily make `register_default` delegate to `register` (clobbering). Re-run and confirm
+   `test_register_default_does_NOT_overwrite_an_existing_probe` FAILS. Restore it.
+   This one protects Tasks 3 and 4, which call `install_default_probes()` on every invocation.
 
 - [ ] **Step 6: Commit**
 
@@ -335,11 +374,13 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Files:**
 - Create: `studio/backend/core/inference/tool_readiness/probes.py`
-- Modify: `studio/backend/core/inference/tool_readiness/__init__.py` (call `install_default_probes()` lazily)
 - Test: `studio/backend/tests/test_tool_readiness_probes.py`
 
+This task creates one module and its test. It does **not** modify `__init__.py` — the lazy
+`install_default_probes()` call lives in Task 3's `execute()` and Task 4's `_enrich_failure()`.
+
 **Interfaces:**
-- Consumes: `Readiness`, `register`, `READY`/`MISSING`/`UNKNOWN` from Task 1
+- Consumes: `Readiness`, `register_default`, `READY`/`MISSING`/`UNKNOWN` from Task 1
 - Produces:
   - `install_default_probes() -> None` — registers every v1 probe; idempotent
   - `ALWAYS_READY_TOOLS: frozenset[str]`
@@ -484,7 +525,7 @@ from __future__ import annotations
 import importlib.util
 import os
 
-from core.inference.tool_readiness import MISSING, READY, UNKNOWN, Readiness, register
+from core.inference.tool_readiness import MISSING, READY, UNKNOWN, Readiness, register_default
 
 # No external dependency: if the process is running, these work.
 ALWAYS_READY_TOOLS = frozenset({
@@ -600,15 +641,21 @@ def _probe_code_tool() -> Readiness:
 
 
 def install_default_probes() -> None:
-    """Register every v1 probe. Idempotent -- register() overwrites."""
+    """Register every v1 probe.
+
+    Called on EVERY readiness query and every enriched failure, so it must be
+    safe to re-run -- hence register_default, which leaves an already-registered
+    probe alone. Using register() here would silently overwrite a caller's
+    explicit registration the moment the feature was exercised.
+    """
     for name in ALWAYS_READY_TOOLS:
-        register(name, _probe_always_ready)
-    register("search_knowledge_base", _probe_unknown_kb)
-    register("web_search", _probe_web_search)
-    register("webcam_look", _probe_webcam_look)
-    register("face_swap", _probe_face_swap)
+        register_default(name, _probe_always_ready)
+    register_default("search_knowledge_base", _probe_unknown_kb)
+    register_default("web_search", _probe_web_search)
+    register_default("webcam_look", _probe_webcam_look)
+    register_default("face_swap", _probe_face_swap)
     for name in _CODE_TOOL_NAMES:
-        register(name, _probe_code_tool)
+        register_default(name, _probe_code_tool)
 ```
 
 - [ ] **Step 4: Run the tests and watch them pass**
@@ -983,6 +1030,10 @@ def _succeeding(name, arguments, **kwargs):
 
 
 def test_a_failure_with_a_missing_dependency_is_explained():
+    """The explicit tr.register below must survive the enricher's own
+    install_default_probes() call -- that is what register_default (Task 1)
+    guarantees. If defaults clobbered it, this test would resolve the REAL
+    face_swap probe and fail on text it never wrote."""
     tr.register("face_swap", lambda: tr.Readiness(
         tr.MISSING, "licence not accepted",
         missing = "InsightFace licence", remedy = "accept it in settings",
