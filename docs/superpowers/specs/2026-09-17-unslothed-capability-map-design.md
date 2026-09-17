@@ -170,8 +170,17 @@ speech-to-text is correctly `missing` until the first transcription downloads on
 | Tool | Probe | Delegates to |
 |---|---|---|
 | `remove_background` | `onnxruntime` importable; weight file present | `bg_removal._model_path()`, which honours `UNSLOTH_VISION_MODEL_DIR` |
-| `detect_shapes` | `torch` and `torchvision` importable; Mask R-CNN weight present | weight filename pinned in code (`maskrcnn_resnet50_fpn_coco-bf2d0c1e.pth`), directory from `torch.hub.get_dir()` **only when `torch` is already in `sys.modules`** — otherwise the weight check is `unknown` |
+| `detect_shapes` | `torch` and `torchvision` importable; Mask R-CNN weight present | weight filename pinned in code (`maskrcnn_resnet50_fpn_coco-bf2d0c1e.pth`), directory from `assist_vision.models.model_root()` + `/checkpoints` |
 | `edit_image_prompt` | an image model loaded on the **diffusers** engine | `diffusion_engine_router._active_engine_name` and the engine module's backend global, read via `sys.modules` |
+
+**Corrected 2026-09-17, after a task review caught it.** This table first specified `torch.hub.get_dir()`
+for the Mask R-CNN weight, with `unknown` whenever `torch` was not yet imported. That was wrong:
+`shape_detect._get_model()` calls `torch.hub.set_dir(model_root())` before the download
+(`shape_detect.py:69`, stated in its module docstring), so the weight caches under the app's own vision
+model root, not torch's default. Reading torch's default would report `missing` for an already-cached
+weight in any process where torch happened to be imported by another tool. `model_root()` needs no
+torch, so the `unknown` fallback disappears — and delegating to it is the rule this spec sets for every
+other probe.
 
 `edit_image_prompt` states, in order:
 
