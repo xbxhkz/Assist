@@ -91,8 +91,8 @@ readiness; readiness must never depend on the map.
 ```python
 @dataclass(frozen = True)
 class Requirement:
-    kind:  str   # "tool" | "module" | "binary" | "model"
-    name:  str   # "python" | "fitz" | "ffmpeg" | "vision"
+    kind:  str   # "tool" | "module" | "binary" | "model" | "cached_model"
+    name:  str   # "python" | "fitz" | "ffmpeg" | "vision" | "whisper"
 
 @dataclass(frozen = True)
 class Provider:
@@ -148,6 +148,22 @@ network.**
 | `module` | `importlib.util.find_spec(name)` (3a's `_module_present`) |
 | `binary` | `shutil.which(name)` |
 | `model` | read-only backend state — see below |
+| `cached_model` | at least one model file in that library's download cache — see below |
+
+### Cached models
+
+A library that downloads its model on first use is **`missing` until a model is cached**, matching
+3a's `webcam_look` convention (weight absent → `missing`, remedy "downloads on first use"). 3a's final
+review marked the opposite inconsistency — one auto-downloading tool `ready`, another `missing` —
+Important.
+
+v1 has one entry, `whisper`: any `*.pt` in `os.path.join(os.getenv("XDG_CACHE_HOME", ~/.cache),
+"whisper")`. Importing whisper to ask it would load torch, so the path is pinned, and a test reads
+`whisper.load_model`'s source and asserts it still builds `download_root` that way.
+
+Verified on the owner's machine on 2026-09-17: after installing FFmpeg 9.0.1, `whisper.audio.load_audio`
+decoded a generated 2-second tone into exactly 32,000 samples (16 kHz), but no model is cached, so
+speech-to-text is correctly `missing` until the first transcription downloads one.
 
 ### New tool probes (added to 3a's `probes.py`)
 
@@ -208,7 +224,7 @@ therefore `missing`.
 | `face_swap` | Swap a face between two images | tool `face_swap` | Needs the InsightFace licence accepted and its models downloaded. |
 | `image_generation` | Create an image from a text description | — | Studio can generate images on its Images page, but no agent tool exposes text-to-image yet. |
 | `video_editing` | Cut, convert or combine video | FFmpeg via terminal | Needs FFmpeg, a free command-line program. |
-| `speech_to_text` | Transcribe audio or video speech | Whisper via python (requires module `whisper` **and** binary `ffmpeg`) | Needs the Whisper Python package and FFmpeg, a free command-line program. |
+| `speech_to_text` | Transcribe audio or video speech | Whisper via python (requires module `whisper`, binary `ffmpeg` **and** a cached Whisper model) | Needs the Whisper Python package, FFmpeg (a free command-line program), and a Whisper model, which Whisper downloads on first use (the smallest is about 75 MB). |
 | `word_documents` | Read and write Word documents | python-docx via python | Needs the python-docx Python package. |
 | `document_search` | Search the user's uploaded documents | tool `search_knowledge_base` | Upload documents to a knowledge base. |
 | `conversation_recall` | Recall earlier parts of this conversation | tool `search_conversation` | Needs the conversation archive enabled with RAG available. |
@@ -305,7 +321,7 @@ run; **never the full backend suite** (upstream fixtures fabricate GGUF files up
 - Best option is the first *ready* provider, not the first listed.
 - An `unknown` provider never makes a capability `ready`.
 - A software provider requires its `via` tool.
-- Whisper with `ffmpeg` absent → `missing`; with both present → `ready`.
+- Whisper with `ffmpeg` absent → `missing`; with no cached model → `missing`; with all three → `ready`.
 - A capability with no providers → `missing`.
 
 **No-side-effect probes**
@@ -318,6 +334,7 @@ the getter.
 
 - The Mask R-CNN weight filename equals `MaskRCNN_ResNet50_FPN_Weights.DEFAULT.url`'s basename
   (torchvision imported in that test only).
+- The pinned Whisper cache directory matches how `whisper.load_model` builds `download_root`.
 - An active sd.cpp engine makes `edit_image_prompt` `missing` with its reason.
 
 **Output**
@@ -345,6 +362,11 @@ crashes on start all pass a cheap check — the same accepted limit as 3a.
 
 ## Out of scope
 
+- **Dedicated `transcribe_audio` and `edit_video` tools — the owner's chosen NEXT piece (3c).** This
+  piece maps both capabilities through `python` + Whisper and `terminal` + FFmpeg. When 3c ships, those
+  tools are added to the vocabulary as each capability's first-preference provider. 3c needs its own
+  design: which edit operations, confining file access to the chat's workspace, timeouts and
+  cancellation for long media, and consent before a Whisper model download.
 - Acquiring anything (§4) — this piece only makes absence visible and describes what would fill it
 - MCP tools in the map
 - Audio understanding as a model ability
