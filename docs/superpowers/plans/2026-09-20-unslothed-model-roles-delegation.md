@@ -498,23 +498,14 @@ def test_both_endpoints_require_authentication(monkeypatch, tmp_path):
     assert unauthenticated.put("/api/model-roles", json = {"roles": {}}).status_code in (401, 403)
 ```
 
-- [ ] **Step 2: Confirm the auth dependency's import path**
-
-The test imports `get_current_subject` from `utils.auth`. Confirm that is where `routes/tool_audit.py` imports it from:
-
-```
-grep -n "get_current_subject" studio/backend/routes/tool_audit.py
-```
-Use whatever path that file uses, in both the router and the test. If it differs, fix both before running.
-
-- [ ] **Step 3: Run it and watch it fail**
+- [ ] **Step 2: Run it and watch it fail**
 
 ```
 C:/Users/Admin/.unsloth/studio/unsloth_studio/Scripts/python.exe -m pytest tests/test_model_roles_api.py -q -p no:cacheprovider
 ```
 Expected: collection error — `cannot import name 'model_roles' from 'routes'`.
 
-- [ ] **Step 4: Create the router**
+- [ ] **Step 3: Create the router**
 
 Create `studio/backend/routes/model_roles.py`:
 
@@ -592,14 +583,14 @@ def write_model_roles(
     return read_model_roles(current_subject = current_subject)
 ```
 
-- [ ] **Step 5: Run the tests and watch them pass**
+- [ ] **Step 4: Run the tests and watch them pass**
 
 ```
 C:/Users/Admin/.unsloth/studio/unsloth_studio/Scripts/python.exe -m pytest tests/test_model_roles_api.py tests/test_model_roles.py -q -p no:cacheprovider
 ```
 Expected: 17 passed.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add studio/backend/routes/model_roles.py studio/backend/tests/test_model_roles_api.py
@@ -615,7 +606,7 @@ dependency in place and proves nothing.
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
 
-- [ ] **Step 7: Demonstrate the controls (after committing)**
+- [ ] **Step 6: Demonstrate the controls (after committing)**
 
 1. Remove `Depends(get_current_subject)` from both endpoints. Expect `test_both_endpoints_require_authentication` to FAIL.
 2. Drop the `isinstance(model, str)` check in the PUT. Expect `test_put_rejects_a_binding_without_a_model` to FAIL.
