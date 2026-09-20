@@ -224,7 +224,7 @@ therefore `missing`.
 | `filesystem` | Read, write and edit files | tool `edit_file` (exact edits); tool `terminal` (list, move, read); tool `python` (bulk or structured) | — |
 | `pdf_analysis` | Extract text and tables from PDFs | pymupdf4llm via python (keeps layout as Markdown); PyMuPDF via python (page-level access) | Needs the PyMuPDF Python package. |
 | `ocr` | Read text in images | vision model (understands layout, nothing to install); Tesseract via terminal; EasyOCR via python | Load a vision-capable model, or install Tesseract OCR (a free program). |
-| `image_understanding` | Describe or answer questions about an image | vision model; tool `detect_shapes` (labels objects only) | Load a vision-capable model. |
+| `image_understanding` | Describe or answer questions about an image | vision model | Load a vision-capable model. |
 | `object_detection` | Find and label objects in a photo | tool `detect_shapes` (boxes and confidences); vision model (descriptive, no boxes) | Needs torch, torchvision and the Mask R-CNN weights. |
 | `camera` | See through the webcam | tool `webcam_look` | Needs a webcam, ultralytics, OpenCV and the YOLO weights. |
 | `image_processing` | Resize, crop, convert or adjust images precisely | Pillow via python (simple, exact); OpenCV via python (advanced operations) | Needs the Pillow Python package. |
