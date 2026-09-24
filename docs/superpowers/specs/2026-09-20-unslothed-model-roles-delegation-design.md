@@ -170,10 +170,43 @@ in the database, the artifacts persist on disk, and both survive the swap. A str
 
 The full-sub-agent choice makes each of these load-bearing.
 
-**Approvals — inherit, never exceed.** The delegate runs under the primary's permission mode and the
-same approval handshake, with the **real session id** so prompts surface in the UI as they do today. It
-never receives a bypass the primary did not have. `wait_tool_decision` fails closed, so an unanswered
-prompt ends as a denial rather than a hang.
+**Approvals — one prompt, for the delegation itself.** *(Amended after implementation: this paragraph
+originally said the delegate "runs under the primary's permission mode and the same approval handshake"
+and "never receives a bypass the primary did not have". Neither is achievable at this layer, and what
+shipped is below.)*
+
+The handshake cannot be inherited by a tool handler. `wait_tool_decision` is called in exactly three
+places — `studio_tool_loop.py`, `llama_cpp.py`, `safetensors_agentic.py` — all in the tool **loops**,
+above `execute_tool`. `execute_tool`'s signature carries neither the permission mode, nor the confirm
+flag, nor the enabled-tool list, and the loops that hold them are upstream lines in files this fork does
+not edit. A delegation runs *inside* one `execute_tool` call, so it structurally cannot see the
+primary's permission context, and a per-call gate built inside it was tried and removed: it was
+inverted, refusing the fork's own vision and `edit_file` tools (unknown to the upstream classifier,
+which fails closed) while letting bare `python` and `terminal` through. Fail-closed is right in a loop
+that can *prompt*; here there is nobody to ask, so it is fail-dead.
+
+**The approval point is `ask_model` itself.** It is deliberately absent from `_ALWAYS_SAFE_TOOLS` and
+`_ANTHROPIC_UNPROMPTED_SAFE_TOOLS`, so `is_high_risk_tool_call` returns True and a loop that prompts at
+all prompts for the delegation — one role and one task, readable on the card — before anything runs.
+That prompt is gated like every other: on `confirm_tool_calls`, on `bypass_permissions` being off, and
+on `permission_mode != "off"`. With confirmation switched off there is no approval point for this tool,
+exactly as there is none for `terminal`.
+
+**What that approval covers, and what it does not.** It covers the role, the task, and everything the
+delegate does inside its budgets: the delegate's individual tool calls are **not** confirmed separately,
+so a call that would have prompted in the conversation does not prompt inside a delegation. It does not
+lift anything underneath: the sub-agent's iteration and time caps, the written transcript of every
+round, the audit rows (carrying `delegation_id`), and the sandbox with its blocklist, rlimits and
+secret-stripping all still apply, and none of them are approval-gated. It is the same shape as approving
+a `terminal` script, which does not re-prompt per syscall. The delegate is given the **real session id**,
+so nothing about sandbox isolation or attribution changes.
+
+**Residual, stated rather than accepted silently:** the delegate receives `ALL_TOOLS` minus `ask_model`
+— the server's full tool set, not the `enabled_tools` selection the user left switched on, because
+nothing at this layer knows which pills are off. A tool switched off in the UI is therefore still
+reachable by a delegate. This is disclosed in the tool description (which is what the approval card
+shows), in the delegate's own system prompt, and in `delegation/__init__.py`'s module docstring. Closing
+it needs `execute_tool` to carry the selection, which is an upstream signature change.
 
 **Loop prevention, two layers.** `ask_model` is removed from the delegate's tool list, *and* a depth
 guard rejects a nested delegation while one is running. The first is data someone can edit; the second
