@@ -2665,37 +2665,53 @@ def _default_project_dir() -> str:
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(prog = "continuity_cli")
-    parser.add_argument("--project-dir", default = None)
+    # --project-dir is declared on a shared PARENT parser, given to every leaf
+    # subparser via parents=[...], not just on the top-level parser. argparse
+    # requires an option declared only on the top-level parser to come BEFORE
+    # the subcommand name; every call in this module's own usage and every test
+    # writes it AFTER the verb ("status --project-dir X"), which argparse
+    # rejects as "unrecognized arguments" unless each leaf parser also declares
+    # it. Verified empirically, not assumed.
+    common = argparse.ArgumentParser(add_help = False)
+    common.add_argument("--project-dir", default = None)
+
+    parser = argparse.ArgumentParser(prog = "continuity_cli", parents = [common])
     sub = parser.add_subparsers(dest = "verb")
 
-    sub.add_parser("status")
-    sub.add_parser("validate")
-    sub.add_parser("repair")
+    sub.add_parser("status", parents = [common])
+    sub.add_parser("validate", parents = [common])
+    sub.add_parser("repair", parents = [common])
 
-    init = sub.add_parser("init")
+    init = sub.add_parser("init", parents = [common])
     init.add_argument("project")
     init.add_argument("--phase", default = "")
 
-    cp = sub.add_parser("checkpoint")
+    cp = sub.add_parser("checkpoint", parents = [common])
     cp.add_argument("note")
 
-    task = sub.add_parser("task")
+    task = sub.add_parser("task", parents = [common])
     task_sub = task.add_subparsers(dest = "task_verb")
-    add = task_sub.add_parser("add")
+    add = task_sub.add_parser("add", parents = [common])
     add.add_argument("id")
     add.add_argument("--title", default = None)
     add.add_argument("--depends-on", default = "")
     add.add_argument("--criteria", default = "")
-    set_status = task_sub.add_parser("set-status")
+    set_status = task_sub.add_parser("set-status", parents = [common])
     set_status.add_argument("id")
     set_status.add_argument("status")
 
-    args = parser.parse_args(argv)
+    # argparse raises SystemExit(2) on an unrecognized verb, not a normal
+    # exception -- left uncaught, that escapes main() entirely rather than
+    # becoming the nonzero return code test_an_unknown_verb_exits_nonzero_and_says_so
+    # (and every other caller of main()) expects.
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 2
     project_dir = args.project_dir or _default_project_dir()
 
     from core.continuity import (
-        add_task, checkpoint, load_state, record_error, repair, set_task_status,
+        add_task, checkpoint, load_state, load_tasks, repair, set_task_status,
         validate, write_state,
     )
     from core.continuity.render import render_context_summary
@@ -2723,6 +2739,19 @@ def main(argv: list[str]) -> int:
             return 0
 
         if args.verb == "status":
+            # Same fallback Task 9's continuity_task tool needed for the
+            # identical reason: render_context_summary reports "no project
+            # state" whenever project_state.json doesn't exist, regardless of
+            # whether tasks have been added -- and add_task alone (without
+            # init) never creates one. Without this, adding a task and then
+            # checking status shows nothing, even though real work is tracked.
+            if load_state(project_dir) is None:
+                queue = load_tasks(project_dir)
+                if queue.tasks:
+                    print("No project_state.json yet (run `init` to create one). Tasks:")
+                    for t in queue.tasks:
+                        print(f"- [{t.status}] {t.id}: {t.title}")
+                    return 0
             print(render_context_summary(project_dir))
             return 0
 
