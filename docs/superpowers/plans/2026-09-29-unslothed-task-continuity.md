@@ -2558,6 +2558,34 @@ def test_status_on_a_fresh_project_prints_something(tmp_path, capsys):
     assert "No project state" in out or "not recorded" in out
 
 
+def test_init_creates_project_state_then_status_shows_it(tmp_path, capsys):
+    """The one gap Task 9's review confirmed spans the whole plan: nothing else
+    -- not the tool, not any other CLI verb -- can ever create the FIRST
+    project_state.json. This is that path."""
+    cli = _load_cli_module()
+    exit_code = cli.main(["init", "demo-project", "--project-dir", str(tmp_path)])
+    assert exit_code == 0
+    capsys.readouterr()
+    exit_code = cli.main(["status", "--project-dir", str(tmp_path)])
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "demo-project" in out
+
+
+def test_init_refuses_to_overwrite_an_existing_state(tmp_path, capsys):
+    """A second init must not silently erase real progress -- completed work,
+    blocking_issues, etc. -- that a fresh ProjectState would discard."""
+    cli = _load_cli_module()
+    assert cli.main(["init", "first", "--project-dir", str(tmp_path)]) == 0
+    capsys.readouterr()
+    exit_code = cli.main(["init", "second", "--project-dir", str(tmp_path)])
+    assert exit_code != 0
+    capsys.readouterr()
+    exit_code = cli.main(["status", "--project-dir", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert "first" in out, "the original state must survive the refused second init"
+
+
 def test_task_add_then_status_round_trips(tmp_path, capsys):
     cli = _load_cli_module()
     cli.main(["task", "add", "t1", "--title", "do the thing", "--project-dir", str(tmp_path)])
@@ -2645,6 +2673,10 @@ def main(argv: list[str]) -> int:
     sub.add_parser("validate")
     sub.add_parser("repair")
 
+    init = sub.add_parser("init")
+    init.add_argument("project")
+    init.add_argument("--phase", default = "")
+
     cp = sub.add_parser("checkpoint")
     cp.add_argument("note")
 
@@ -2663,12 +2695,33 @@ def main(argv: list[str]) -> int:
     project_dir = args.project_dir or _default_project_dir()
 
     from core.continuity import (
-        add_task, checkpoint, record_error, repair, set_task_status, validate,
+        add_task, checkpoint, load_state, record_error, repair, set_task_status,
+        validate, write_state,
     )
     from core.continuity.render import render_context_summary
-    from core.continuity.schemas import ContinuityError, Task
+    from core.continuity.schemas import ContinuityError, ProjectState, Task
 
     try:
+        if args.verb == "init":
+            # The one gap the tool deliberately leaves to a human: nothing in
+            # continuity_task (the app-side tool) or this CLI's other verbs can
+            # ever create the FIRST project_state.json -- update_state requires
+            # one to already exist, and write_state itself has no other caller.
+            # Refuses rather than overwrites: init is a one-time bootstrap, and
+            # an accidental second run must not silently erase real progress
+            # (completed, in_progress, blocking_issues, ...).
+            if load_state(project_dir) is not None:
+                print(f"Error: project_state.json already exists at {project_dir!r} "
+                      "-- init refuses to overwrite it.", file = sys.stderr)
+                return 1
+            write_state(project_dir, ProjectState(
+                schema_version = 1, project = args.project, status = "active",
+                current_phase = args.phase, current_task = None,
+                completion_percent = 0, last_checkpoint = None,
+            ))
+            print(f"Initialized {args.project!r} at {project_dir!r}.")
+            return 0
+
         if args.verb == "status":
             print(render_context_summary(project_dir))
             return 0
@@ -2726,7 +2779,7 @@ if __name__ == "__main__":
 ```
 C:/Users/Admin/.unsloth/studio/unsloth_studio/Scripts/python.exe -m pytest tests/test_continuity_cli.py -q -p no:cacheprovider
 ```
-Expected: 4 passed.
+Expected: 6 passed.
 
 - [ ] **Step 5: Manually verify the CLI runs standalone**
 
