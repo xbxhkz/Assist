@@ -159,13 +159,24 @@ Legal status transitions (checked by `set_task_status`, illegal ones raise
 `ContinuityError` rather than silently applying):
 
 ```
-pending -> ready is automatic (derived), never a direct write target
-ready -> in_progress -> {complete, failed, blocked}
-blocked -> ready (once the blocker clears) -> in_progress
+pending -> in_progress -> {complete, failed, blocked}
+blocked -> pending
 failed -> abandoned, or -> pending (retry)
 any -> abandoned (explicit give-up)
 complete is terminal
 ```
+
+**`"ready"` is not a state in this table, on purpose — it is never a legal `set_task_status`
+target.** An earlier draft of this table wrote `pending -> ready` and `blocked -> ready` as
+transitions, directly contradicting the paragraph immediately above stating "ready" is derived
+and never hand-set: if it can also be written by `set_task_status`, it is a second source of
+truth for the same fact, able to disagree with the derived one. Caught before implementation
+reached this state, during the plan's Task 3 review — a caller decides a `pending` task is
+unblocked by consulting `ready_tasks()` (or the rendered summary), then calls `set_task_status`
+straight to `in_progress`; there is no intermediate stored state to pass through. A `blocked`
+task returns to `pending`, not to a "ready" it could only otherwise reach by having been blocked.
+`set_task_status(id, "ready")` is refused with "unknown status", the same as any other invalid
+target, not by a special case — "ready" is absent from the valid-status set entirely.
 
 Per §19: never mark `complete` because code was written. `set_task_status(..., "complete")`
 requires `acceptance_criteria` to be non-empty on that task — an empty list refuses the

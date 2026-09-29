@@ -735,13 +735,24 @@ def test_ready_tasks_is_derived_not_stored(tmp_path):
     add_task(str(tmp_path), _task("t1", status = "pending"))
     add_task(str(tmp_path), _task("t2", status = "pending", depends_on = ["t1"]))
     assert [t.id for t in ready_tasks(str(tmp_path))] == ["t1"]
-    set_task_status(str(tmp_path), "t1", "ready")
+    # Straight to in_progress: there is no stored "ready" state to pass
+    # through, only the computed answer ready_tasks() already gave above.
     set_task_status(str(tmp_path), "t1", "in_progress")
     set_task_status(str(tmp_path), "t1", "complete")
     # t2's status field is still "pending" on disk; readiness is computed, not read.
     loaded = load_tasks(str(tmp_path))
     assert next(t for t in loaded.tasks if t.id == "t2").status == "pending"
     assert [t.id for t in ready_tasks(str(tmp_path))] == ["t2"]
+
+
+def test_set_task_status_refuses_ready_as_a_write_target(tmp_path):
+    """The other half of "derived, not stored": ready is not merely unused as
+    a transition target, it is actively refused if a caller tries to set it
+    explicitly -- there must be no way to create the second source of truth
+    the whole design exists to avoid."""
+    add_task(str(tmp_path), _task("t1", status = "pending"))
+    with pytest.raises(ContinuityError):
+        set_task_status(str(tmp_path), "t1", "ready")
 
 
 def test_illegal_transition_raises(tmp_path):
@@ -753,7 +764,6 @@ def test_illegal_transition_raises(tmp_path):
 
 def test_complete_requires_non_empty_acceptance_criteria(tmp_path):
     add_task(str(tmp_path), _task("t1", status = "pending", acceptance_criteria = []))
-    set_task_status(str(tmp_path), "t1", "ready")
     set_task_status(str(tmp_path), "t1", "in_progress")
     with pytest.raises(ContinuityError):
         set_task_status(str(tmp_path), "t1", "complete")
@@ -780,15 +790,24 @@ from core.continuity.schemas import Task, TaskQueue
 
 _TASKS_FILENAME = "task_queue.json"
 
-# Legal edges. "ready" never appears as a WRITE target here on purpose --
-# it is computed by ready_tasks, never set by set_task_status. A caller trying
-# to set it explicitly hits _VALID_STATUSES below and is refused, which is the
-# guard against ever adding a second source of truth for the same fact.
+# Legal edges. "ready" is NEVER a key here and never appears as a write
+# target -- it is a status a task can only be JUDGED to have (ready_tasks
+# computes it from depends_on + status), never one it can be SET to. Deriving
+# "ready" and then also allowing set_task_status(id, "ready") would be two
+# sources of truth for the same fact, able to disagree. Because "ready" is
+# absent from this dict, it is absent from _VALID_STATUSES too (built from
+# this dict's keys below), so set_task_status(id, "ready") is refused with
+# "unknown status" before the transition table is even consulted -- there is
+# no special-case check needed to keep the promise the comment makes.
+#
+# Concretely: a pending task goes straight to in_progress once a caller has
+# decided (typically by first calling ready_tasks()) that it is unblocked --
+# there is no intermediate stored state to pass through. blocked returns to
+# pending, not to a "ready" it was never blocked away from reaching that way.
 _TRANSITIONS: dict[str, set[str]] = {
-    "pending": set(),                        # only ready_tasks moves work off pending
-    "ready": {"in_progress"},
+    "pending": {"in_progress"},
     "in_progress": {"complete", "failed", "blocked"},
-    "blocked": {"ready"},
+    "blocked": {"pending"},
     "failed": {"abandoned", "pending"},
     "abandoned": set(),
     "complete": set(),
@@ -869,7 +888,7 @@ use the straightforward attribute access).
 ```
 C:/Users/Admin/.unsloth/studio/unsloth_studio/Scripts/python.exe -m pytest tests/test_continuity_tasks.py -q -p no:cacheprovider
 ```
-Expected: 8 passed.
+Expected: 9 passed.
 
 - [ ] **Step 5: Commit**
 
@@ -1328,7 +1347,6 @@ def test_validate_reports_corrupt_json(tmp_path):
 
 def test_repair_never_completes_a_task(tmp_path):
     add_task(str(tmp_path), _task("t1"))
-    set_task_status(str(tmp_path), "t1", "ready")
     set_task_status(str(tmp_path), "t1", "in_progress")
     repair(str(tmp_path))
     from core.continuity import load_tasks
@@ -2029,7 +2047,7 @@ CONTINUITY_TASK_TOOL = {
                 "title": {"type": "string", "description": "Task title (add_task)."},
                 "status": {
                     "type": "string",
-                    "description": "New status (set_status): ready, in_progress, complete, failed, blocked, abandoned, pending.",
+                    "description": "New status (set_status): in_progress, complete, failed, blocked, abandoned, pending. ('ready' is never set explicitly -- it is computed; use status action to see which pending tasks are unblocked.)",
                 },
                 "depends_on": {
                     "type": "array", "items": {"type": "string"},
