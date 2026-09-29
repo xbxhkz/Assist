@@ -1258,10 +1258,23 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 - [ ] **Step 6: Demonstrate the control (after committing)**
 
-In `checkpoint`, replace both `sorted(..., key = lambda p: int(p.split("-", 1)[0]))` calls with a
-bare `sorted(...)` (alphabetical on the full filename, which includes a random hex suffix and so
-does not track write order). Run `test_checkpoint_prunes_the_oldest_first`. Expected: FAIL —
-pruning removes an essentially random 2 of the 5 rather than the first 2 written. Restore with
+**Corrected 2026-09-29, during Task 5's review — the original instruction below this line was
+inert and must not be used.** The filename is an 8-digit zero-padded sequence number followed by
+a random hex suffix (`f"{seq:08d}-{hex}.json"`). For distinct sequence numbers of equal width,
+lexicographic string order and numeric order are mathematically identical — bare alphabetical
+`sorted()` on the full filename reproduces true write order exactly, every time, because the
+comparison is always decided inside the zero-padded prefix before the suffix is ever reached. A
+mutation to bare `sorted(...)` therefore cannot fail regardless of whether the real guard (sort by
+sequence, not directory order) is present or missing. Verified empirically by the Task 5 reviewer.
+
+Use this mutation instead, which sorts by the random suffix rather than the sequence prefix — the
+suffix is `uuid.uuid4().hex[:8]`, uncorrelated with write order, so sorting by it reliably desyncs
+the result from write order:
+
+In `checkpoint`, replace both `sorted(..., key = lambda p: int(p.split("-", 1)[0]))` calls with
+`sorted(..., key = lambda p: p.split("-", 1)[1])` (sorts by the random suffix instead of the
+sequence number). Run `test_checkpoint_prunes_the_oldest_first`. Expected: FAIL — pruning removes
+an essentially random 2 of the 5 rather than the first 2 written. Restore with
 `git checkout -- studio/backend/core/continuity/__init__.py`. Finish with a clean
 `git status --porcelain`.
 
