@@ -201,39 +201,83 @@ change that.
 
 ### 4.4 Load routes check parked state first
 
-The routes that currently call `gpu_arbiter.acquire_for(DIFFUSION, register=...)` /
-`acquire_for(VIDEO, register=...)` (in `routes/inference.py`, `routes/video.py`) gain one check
-in their `register` callback, before doing a cold load:
+**Correction from the original design conversation:** the check does NOT belong in the route.
+`routes/inference.py`'s diffusion-load handler is a single, already very large (~24000-line file)
+function with extensive existing preflight/precision/arbiter-ordering logic; `routes/video.py`'s
+mirrors it. Neither route currently has, or needs, an "is this identical to what's already
+resident" concept — that decision belongs to the backend that owns `_LoadState`. The check goes
+into `DiffusionBackend.begin_load()` (`core/inference/diffusion.py:1837`) and the video backend's
+equivalent entry point, BEFORE either spawns its slow background load thread (`self._run_load`,
+`core/inference/diffusion.py:1940`) — restoring skips that thread entirely, which is the whole
+point. **This means routes/inference.py and routes/video.py need NO changes at all** — a smaller
+footprint than the original design assumed, and the intricate route logic is untouched.
 
 ```python
+# Inside begin_load(), after validate_load_request()/assert_precision_available(), before the
+# "with self._lock: ... threading.Thread(target=self._run_load, ...)" block:
 from core.inference import memory_residency
 
 if memory_residency.is_parked(DIFFUSION):
-    memory_residency.restore_owner(DIFFUSION, engine.restore)
-else:
-    ...existing cold-load path...
+    if self._matches_parked_identity(
+        repo_id = repo_id, gguf_filename = gguf_filename, base_repo = base_repo,
+        model_kind = model_kind, transformer_quant = transformer_quant,
+        text_encoder_quant = text_encoder_quant, cpu_offload = cpu_offload,
+        memory_mode = memory_mode, gpu_ordinal = gpu_ordinal, loras = loras,
+    ):
+        try:
+            memory_residency.restore_owner(DIFFUSION, self.restore)
+            return self.status()
+        except Exception:
+            memory_residency.forget_parked(DIFFUSION)  # clears stale bookkeeping; falls through below
+    else:
+        memory_residency.forget_parked(DIFFUSION)  # a different model was requested; the parked one is moot -- drop it
+        self.unload()
+# ...existing cold-load path (spawn self._run_load) continues unchanged...
 ```
 
-If `restore_owner`/`engine.restore()` raises, the route catches it, clears the stale parked
-bookkeeping (so a retry doesn't loop trying to restore something broken), and falls through to the
-existing cold-load path — the same recovery a first-time load already has, entered from a
-different place. This fallback is REQUIRED, not optional: a route that lets a restore failure
-propagate as a hard error, when a cold load would have succeeded, is a regression this piece must
-not introduce.
+**Identity check (`_matches_parked_identity`, a new small private method):** compares the
+requested load's parameters against the values already stored on `self._state` (most already
+exist as `_LoadState` fields: `repo_id`, `gguf_filename`, `base_repo`, `kind`, `transformer_quant`,
+`text_encoder_quant`, `cpu_offload`, `memory_mode`, `gpu_ordinal`) plus a LoRA check
+(`_active_lora_pairs(self._state.pipe) == loras` — LoRAs are tracked as an attribute on the
+pipeline object itself, `core/inference/diffusion.py:5924`, so they travel with `state.pipe`
+through park/restore automatically; the check only needs to confirm the request didn't ask for
+DIFFERENT ones). **Conservative by design: any field that doesn't match, or can't be compared,
+means "not the same model" — restore only happens on a confirmed exact match.** Runtime-only knobs
+that don't change which weights are resident (`attention_backend`, `speed_mode`,
+`transformer_cache`, `gpu_ids` beyond the resolved `gpu_ordinal`) are deliberately excluded from
+the identity check — a restore keeps the parked pipeline's OWN settings for these rather than
+picking up newly requested ones, a documented v1 limitation, not a correctness bug (the weights
+themselves are still guaranteed correct).
+
+**`memory_residency.forget_parked(owner)`** (a small addition to the module's interface from §4.2,
+alongside `park_owner`/`restore_owner`/`is_parked`/`parked_footprint_mib`): clears an owner's
+parked bookkeeping without calling `restore()` or `unload()` itself — the caller has already
+decided what to do with the actual pipeline (call `self.unload()` for a moot identity mismatch, or
+nothing further for a failed restore that's about to fall through to a fresh cold load, which will
+overwrite `self._state` itself).
+
+This same shape (check `is_parked`, compare identity, restore-or-unload-and-cold-load) applies to
+the video backend's own load entry point, using the video backend's own equivalent fields.
 
 ## 5. Data flow (worked example)
 
-1. Diffusion generates → `acquire_for(DIFFUSION, register=load_cb)`. No current owner; `load_cb`
-   runs a normal cold `load()`.
-2. User switches to video → `acquire_for(VIDEO, register=video_load_cb)`. Arbiter evicts
-   DIFFUSION → `_evict_diffusion()` → diffusers engine → `memory_residency.park_owner(DIFFUSION,
+1. Diffusion generates → route calls `acquire_for(DIFFUSION, register=_begin_load)` exactly as
+   today; `_begin_load` → `DiffusionBackend.begin_load(...)`. No current owner to evict;
+   `is_parked(DIFFUSION)` is false; normal cold load (spawns `_run_load`).
+2. User switches to video → `acquire_for(VIDEO, register=...)`. Arbiter evicts DIFFUSION →
+   `_evict_diffusion()` → diffusers engine, `OFFLOAD_NONE` → `memory_residency.park_owner(DIFFUSION,
    ...)` → diffusion's pipeline moves to CPU RAM, object stays alive, tracked with footprint +
-   timestamp. Ownership transfers to VIDEO; `video_load_cb` checks `is_parked(VIDEO)` → false
-   (first use) → cold `load()`.
-3. User switches back to diffusion → `acquire_for(DIFFUSION, ...)`. Arbiter evicts VIDEO → parked
-   the same way. Ownership transfers to DIFFUSION; `load_cb` checks `is_parked(DIFFUSION)` → true
-   → `restore_owner` → pipeline moves CPU→GPU (no offload policy to reapply — park only ever
-   engaged because this load was at `OFFLOAD_NONE`, §3), no disk read, no pipeline reconstruction.
+   timestamp. Ownership transfers to VIDEO; video's `begin_load` checks `is_parked(VIDEO)` → false
+   (first use) → cold load.
+3. User switches back to diffusion, requesting the SAME model/config as before → `acquire_for
+   (DIFFUSION, ...)`. Arbiter evicts VIDEO → parked the same way. Ownership transfers to DIFFUSION;
+   `begin_load` checks `is_parked(DIFFUSION)` → true → `_matches_parked_identity(...)` → true →
+   `restore_owner` → pipeline moves CPU→GPU (no offload policy to reapply — park only ever engaged
+   because this load was at `OFFLOAD_NONE`, §3), no disk read, no pipeline reconstruction, `_run_load`
+   never spawned. (Had the user requested a DIFFERENT model instead, the identity check would fail,
+   `forget_parked` + `unload()` would drop the stale parked pipeline, and a normal cold load would
+   proceed — never serving the wrong weights.)
 4. If step 2 or 3's park would push total parked RAM over the configured budget,
    `memory_residency` first fully `unload()`s whichever *other* parked owner has been parked
    longest before parking the new one — budget pressure degrades gracefully to today's full-reload
@@ -255,9 +299,9 @@ unconditionally and does not itself implement any of this fallback logic:
   exceeding the RAM budget or leaving inconsistent tracked state (an owner marked parked whose
   forced neighbor eviction actually failed).
 - `restore()` raising (e.g. CUDA OOM because something else grew VRAM usage while this was parked)
-  propagates out of `restore_owner` to the caller (the load route, §4.4), which clears the stale
-  parked bookkeeping and falls back to a normal cold `load()` — never a bare error surfaced to the
-  user when a cold load would have worked. This is the one failure mode NOT absorbed inside
+  propagates out of `restore_owner` to the caller (`begin_load`, §4.4), which calls
+  `forget_parked` and falls through to the normal cold-load path — never a bare error surfaced to
+  the user when a cold load would have worked. This is the one failure mode NOT absorbed inside
   `memory_residency` itself, because recovering from it means re-entering the load path, which
   `memory_residency` has no access to.
 
@@ -291,9 +335,12 @@ guard needs a mutation-demonstrated negative control):
   `park()` returns `False` without calling `.to()` at all; a `.to()` raising during `park()` falls
   back to real `unload()` (state becomes `None`).
 - Video backend: same three tests, mirroring diffusion's.
-- One test per load route confirming `is_parked(owner) == True` causes `restore()` to be called
-  and the cold-load path to be skipped entirely (mocked, no real model); one confirming a
-  `restore()` failure falls through to the cold-load path rather than raising to the caller.
+- `begin_load`'s parked-state handling tested directly on each backend (mocked, no real model):
+  `is_parked(owner) == True` plus a matching identity causes `restore()` to be called and
+  `_run_load`/the background load thread to never spawn; a mismatched identity (different
+  `repo_id`, or different `loras`) causes `forget_parked` + `unload()` + a normal cold load instead
+  of a restore; a `restore()` failure falls through to the cold-load path rather than raising to
+  the caller.
 
 ## 9. Review Focus
 
@@ -307,6 +354,15 @@ Failure modes/inputs this spec implies but a task's own tests could still miss, 
   tests while being broken — or, worse, silently no-op-ing — against every real oversized-model
   load. This is the single most likely place a task's own tests pass while the real behavior is
   wrong, precisely because the common test double doesn't reproduce diffusers' actual constraint.
+- **Restoring a parked pipeline when the user actually requested a DIFFERENT model.** The highest-
+  cost mistake this piece could make: `is_parked(owner) == True` is not sufficient on its own to
+  restore — `_matches_parked_identity` (§4.4) must genuinely compare the request against what's
+  parked, and any uncertainty must fall back to a cold load, never a restore. A task whose test
+  only exercises "same model, restore happens" and never "different model requested while one is
+  parked, cold load happens instead (not the stale one served)" has not actually verified the
+  identity check does anything — an inert-control risk this project has hit 17+ times before, and
+  the exact shape of it here: a check that always passes regardless of whether it compares the
+  right thing looks identical to a correct one in the "happy path only" test.
 - **A park/restore race with a concurrent `acquire_for` for the SAME owner.** `gpu_arbiter`'s
   eviction runs under its own lock, but `park()`/`restore()` on the backend run under the
   backend's OWN lock, not the arbiter's — a slow park racing a fast re-acquire of the same owner
